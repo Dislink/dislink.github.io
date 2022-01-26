@@ -402,9 +402,9 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2, MODE_PRACTICE = 3;
         // TODO 添加反馈
         if (mode === MODE_ENDLESS) return '';
         if (score <= 49) return '一锹除走！';
-        if (score <= 99) return '道德败坏！';
-        if (score <= 149) return '浑蛋!';
-        if (score <= 199) return '分享关键词？';
+        if (score <= 99) return '做子女是有保质期的！';
+        if (score <= 149) return '道德败坏!';
+        if (score <= 199) return '下一次你来分享关键词？';
         return '人？';
     }
 
@@ -442,7 +442,7 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2, MODE_PRACTICE = 3;
     w.initSetting = function() {
         document.getElementById("username").value = cookie("username") ? cookie("username") : "";
         document.getElementById("message").value = cookie("message") ? cookie("message") : "";
-        document.getElementsByTagName("title")[0].innerText = cookie("title") ? cookie("title") : "吃掉小鹿乃";
+        document.getElementsByTagName("title")[0].innerText = cookie("title") ? cookie("title") : "吃掉李勇";
         if (cookie("keyboard")) {
             document.getElementById("keyboard").value = cookie("keyboard");
             map = {}
