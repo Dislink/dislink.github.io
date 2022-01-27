@@ -442,7 +442,7 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2, MODE_PRACTICE = 3;
     w.initSetting = function() {
         document.getElementById("username").value = cookie("username") ? cookie("username") : "";
         document.getElementById("message").value = cookie("message") ? cookie("message") : "";
-        document.getElementsByTagName("title")[0].innerText = cookie("title") ? cookie("title") : "吃掉李勇";
+        document.getElementsByTagName("title")[0].innerText = cookie("title") ? cookie("title") : "吃掉仙人";
         if (cookie("keyboard")) {
             document.getElementById("keyboard").value = cookie("keyboard");
             map = {}
