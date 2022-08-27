@@ -167,7 +167,7 @@
 				for(let i in chunks[chunkPos]){
 					content+=`setblock ${relativePos.checked?'~'+(chunks[chunkPos][i][0]-xlimCurrent/2)+" ~ ~"+(chunks[chunkPos][i][1]-ylimCurrent/2):(parseInt(chunkPos.split(',')[0])*xlimCurrent+chunks[chunkPos][i][0])+" ~ "+(parseInt(chunkPos.split(',')[1])*ylimCurrent+chunks[chunkPos][i][1])} ${chunks[chunkPos][i][3]}\n`
 				}
-				if(guideCommand.checked) content+=chunkList[parseInt(n)+1]?`tp @s ${(relativePos.checked?'~':'')+((relativePos.checked?parseInt(chunkPos.split(',')[0])*xlimCurrent:0)+((parseInt(chunkPos.split(',')[0])+0.5)*xlimCurrent))+" ~ "+(relativePos.checked?'~':'')+(((relativePos.checked?parseInt(chunkPos.split(',')[1])*ylimCurrent:0)+((parseInt(chunkPos.split(',')[1])+0.5)*ylimCurrent)))}\nsay 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function \u0022${chunkList[parseInt(n)+1].replace(',','-')}\u0022继续生成`:`say 生成完成！`;
+				if(guideCommand.checked) content+=chunkList[parseInt(n)+1]?`tp @s ${(relativePos.checked?'~':'')+((relativePos.checked?parseInt(chunkList[0].split(',')[0])*xlimCurrent:0)+((parseInt(chunkPos.split(',')[0])+0.5)*xlimCurrent))+" ~ "+(relativePos.checked?'~':'')+(((relativePos.checked?parseInt(chunkList[0].split(',')[1])*ylimCurrent:0)+((parseInt(chunkPos.split(',')[1])+0.5)*ylimCurrent)))}\nsay 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function \u0022${chunkList[parseInt(n)+1].replace(',','-')}\u0022继续生成`:`say 生成完成！`;
 				createFile(`${chunkPos.replace(',','-')}.mcfunction`, content);
 				n++;
 				if(n>=chunkList.length) clearInterval(session);
