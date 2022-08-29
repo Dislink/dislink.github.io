@@ -247,7 +247,7 @@
 		convert_preview.onmousemove=((e)=>{
 			let pos=getMousePos(e.target, e);
 			let convertPixelData=convert_preview.getContext("2d").getImageData(pos[0], pos[1], 1, 1).data;
-			let block=getBlock(convertPixelData[0], convertPixelData[1], convertPixelData[2]).name;
+			let block=getBlock(convertPixelData[0], convertPixelData[1], convertPixelData[2], (commandPlatform.value=="BE"?paletteBE:paletteJE)).name;
 			e.target.title=`Pos: ${pos[0]},${pos[1]}  R:${convertPixelData[0]} G:${convertPixelData[1]} B:${convertPixelData[2]}  Block:${block}`
 		})
 	</script>
