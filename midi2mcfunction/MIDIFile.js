@@ -1108,10 +1108,6 @@ MIDIFile.prototype.getEvents = function(type=[], subtype=[], ignoredTracks=[], m
       }
     } while (-1 !== smallestDelta);
   }
-  //delete empty tracks
-  for(let i in filteredEvents){
-	  if(!filteredEvents[i].length) delete filteredEvents[i];
-  }
   return filteredEvents;
 };
 
