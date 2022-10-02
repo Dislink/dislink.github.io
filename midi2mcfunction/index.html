@@ -176,7 +176,7 @@
 						if(parseInt(j)>0&&!timeReached) timeReached=(Math.floor(nxtTime/parseInt(timeSplitLimit.value))>Math.floor(Math.round(notes[i][parseInt(j)].playTime/50*(parseFloat(speed.value)/100))/parseInt(timeSplitLimit.value)))
 						if((j%parseInt(functionCommandLimit.value)==0&&j!=0)||(timeReached)||!nxtTime){
 							timeReached=false;
-							contents.push(content);
+							if (content!='') contents.push(content);
 							content='';
 						}
 					}
