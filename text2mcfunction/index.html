@@ -2,7 +2,6 @@
 <head>
 	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?">
 	<title>text2particle mcfunction | By Dislink</title>
-	<script src="palettes.js" type="text/javascript"></script>
 	<script src="jszip.min.js" type="text/javascript"></script>
 	<script src="FileSaver.js" type="text/javascript"></script>
 	<script src="Math.uuid.js" type="text/javascript"></script>
@@ -158,10 +157,10 @@
 			var imageData=preview.getContext("2d").getImageData(0,0,preview.width,preview.height);
 			let content=[[]];
 			for(let y=0;y<preview.height;y++){
-				if(y%actualHeight==0&&sliceByLine.checked) content[Math.floor(y+1/actualHeight)]=[]
+				if(y%actualHeight==0&&sliceByLine.checked) content[Math.floor((y+1)/actualHeight)]=[]
 				for(let x=0;x<preview.width;x++){
 					if(imageData.data[(y*preview.width+x)*4]==0) continue;
-					content[sliceByLine.checked?Math.floor(y+1/actualHeight):0].push(`particle ${particleID.value} ~${(preview.width-x)*parseFloat(particleOffset.value)} ~${(preview.height-y)*parseFloat(particleOffset.value)} ~`);
+					content[sliceByLine.checked?Math.floor((y+1)/actualHeight):0].push(`particle ${particleID.value} ~${(preview.width-x)*parseFloat(particleOffset.value)} ~${(preview.height-y)*parseFloat(particleOffset.value)} ~`);
 				}
 			}
 			for(let section in content){
