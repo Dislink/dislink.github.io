@@ -48,6 +48,8 @@
 			<br/>
 			<input type="checkbox" id="sliceByLine" />
 			<label for="sliceByLine">行切分</label>
+                        <input type="number" id="lineHeight" min="1" max="32768" step="1" value="36" />
+			<label for="lineHeight" >单行高度</label>
 			<br/>
 			<input type="checkbox" id="overlay" />
 			<label for="overlay">叠加文本</label>
@@ -129,19 +131,19 @@
 			context.font = font.value;
 			context.textAlign = "left";
 			context.textBaseline = "top";
-			let metrics = context.measureText(text); 
+			/*let metrics = context.measureText(text); 
 			fontHeight = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent; 
-			actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent; 
+			actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent; */
 			if(stroke.checked)
 			{
 				context.strokeStyle = "#ff0000";
 				for(let i in text.value.split('\n')){
-					context.strokeText(text.value.split('\n')[i], 0, i*actualHeight+4);
+					context.strokeText(text.value.split('\n')[i], 0, i*parseInt(lineHeight.value)/*actualHeight+4*/);
 				}
 			}else{
 				context.fillStyle = "#ff0000";
 				for(let i in text.value.split('\n')){
-					context.fillText(text.value.split('\n')[i], 0, i*actualHeight+4);
+					context.fillText(text.value.split('\n')[i], 0, i*parseInt(lineHeight.value)/*actualHeight+4*/);
 				}
 			}
 			filled=true;
@@ -157,7 +159,7 @@
 			var imageData=preview.getContext("2d").getImageData(0,0,preview.width,preview.height);
 			let content=[[]];
 			for(let y=0;y<preview.height;y++){
-				if(y%actualHeight==0&&sliceByLine.checked) content[Math.floor(y/actualHeight)]=[]
+				if(y%actualHeight==0&&sliceByLine.checked) content[Math.floor(y/parseInt(lineHeight.value)/*actualHeight*/)]=[]
 				for(let x=0;x<preview.width;x++){
 					if(imageData.data[(y*preview.width+x)*4]==0) continue;
 					content[sliceByLine.checked?Math.floor(y/actualHeight):0].push(`particle ${particleID.value} ~${(preview.width-x)*parseFloat(particleOffset.value)} ~${(preview.height-y)*parseFloat(particleOffset.value)} ~`);
