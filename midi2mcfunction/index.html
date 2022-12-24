@@ -7,7 +7,7 @@
 	<script src="FileSaver.js" type="text/javascript"></script>
 	<script src="Math.uuid.js" type="text/javascript"></script>
 	<script>
-		manifestBE={"format_version":1,"header":{"description":"url:https://dislink.github.io/mid2mcfunction","name":"","uuid":"","min_engine_version":[0,0,1],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
+		manifestBE={"format_version":2,"header":{"description":"url:https://dislink.github.io/midi2mcfunction","name":"","uuid":"","min_engine_version":[],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
 	</script>
 	<script>
 		function formatSeconds(value) {
@@ -74,10 +74,11 @@
 			<input type="number" id="timeSplitLimit" step="1" value="12000" />
 			<label for="timeSplitLimit">tick(s)</label>
 			</br>
-			<label for="commandPlatform">命令版本 --UNDER DEVELOPMENT</label>
-			<select id="commandPlatform">
-				<option value="BE" selected>基岩版</option>
-				<option value="JE">JAVA版</option>
+			<label for="commandVersion">命令版本</label>
+			<select id="commandVersion">
+				<option value="formal">旧execute语法规范</option>
+				<option value="new" selected>新execute语法规范</option>
+				<option value="no-easyPlay">不使用easyPlay</option>
 			</select>
 		</fieldset>
 		<br/>
@@ -150,12 +151,9 @@
 			fr.readAsArrayBuffer(upload.files[0]);
 		})
 		download.onclick=(()=>{
-			if (commandPlatform.value=="BE")
-			{
-				zip=new JSZip();
-				functions=zip.folder("functions");
-			}
-			if(1) commandPlatform=="JE"?saveAs(new Blob([`say MIDI信息：名称：${upload.files[0].name} 总时长：${formatSeconds(Math.round(parseFloat(speed.value)*midiFile.timeTotal/100000))}  音轨数：${midiFile.header.getTracksCount()}  音符数：${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].length}  乐器数：${(midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE], [], true)[0].length+1)}`], {type: "text/plainText"}), "help.mcfunction"):functions.file("help.mcfunction", `say MIDI信息：名称：${upload.files[0].name} 总时长：${formatSeconds(Math.round(parseFloat(speed.value)*midiFile.timeTotal/100000))}  音轨数：${midiFile.header.getTracksCount()}  音符数：${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].length}  乐器数：${(midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE], [], true)[0].length+1)}`);
+			zip=new JSZip();
+			functions=zip.folder("functions");
+			functions.file("help.mcfunction", `say MIDI信息：名称：${upload.files[0].name} 总时长：${formatSeconds(Math.round(parseFloat(speed.value)*midiFile.timeTotal/100000))}  音轨数：${midiFile.header.getTracksCount()}  音符数：${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].length}  乐器数：${(midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE], [], true)[0].length+1)}`);
 			tracksSelected=[];
 			for(let i in convertTracks.children){
 				if(convertTracks.children[i].selected){
@@ -168,7 +166,7 @@
 			let timerange=[];
 			for(let i in notes){
 				let content='';
-				let timeMin=0;
+				let timeMin=Infinity;
 				let timeMax=0;
 				for(let j in notes[i]){
 				let timeReached=false;
@@ -185,22 +183,23 @@
 								contents.push(content);
 								timerange.push([timeMin, timeMax]);
 							}
-							timeMin=0;
+							timeMin=Infinity;
 							timeMax=0;
 							content='';
 						}
 					}
 				}
 			}
-			let easyPlay=''
+			let easyPlay='scoreboard players add @a time 1\n'
 			for(let i in contents){
 				functions.file(`N${i}.mcfunction`, contents[i]);
-				easyPlay+=`execute as @a[scores={time=${timeMin}..${timeMax}}] run function N${i}\n`
+				if (commandVersion.value!="no-easyPlay") easyPlay+=`execute ${commandVersion.value=="new"?'at':''} @a[scores={time=${timerange[i][0]}..${timerange[i][1]}}] ${commandVersion.value=="new"?'run':'~~~'} function N${i}\n`
 			}
+			if (commandVersion.value!="no-easyPlay") functions.file("play.mcfunction", easyPlay);
 			functions.file("init.mcfunction", "scoreboard objectives add time dummy\nscoreboard objectives setdisplay sidebar time\nscoreboard players set @s time -1\n");
-			functions.file("play.mcfunction", easyPlay);
 			manifestBE.header.name=fileName;
 			manifestBE.header.uuid=Math.uuid();
+			manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,50]:[0,0,1])
 			manifestBE.modules[0].uuid=Math.uuid();
 			zip.file("manifest.json", JSON.stringify(manifestBE));
 			zip.generateAsync({type:"blob"}).then(function(content,err) {
