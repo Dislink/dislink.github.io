@@ -14,6 +14,30 @@
 　　		return `${Math.floor(value / 3600) < 10 ? '0' + Math.floor(value / 3600) : Math.floor(value / 3600)}:${Math.floor((value / 60 % 60)) < 10 ? '0' + Math.floor((value / 60 % 60)) : Math.floor((value / 60 % 60))}:${Math.floor((value % 60)) < 10 ? '0' + Math.floor((value % 60)) : Math.floor((value % 60))}`
 		}
 	</script>
+	<script>
+	function getSoundString(program, channel=0){
+		if(channel!==9){
+			if([105].includes(program)) return 'note.banjo';
+			if([32,33,34,35,36,37,38,39].includes(program)) return 'note.bass';
+			if([115,116,117,118].includes(program)) return 'note.basedrum'
+			if([9].includes(program)) return 'note.bell';
+			if([80,81].includes(program)) return 'note.bit';
+			if([112].includes(program)) return 'note.cow_bell';
+			//if([].includes(program)) return 'note.didgeridoo';
+			if([72,73,74,75,76,77,78,79].includes(program)) return 'note.flute';
+			if([24,25,26,27,28,29,30,31].includes(program)) return 'note.guitar';
+			if([14].includes(program)) return 'note.chime';
+			if([8,9,10,11,12,13,/*14,*/15].includes(program)) return 'note.iron_xylophone';
+			if([2].includes(program)) return 'note.pling';
+			return 'note.harp';
+		}else{
+			if([55].includes(program)) return 'note.cow_bell';
+			if([41,43,45].includes(program)) return 'note.hat';
+			if([36,37,39].includes(program)) return 'note.snare';
+			return 'note.basedrum';
+		}
+	}	
+	</script>
 	<style>
 		input::-webkit-outer-spin-button,
 		input::-webkit-inner-spin-button {
@@ -60,6 +84,12 @@
 			<br>
 			<input type="checkbox" id="mergeTracks" />
 			<label for="mergeTracks">合并音轨</label>
+			<br/>
+			<input type="checkbox" id="ignorePercussionInstrument" />
+			<label for="ignorePercussionInstrument">忽略打击乐器</label>
+			<br/>
+			<input type="checkbox" id="convertToHarp" />
+			<label for="convertToHarp">全部使用钢琴音色</label>
 			<br/>
 		</fieldset>
 		<fieldset id="command_args">
@@ -130,6 +160,10 @@
 					document.getElementById("timeTotal").innerText="总时长："+formatSeconds(Math.round(midiFile.timeTotal/1000));
 					document.getElementById("tracksCount").innerText="总音轨数："+midiFile.header.getTracksCount();
 					document.getElementById("noteOnCount").innerText="总音符数："+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].length;
+					soundStrings=[];
+					for(let n in midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE], [], true)[0]){
+						soundStrings[midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE], [], true)[0][n].track]=getSoundString(midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE], [], true)[0][n].param1);
+					}
 					document.getElementById("instrumentsCount").innerText="总乐器数："+(midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE], [], true)[0].length+1);
 					document.getElementById("convertTracks").innerHTML='';
 					for(let i in midiFile.tracks){
@@ -171,9 +205,10 @@
 				for(let j in notes[i]){
 				let timeReached=false;
 					if(notes[i][j].param2!=0){
+						if(notes[i][j].channel==9&&ignorePercussionInstrument.checked) continue;
 						timeMin=(timeMin<Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMin:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
 						timeMax=(timeMax>Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMax:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
-						content+=`playsound ${'note.harp'} @a[scores={time=${Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)))}}] ~~5~ ${(notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${(2**((notes[i][j].param1-66)/12))}\n`
+						content+=`playsound ${convertToHarp.checked?"note.harp":(notes[i][j].channel==9?getSoundString(notes[i][j].param1,9):(soundStrings[notes[i][j].track]?soundStrings[notes[i][j].track]:"note.harp"))} @a[scores={time=${Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)))}}] ~~5~ ${(notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${notes[i][j].channel==9?'':(2**((notes[i][j].param1-66)/12))}\n`
 						let nxtTime;
 						if(notes[i].length>parseInt(j)+1) nxtTime=Math.round(notes[i][parseInt(j)+1].playTime/(50*(parseFloat(speed.value)/100)))
 						if(parseInt(j)>0&&!timeReached) timeReached=(Math.floor(nxtTime/parseInt(timeSplitLimit.value))>Math.floor(Math.round(notes[i][parseInt(j)].playTime/(50*(parseFloat(speed.value)/100)))/parseInt(timeSplitLimit.value)))
@@ -199,7 +234,7 @@
 			functions.file("init.mcfunction", "scoreboard objectives add time dummy\nscoreboard objectives setdisplay sidebar time\nscoreboard players set @s time -1\n");
 			manifestBE.header.name=fileName;
 			manifestBE.header.uuid=Math.uuid();
-			manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,50]:[1,16,0])
+			manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,50]:[0,0,1])
 			manifestBE.modules[0].uuid=Math.uuid();
 			zip.file("manifest.json", JSON.stringify(manifestBE));
 			zip.generateAsync({type:"blob"}).then(function(content,err) {
