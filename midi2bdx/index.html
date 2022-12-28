@@ -203,28 +203,22 @@
 				}
 			}
 			notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].sort((a,b)=>{return a.playTime>b.playTime});
-			let seq=0;
-			data=''
+			let data=''
 			let x=0,y=0,z=0;
-			let tx=0,ty=0,tz=0;
 			let xBackward=false,zBackward=false;
 			while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)<notes.length){
 				for(x=0;x<parseInt(xLength.value);x++){
-					for(z=0;z<parseInt(zLength.value);z++){/*[Y-,Y+,Z-,Z+,X-,X+]*/
-					w=['Y-','Y+','Z-','Z+','X-','X+']
-						console.log(`${'x:'+tx+',y:'+ty+',z:'+tz+'   data:'}`+w[(z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3))])
-						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToHarp.checked?"note.harp":(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==9?getSoundString(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param1,9):(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].track]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].track]:"note.harp"))} @${commandVersion.value=="no-execute"?"a":"s"} ~~8~ ${(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param2*(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==9?'':(2**((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param1-66)/12))}`, ((x==0&&y==0&&z==0)?"Start":'x:'+tx+',y:'+ty+',z:'+tz+' data:'+w[(z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3))]),((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)?Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
-						(z==parseInt(zLength.value)-1)?'':tz+=(zBackward==false?1:-1)
+					for(z=0;z<parseInt(zLength.value);z++){
+						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToHarp.checked?"note.harp":(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==9?getSoundString(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param1,9):(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].track]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].track]:"note.harp"))} @${commandVersion.value=="no-execute"?"a":"s"} ~~8~ ${(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param2*(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==9?'':(2**((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param1-66)/12))}`, '',((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)?Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
 					}
-					(x==parseInt(xLength.value)-1?ty+=1:tx+=(xBackward==false?1:-1))
 					data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
 					zBackward=!zBackward;
 				}
 				xBackward=!xBackward;
 				y++;
 			}
-			dataArray=new Array(data.length);
+			let dataArray=new Array(data.length);
 			for(let i in data){
 				dataArray[i]=data.charCodeAt(i);
 			}
