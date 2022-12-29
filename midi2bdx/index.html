@@ -83,7 +83,7 @@
 			<label for="speed">%</label>
 			<br/>
 			<input type="range" id="volume4MainScroll" min="0" max="1" value="0.9" step="0.01"/>
-			<label for="olume4MainScroll">主音轨音量衰减系数</label>
+			<label for="volume4MainScroll">主音轨音量衰减系数</label>
 			<input type="number" id="volume4Main" step="0.01" value="0.9" />
 			<br/>
 			<input type="range" id="volume4SubScroll" min="0" max="1" value="0.7" step="0.01"/>
@@ -202,20 +202,23 @@
 					tracksSelected.push(parseInt(i));
 				}
 			}
-			notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].sort((a,b)=>{return a.playTime>b.playTime});
+			let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].sort((a,b)=>{return a.playTime>b.playTime});
+			let seq=0;
 			let data=''
 			let x=0,y=0,z=0;
 			let xBackward=false,zBackward=false;
 			while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)<notes.length){
-				for(x=0;x<parseInt(xLength.value);x++){
-					for(z=0;z<parseInt(zLength.value);z++){
+				for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+1)<notes.length;x++){
+					for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)<notes.length;z++){
 						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToHarp.checked?"note.harp":(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==9?getSoundString(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param1,9):(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].track]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].track]:"note.harp"))} @${commandVersion.value=="no-execute"?"a":"s"} ~~8~ ${(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param2*(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].channel==9?'':(2**((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].param1-66)/12))}`, '',((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)?Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)].playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
 					}
 					data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
 					zBackward=!zBackward;
+					z=0;
 				}
 				xBackward=!xBackward;
+				x=0;
 				y++;
 			}
 			let dataArray=new Array(data.length);
@@ -223,7 +226,7 @@
 				dataArray[i]=data.charCodeAt(i);
 			}
 			compressed=new Brotli().compressArray(Uint8Array.from(BDXDataP1.concat(dataArray.concat(BDXDataEnd))), 6);
-			saveAs(new Blob([Uint8Array.from(BDXFileHdr.concat(Array.from(compressed)))]),"project.bdx")
+			saveAs(new Blob([Uint8Array.from(BDXFileHdr.concat(Array.from(compressed)))]),`${fileName}.bdx`)
 		})
 	</script>
 </body>
