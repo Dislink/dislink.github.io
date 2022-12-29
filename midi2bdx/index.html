@@ -7,7 +7,7 @@
 	<script src="FileSaver.js" type="text/javascript"></script>
 	<script>
 		function formatSeconds(value) {
-　　		return `${Math.floor(value / 3600) < 10 ? '0' + Math.floor(value / 3600) : Math.floor(value / 3600)}:${Math.floor((value / 60 % 60)) < 10 ? '0' + Math.floor((value / 60 % 60)) : Math.floor((value / 60 % 60))}:${Math.floor((value % 60)) < 10 ? '0' + Math.floor((value % 60)) : Math.floor((value % 60))}`
+　　		return `${Math.floor(value / 3600) < 10 ? '0' + Math.floor(value / 3600) : Math.floor(value / 3600)}:${Math.floor((value / 60 % 60)) < 10 ? '0' + Math.floor((value / 60 % 60)) : Math.floor((value / 60 % 60))}:${Math.round((value % 60)) < 10 ? '0' + Math.round((value % 60)) : Math.round((value % 60))}`
 		}
 	</script>
 	<script>
