@@ -85,15 +85,18 @@
 			<label for="convertTracks" style="display:none;">转换音轨</label>
 			<select id="convertTracks" multiple="true" style="display:none;">
 			</select>
-			<br>
+			<br/>
 			<input type="checkbox" id="mergeTracks" />
 			<label for="mergeTracks">合并音轨</label>
 			<br/>
 			<input type="checkbox" id="ignorePercussionInstrument" />
 			<label for="ignorePercussionInstrument">忽略打击乐器</label>
 			<br/>
-			<input type="checkbox" id="convertToHarp" />
-			<label for="convertToHarp">全部使用钢琴音色</label>
+			<label for="defaultSound">默认音色</label>
+			<input type="text" id="defaultSound" value="note.harp" />
+			<br/>
+			<input type="checkbox" id="convertToDefault" />
+			<label for="convertToDefault">全部使用默认音色</label>
 			<br/>
 			<table id="convertSounds" border="1" ></table>
 		</fieldset>
@@ -249,7 +252,7 @@
 						if(notes[i][j].channel==9&&ignorePercussionInstrument.checked) continue;
 						timeMin=(timeMin<Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMin:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
 						timeMax=(timeMax>Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMax:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
-						content+=`playsound ${convertToHarp.checked?"note.harp":(notes[i][j].channel==9?soundStrings[notes[i][j].param1]:(soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:"note.harp"))} @a[scores={time=${Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)))}}] ~~5~ ${(notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${notes[i][j].channel==9?'':(2**((notes[i][j].param1-66)/12))}\n`
+						content+=`playsound ${convertToDefault.checked?defaultSound.value:(notes[i][j].channel==9?soundStrings[notes[i][j].param1]:(soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:defaultSound.value))} @a[scores={time=${Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)))}}] ~~5~ ${(notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${notes[i][j].channel==9?'':(2**((notes[i][j].param1-66)/12))}\n`
 						let nxtTime;
 						if(notes[i].length>parseInt(j)+1) nxtTime=Math.round(notes[i][parseInt(j)+1].playTime/(50*(parseFloat(speed.value)/100)))
 						if(parseInt(j)>0&&!timeReached) timeReached=(Math.floor(nxtTime/parseInt(timeSplitLimit.value))>Math.floor(Math.round(notes[i][parseInt(j)].playTime/(50*(parseFloat(speed.value)/100)))/parseInt(timeSplitLimit.value)))
