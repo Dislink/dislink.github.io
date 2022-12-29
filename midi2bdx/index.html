@@ -11,8 +11,8 @@
 		}
 	</script>
 	<script>
-		BDXFileHdr=[66,68,64]//"BD@"
-		BDXDataP1=[66,68,88,0,68,105,115,108,105,110,107,95,83,102,111,114,122,97,0]//"BDX\x00Dislink_Sforza\x00"
+		BDXFileHdr=[66,68,64]
+		BDXDataP1=[66,68,88,0,68,105,115,108,105,110,107,95,83,102,111,114,122,97,0]
 		BDXDataEnd=[88,69];//XE
 		function pointerMove(x, y, z){
 			let result='';
@@ -104,12 +104,12 @@
 		<legend>bdx、命令参数</legend>
 			<input type="range" id="xLengthScroll" min="1" max="256" value="8" />
 			<label for="xLengthScroll">x轴延伸长度</label>
-			<input type="number" id="xLength" step="1" value="32" />
+			<input type="number" id="xLength" step="1" value="8" />
 			<label for="xLength">block(s)</label>
 			<br/>
 			<input type="range" id="zLengthScroll" min="1" max="256" value="8" />
 			<label for="zLengthScroll">z轴延伸长度</label>
-			<input type="number" id="zLength" step="1" value="32" />
+			<input type="number" id="zLength" step="1" value="8" />
 			<label for="zLength">block(s)</label>
 			<br/>
 			<label for="text">玩家选择器</label>
@@ -119,7 +119,7 @@
 			<select id="commandVersion">
 				<option value="formal"  selected>旧execute语法规范</option>
 				<option value="new">新execute语法规范</option>
-				<option value="no-execute">不使用execute(不推荐，可能影响效果)</option>
+				<option value="no-execute">不使用execute(不推荐，会影响效果)</option>
 			</select>
 		</fieldset>
 		<br/>
