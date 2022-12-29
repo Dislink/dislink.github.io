@@ -256,7 +256,7 @@
 							seq++;
 							continue;
 						}
-						if(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param2==0){
+						if(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param2==0||(ignorePercussionInstrument.checked&&notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9)){
 							z--;
 							seq++
 							continue;
