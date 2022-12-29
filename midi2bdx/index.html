@@ -185,7 +185,7 @@
 							let data=document.createElement("td");
 							let value=document.createElement("td");
 							let input=document.createElement("input");
-							data.innerText=formatSeconds(playList[n].playTime)+"T#"+playList[n].track+":"+melodicSounds[playList[n].param1];
+							data.innerText=formatSeconds(playList[n].playTime/1000)+"T#"+playList[n].track+":"+melodicSounds[playList[n].param1];
 							soundStrings[playList[n].track].push(getSoundString(playList[n].param1));
 							input.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1];
 							input.seq=soundStrings[playList[n].track].length-1;
@@ -200,7 +200,7 @@
 							let data=document.createElement("td");
 							let value=document.createElement("td");
 							let input=document.createElement("input");
-							data.innerText=formatSeconds(playList[n].playTime)+"P#"+playList[n].param1+":"+percussionNotes[playList[n].param1];
+							data.innerText=formatSeconds(playList[n].playTime/1000)+"P#"+playList[n].param1+":"+percussionNotes[playList[n].param1];
 							soundStrings[playList[n].param1]=getSoundString(playList[n].param1,true);
 							input.value=soundStrings[playList[n].param1];
 							input.onchange=((e)=>{soundStrings[playList[n].param1]=e.target.value});
