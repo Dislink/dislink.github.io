@@ -11,7 +11,7 @@
 	</script>
 	<script>
 		function formatSeconds(value) {
-　　		return `${Math.floor(value / 3600) < 10 ? '0' + Math.floor(value / 3600) : Math.floor(value / 3600)}:${Math.floor((value / 60 % 60)) < 10 ? '0' + Math.floor((value / 60 % 60)) : Math.floor((value / 60 % 60))}:${Math.floor((value % 60)) < 10 ? '0' + Math.floor((value % 60)) : Math.floor((value % 60))}`
+　　		return `${Math.floor(value / 3600) < 10 ? '0' + Math.floor(value / 3600) : Math.floor(value / 3600)}:${Math.floor((value / 60 % 60)) < 10 ? '0' + Math.floor((value / 60 % 60)) : Math.floor((value / 60 % 60))}:${Math.round((value % 60)) < 10 ? '0' + Math.round((value % 60)) : Math.round((value % 60))}`
 		}
 	</script>
 	<script>
@@ -174,7 +174,7 @@
 							let data=document.createElement("td");
 							let value=document.createElement("td");
 							let input=document.createElement("input");
-							data.innerText="T#"+playList[n].track+":"+melodicSounds[playList[n].param1];
+							data.innerText=formatSeconds(playList[n].playTime)+"T#"+playList[n].track+":"+melodicSounds[playList[n].param1];
 							soundStrings[playList[n].track].push(getSoundString(playList[n].param1));
 							input.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1];
 							input.seq=soundStrings[playList[n].track].length-1;
@@ -189,7 +189,7 @@
 							let data=document.createElement("td");
 							let value=document.createElement("td");
 							let input=document.createElement("input");
-							data.innerText="P#"+playList[n].param1+":"+percussionNotes[playList[n].param1];
+							data.innerText=formatSeconds(playList[n].playTime)+"P#"+playList[n].param1+":"+percussionNotes[playList[n].param1];
 							soundStrings[playList[n].param1]=getSoundString(playList[n].param1,true);
 							input.value=soundStrings[playList[n].param1];
 							input.onchange=((e)=>{soundStrings[playList[n].param1]=e.target.value});
