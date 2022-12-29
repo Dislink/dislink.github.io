@@ -21,7 +21,7 @@
 			if(z) result+="\x19"+String.fromCharCode((z&0xff000000)>>>24, (z&0xff0000)>>>16, (z&0xff00)>>>8, (z&0xff));
 			return result;
 		}
-		function placeCommandBlockWithCommandBlockData(data/*[Y-,Y+,Z-,Z+,X-,X+]*/, mode/*脉冲 = 0, 循环 = 1, 连锁 = 2*/, command, hoverText, ticksDelay, needsRedstone){
+		function placeCommandBlockWithCommandBlockData(data, mode, command, hoverText, ticksDelay, needsRedstone){
 			return String.fromCharCode(0x24, (data&0xff00)>>>8, data&0xff, (mode&0xff000000)>>>24, (mode&0xff0000)>>>16, (mode&0xff00)>>>8, (mode&0xff))+command+'\x00'+hoverText+'\x00\x00'+String.fromCharCode((ticksDelay&0xff000000)>>>24, (ticksDelay&0xff0000)>>>16, (ticksDelay&0xff00)>>>8, ticksDelay&0xff)+"\x01"+"\x00"+"\x00"+String.fromCharCode(needsRedstone);
 		}
 		</script>
@@ -173,9 +173,9 @@
 					for(let i in midiFile.getEvents()){
 						midiFile.timeTotal=(midiFile.timeTotal>midiFile.getEvents()[i].slice(-1)[0].playTime?midiFile.timeTotal:midiFile.getEvents()[i].slice(-1)[0].playTime)
 					}
-					document.getElementById("timeTotal").innerText="总时长："+formatSeconds(Math.round(midiFile.timeTotal/1000));
-					document.getElementById("tracksCount").innerText="总音轨数："+midiFile.header.getTracksCount();
-					document.getElementById("noteOnCount").innerText="总音符数："+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].length;
+					document.getElementById("timeTotal").innerText="时长："+formatSeconds(Math.round(midiFile.timeTotal/1000));
+					document.getElementById("tracksCount").innerText="音轨数："+midiFile.header.getTracksCount();
+					document.getElementById("noteOnCount").innerText="音符数："+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
 					document.getElementById("convertSounds").innerHTML='<td>数据(以出现时间顺序排列)</td><td>值</td>';
 					soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
 					let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
@@ -210,7 +210,7 @@
 							document.getElementById("convertSounds").appendChild(row);
 						}
 					}
-					document.getElementById("instrumentsCount").innerText="转换后总乐器数："+(Array.from(new Set(soundStrings)).length+1);
+					document.getElementById("instrumentsCount").innerText="转换乐器数："+(Array.from(new Set(soundStrings)).length+1);
 					document.getElementById("convertTracks").innerHTML='';
 					for(let i in midiFile.tracks){
 						let trackOption=document.createElement("option");
