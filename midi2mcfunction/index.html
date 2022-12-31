@@ -67,6 +67,7 @@
 			<h3 id="tracksCount"><h3>
 			<h3 id="noteOnCount"><h3>
 			<h3 id="instrumentsCount"><h3>
+			<H4 style="float:left;color:grey;">TIP:不妨试试音·创库版：本地的多功能音乐转换器</H4>
 		</fieldset>
 		<fieldset id="convert_args">
 		<legend>转换参数</legend>
@@ -218,6 +219,7 @@
 					fileName=upload.files[0].name;
 				}catch(e){
 					document.getElementById("status").innerText=e.toString().split('\n')[0];
+					alert(e.toString().split('\n')[0]+",可能是midi文件损坏");
 				}
 			}
 			fr.readAsArrayBuffer(upload.files[0]);
