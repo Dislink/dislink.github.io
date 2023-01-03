@@ -258,8 +258,7 @@
 						let nxtTime;
 						if(notes[i].length>parseInt(j)+1) nxtTime=Math.round(notes[i][parseInt(j)+1].playTime/(50*(parseFloat(speed.value)/100)))
 						if(parseInt(j)>0&&!timeReached) timeReached=(Math.floor(nxtTime/parseInt(timeSplitLimit.value))>Math.floor(Math.round(notes[i][parseInt(j)].playTime/(50*(parseFloat(speed.value)/100)))/parseInt(timeSplitLimit.value)))
-						if((j%parseInt(functionCommandLimit.value)==0&&j!=0)||(timeReached)||!nxtTime){
-							timeReached=false;
+						if((j%parseInt(functionCommandLimit.value)==0&&j!=0)||(timeReached)||j=notes[i].length-1){							timeReached=false;
 							if (content!=''){
 								contents.push(content);
 								timerange.push([timeMin, timeMax]);
