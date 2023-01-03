@@ -269,6 +269,13 @@
 						}
 					}
 				}
+				if (content!=''){
+					contents.push(content);
+					timerange.push([timeMin, timeMax]);
+					content='';
+				}
+				timeMin=Infinity;
+				timeMax=0;
 			}
 			let easyPlay='scoreboard players add @a time 1\n'
 			for(let i in contents){
