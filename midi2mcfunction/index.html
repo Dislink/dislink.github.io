@@ -257,8 +257,8 @@
 						content+=`playsound ${convertToDefault.checked?defaultSound.value:(notes[i][j].channel==9?soundStrings[notes[i][j].param1]:(soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:defaultSound.value))} @a[scores={time=${Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)))}}] ~~5~ ${(notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${notes[i][j].channel==9?'':(2**((notes[i][j].param1-66)/12))}\n`
 						let nxtTime;
 						if(notes[i].length>parseInt(j)+1) nxtTime=Math.round(notes[i][parseInt(j)+1].playTime/(50*(parseFloat(speed.value)/100)))
-						if(parseInt(j)>0&&!timeReached) timeReached=(Math.floor(nxtTime/parseInt(timeSplitLimit.value))>Math.floor(Math.round(notes[i][parseInt(j)].playTime/(50*(parseFloat(speed.value)/100)))/parseInt(timeSplitLimit.value)))
-						if((j%parseInt(functionCommandLimit.value)==0&&j!=0)||(timeReached)||j==notes[i].length-1){							timeReached=false;
+						if((timeMin<Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))!=0&&!timeReached) timeReached=(Math.floor(nxtTime/parseInt(timeSplitLimit.value))>Math.floor(Math.round(notes[i][parseInt(j)].playTime/(50*(parseFloat(speed.value)/100)))/parseInt(timeSplitLimit.value)))
+						if((j%parseInt(functionCommandLimit.value)==0)||(timeReached)||j==notes[i].length-1){							timeReached=false;
 							if (content!=''){
 								contents.push(content);
 								timerange.push([timeMin, timeMax]);
