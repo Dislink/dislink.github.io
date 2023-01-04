@@ -1036,6 +1036,7 @@ MIDIFile.prototype.getEvents = function(type=[], subtype=[], ignoredTracks=[], m
           (!subtype.length || (event.subtype && subtype.includes(event.subtype)))
         ) {
           event.playTime = playTime;
+		  event.track=i;
           filteredEvents[mergeTracks?0:i].push(event);
         }
         event = events.next();
