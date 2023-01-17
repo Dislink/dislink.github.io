@@ -15,8 +15,8 @@
 		}
 	</script>
 	<script>
-	function getSoundString(program, channel=0){
-		if(channel!==9){
+	function getSoundString(program, percussion=false){
+		if(!percussion){
 			if([105].includes(program)) return 'note.banjo';
 			if([32,33,34,35,36,37,38,39].includes(program)) return 'note.bass';
 			if([115,116,117,118].includes(program)) return 'note.basedrum'
