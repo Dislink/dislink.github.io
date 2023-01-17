@@ -101,6 +101,9 @@
 			<label for="defaultSound">默认音色</label>
 			<input type="text" id="defaultSound" value="note.harp" />
 			<br/>
+			<label for="pitchOffset">音调偏移</label>
+			<input type="number" id="pitchOffset" value="0" />
+			<br/>
 			<input type="checkbox" id="ignorePercussionInstrument" />
 			<label for="ignorePercussionInstrument">忽略打击乐器</label>
 			<br/>
@@ -180,37 +183,67 @@
 					document.getElementById("timeTotal").innerText="时长："+formatSeconds(Math.round(midiFile.timeTotal/1000));
 					document.getElementById("tracksCount").innerText="音轨数："+midiFile.header.getTracksCount();
 					document.getElementById("noteOnCount").innerText="音符数："+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
-					document.getElementById("convertSounds").innerHTML='<td>数据(以出现时间顺序排列)</td><td>值</td>';
+					document.getElementById("convertSounds").innerHTML='<td>数据(以出现时间顺序排列)</td><td>音效值</td><td>音量乘数</td><td>音调偏移</td>';
 					soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
 					let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
 					for(let n in playList){
 						if(playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
 							let row=document.createElement("tr");
 							let data=document.createElement("td");
-							let value=document.createElement("td");
-							let input=document.createElement("input");
+							let value1=document.createElement("td");
+							let value2=document.createElement("td");
+							let value3=document.createElement("td");
+							let input1=document.createElement("input");
+							let input2=document.createElement("input");
+							input2.type="number";
+							let input3=document.createElement("input");
+							input3.type="number";
 							data.innerText=formatSeconds(playList[n].playTime/1000)+"T#"+playList[n].track+":"+melodicSounds[playList[n].param1];
-							soundStrings[playList[n].track].push(getSoundString(playList[n].param1));
-							input.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1];
-							input.seq=soundStrings[playList[n].track].length-1;
-							input.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq]=e.target.value});
-							value.appendChild(input);
+							soundStrings[playList[n].track].push([getSoundString(playList[n].param1),1,0]);
+							input1.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][0];
+							input1.seq=soundStrings[playList[n].track].length-1;
+							input1.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][0]=e.target.value});
+							input2.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][1];
+							input2.seq=soundStrings[playList[n].track].length-1;
+							input2.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][1]=parseFloat(e.target.value)});
+							input3.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][2];
+							input3.seq=soundStrings[playList[n].track].length-1;
+							input3.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][2]=parseFloat(e.target.value)});
+							value1.appendChild(input1);
+							value2.appendChild(input2);
+							value3.appendChild(input3);
 							row.appendChild(data);
-							row.appendChild(value)
+							row.appendChild(value1);
+							row.appendChild(value2);
+							row.appendChild(value3);
 							document.getElementById("convertSounds").appendChild(row);
 						}else if(playList[n].subtype==MIDIEvents.EVENT_MIDI_NOTE_ON&&playList[n].channel==9){
 							if(soundStrings[playList[n].param1]) continue;
 							let row=document.createElement("tr");
 							let data=document.createElement("td");
-							let value=document.createElement("td");
-							let input=document.createElement("input");
+							let value1=document.createElement("td");
+							let value2=document.createElement("td");
+							let value3=document.createElement("td");
+							let input1=document.createElement("input");
+							let input2=document.createElement("input");
+							input2.type="number";
+							let input3=document.createElement("input");
+							input3.type="number";
 							data.innerText=formatSeconds(playList[n].playTime/1000)+"P#"+playList[n].param1+":"+percussionNotes[playList[n].param1];
-							soundStrings[playList[n].param1]=getSoundString(playList[n].param1,true);
-							input.value=soundStrings[playList[n].param1];
-							input.onchange=((e)=>{soundStrings[playList[n].param1]=e.target.value});
-							value.appendChild(input);
+							soundStrings[playList[n].param1]=[getSoundString(playList[n].param1,true),1,1];
+							input1.value=soundStrings[playList[n].param1][0];
+							input1.onchange=((e)=>{soundStrings[playList[n].param1][0]=e.target.value});
+							input2.value=soundStrings[playList[n].param1][1];
+							input2.onchange=((e)=>{soundStrings[playList[n].param1][1]=parseFloat(e.target.value)});
+							input3.value=soundStrings[playList[n].param1][2];
+							input3.onchange=((e)=>{soundStrings[playList[n].param1][2]=parseFloat(e.target.value)});
+							value1.appendChild(input1);
+							value2.appendChild(input2);
+							value3.appendChild(input3);
 							row.appendChild(data);
-							row.appendChild(value)
+							row.appendChild(value1);
+							row.appendChild(value2);
+							row.appendChild(value3);
 							document.getElementById("convertSounds").appendChild(row);
 						}
 					}
@@ -263,7 +296,7 @@
 							seq++
 							continue;
 						}
-						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToDefault.checked?defaultSound.value:(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1]:(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]]:defaultSound.value))} @${commandVersion.value=="no-execute"?"a":"s"} ~~8~ ${(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param2*(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))} ${notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9?'':(2**((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1-66)/12))}`, '',((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)?Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
+						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToDefault.checked?defaultSound.value:(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1][0]:(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][0]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][0]:defaultSound.value))} @${commandVersion.value=="no-execute"?"a":"s"} ~~8~ ${(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param2*(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1][1]:(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][1]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][1]:1))} ${notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1][2]:(2**((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1+(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][2]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][2]:0)+parseFloat(pitchOffset.value)-66)/12))}`, '',((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)?Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
 					}
 					data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
