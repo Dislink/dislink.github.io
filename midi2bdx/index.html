@@ -16,9 +16,15 @@
 		BDXDataEnd=[88,69];//XE
 		function pointerMove(x, y, z){
 			let result='';
-			if(x) result+="\x15"+String.fromCharCode((x&0xff000000)>>>24, (x&0xff0000)>>>16, (x&0xff00)>>>8, (x&0xff));
-			if(y) result+="\x17"+String.fromCharCode((y&0xff000000)>>>24, (y&0xff0000)>>>16, (y&0xff00)>>>8, (y&0xff));
-			if(z) result+="\x19"+String.fromCharCode((z&0xff000000)>>>24, (z&0xff0000)>>>16, (z&0xff00)>>>8, (z&0xff));
+			//if(x) result+="\x15"+String.fromCharCode((x&0xff000000)>>>24, (x&0xff0000)>>>16, (x&0xff00)>>>8, (x&0xff));
+			//if(y) result+="\x17"+String.fromCharCode((y&0xff000000)>>>24, (y&0xff0000)>>>16, (y&0xff00)>>>8, (y&0xff));
+			//if(z) result+="\x19"+String.fromCharCode((z&0xff000000)>>>24, (z&0xff0000)>>>16, (z&0xff00)>>>8, (z&0xff));
+			if(x==1) result+="\x0E";
+			if(x==-1) result+="\x0F";
+			if(y==1) result+="\x10";
+			if(y==-1) result+="\x11";
+			if(z==1) result+="\x12";
+			if(z==-1) result+="\x13";
 			return result;
 		}
 		function placeCommandBlockWithCommandBlockData(data, mode, command, hoverText, ticksDelay, needsRedstone){
@@ -285,6 +291,7 @@
 			while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length){
 				for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;x++){
 					for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;z++){
+						let note=notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)];
 						if(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
 							tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]++;
 							z--;
@@ -296,7 +303,8 @@
 							seq++
 							continue;
 						}
-						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToDefault.checked?defaultSound.value:(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1][0]:(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][0]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][0]:defaultSound.value))} @${commandVersion.value=="no-execute"?"a":"s"} ~~8~ ${(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param2*(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1][1]:(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][1]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][1]:1))} ${notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel==9?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1][2]:(2**((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].param1+(soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][2]?soundStrings[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track][tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]][2]:0)+parseFloat(pitchOffset.value)-66)/12))}`, '',((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)?Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
+						let soundString=soundStrings[note.track][tracksInstrument[note.track]];
+						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToDefault.checked?defaultSound.value:(note.channel==9?soundStrings[note.param1][0]:((soundString?soundString:[])[0]?(soundString?soundString:[])[0]:defaultSound.value))} @${commandVersion.value=="no-execute"?"a":"s"} ~~8~ ${(note.param2*(note.channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(note.channel==9?soundStrings[note.param1][1]:((soundString?soundString:[])[1]?(soundString?soundString:[])[1]:1))} ${note.channel==9?soundStrings[note.param1][2]:(2**((note.param1+((soundString?soundString:[])[2]?(soundString?soundString:[])[2]:0)+parseFloat(pitchOffset.value)-66)/12))}`, '',((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)?Math.round((note.playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((note.playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
 					}
 					data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
