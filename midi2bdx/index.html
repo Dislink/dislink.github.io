@@ -202,7 +202,7 @@
 					soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
 					let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
 					for(let n in playList){
-						if(playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
+						if(playList[n],channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
 							let row=document.createElement("tr");
 							let data=document.createElement("td");
 							let value1=document.createElement("td");
@@ -213,17 +213,17 @@
 							input2.type="number";
 							let input3=document.createElement("input");
 							input3.type="number";
-							data.innerText=formatSeconds(playList[n].playTime/1000)+"T#"+playList[n].track+":"+melodicSounds[playList[n].param1];
-							soundStrings[playList[n].track].push([getSoundString(playList[n].param1),1,0]);
-							input1.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][0];
-							input1.seq=soundStrings[playList[n].track].length-1;
-							input1.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][0]=e.target.value});
-							input2.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][1];
-							input2.seq=soundStrings[playList[n].track].length-1;
-							input2.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][1]=parseFloat(e.target.value)});
-							input3.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][2];
-							input3.seq=soundStrings[playList[n].track].length-1;
-							input3.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][2]=parseFloat(e.target.value)});
+							data.innerText=formatSeconds(playList[n].playTime/1000)+"C#"+playList[n].channel+":"+melodicSounds[playList[n].param1];
+							soundStrings[playList[n].channel].push([getSoundString(playList[n].param1),1,0]);
+							input1.value=soundStrings[playList[n].channel][soundStrings[playList[n].channel].length-1][0];
+							input1.seq=soundStrings[playList[n].channel].length-1;
+							input1.onchange=((e)=>{soundStrings[playList[n].channel][e.target.seq][0]=e.target.value});
+							input2.value=soundStrings[playList[n].channel][soundStrings[playList[n].channel].length-1][1];
+							input2.seq=soundStrings[playList[n].channel].length-1;
+							input2.onchange=((e)=>{soundStrings[playList[n].channel][e.target.seq][1]=parseFloat(e.target.value)});
+							input3.value=soundStrings[playList[n].channel][soundStrings[playList[n].channel].length-1][2];
+							input3.seq=soundStrings[playList[n].channel].length-1;
+							input3.onchange=((e)=>{soundStrings[playList[n].channel][e.target.seq][2]=parseFloat(e.target.value)});
 							value1.appendChild(input1);
 							value2.appendChild(input2);
 							value3.appendChild(input3);
@@ -285,11 +285,11 @@
 		})
 		download.onclick=(()=>{
 			let tracksSelected=[];
-			let tracksInstrument=[];
+			let channelsInstrument=[];
 			for(let i in convertTracks.children){
 				if(convertTracks.children[i].selected){
 					tracksSelected.push(parseInt(i));
-					tracksInstrument[parseInt(i)]=-1;
+					channelsInstrument[parseInt(i)]=-1;
 				}
 			}
 			let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].sort((a,b)=>{return a.playTime>b.playTime});
@@ -302,7 +302,7 @@
 					for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;z++){
 						let note=notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)];
 						if(notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
-							tracksInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].track]++;
+							channelsInstrument[notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)].channel]++;
 							z--;
 							seq++;
 							continue;
@@ -312,7 +312,7 @@
 							seq++
 							continue;
 						}
-						let soundString=soundStrings[note.track][tracksInstrument[note.track]];
+						let soundString=soundStrings[note.channel][channelsInstrument[note.channel]];
 						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToDefault.checked?defaultSound.value:(note.channel==9?soundStrings[note.param1][0]:((soundString?soundString:[])[0]?(soundString?soundString:[])[0]:defaultSound.value))} @${commandVersion.value=="no-execute"?"a":"s"} ~~8~ ${(note.param2*(note.channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(note.channel==9?soundStrings[note.param1][1]:((soundString?soundString:[])[1]?(soundString?soundString:[])[1]:1))} ${note.channel==9?soundStrings[note.param1][2]:(2**((note.param1+((soundString?soundString:[])[2]?(soundString?soundString:[])[2]:0)+parseFloat(pitchOffset.value)-66)/12))}`, '',((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)?Math.round((note.playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((note.playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
 					}
