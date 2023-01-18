@@ -238,11 +238,12 @@
 					}
 					document.getElementById("instrumentsCount").innerText="转换乐器数："+(soundStrings.filter((d)=>{return d.length}).length+1);
 					document.getElementById("convertTracks").innerHTML='';
+					let trackNames=midiFile.getEvents([MIDIEvents.EVENT_META],[MIDIEvents.EVENT_META_TRACK_NAME], [], false);
 					for(let i in midiFile.tracks){
 						let trackOption=document.createElement("option");
 						trackOption.value=i;
 						trackOption.selected=true;
-						trackOption.innerText=`Track #${i}`;
+						trackOption.innerText=`#${i} ${trackNames[i].length?new TextDecoder('utf-8').decode(Uint8Array.from(trackNames[i][0].data)):''}`;
 						document.getElementById("convertTracks").appendChild(trackOption);
 					}
 					document.getElementById("convertTracks").labels[0].style="display: block";
