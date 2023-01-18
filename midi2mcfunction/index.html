@@ -283,7 +283,7 @@
 						tracksInstrument[notes[i][j].track]++;
 						continue;
 					}
-					if(notes[i][j].param2!=0){
+					if(notes[i][j].param2){
 						if(notes[i][j].channel==9&&ignorePercussionInstrument.checked) continue;
 						timeMin=(timeMin<Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMin:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
 						timeMax=(timeMax>Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMax:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
