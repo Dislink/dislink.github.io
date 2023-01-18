@@ -199,7 +199,7 @@
 					document.getElementById("tracksCount").innerText="音轨数："+midiFile.header.getTracksCount();
 					document.getElementById("noteOnCount").innerText="音符数："+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
 					document.getElementById("convertSounds").innerHTML='<td>数据(以出现时间顺序排列)</td><td>音效值</td><td>音量乘数</td><td>音调偏移</td>';
-					soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
+					soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
 					let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
 					for(let n in playList){
 						if(playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
