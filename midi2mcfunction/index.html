@@ -2,10 +2,10 @@
 <head>
 	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
 	<title>MIDI转mcfunction | By Dislink</title>
-	<script src="/javascript/MIDIFile.js" type="text/javascript"></script>
-	<script src="/javascript/jszip.min.js" type="text/javascript"></script>
-	<script src="/javascript/FileSaver.js" type="text/javascript"></script>
-	<script src="/javascript/Math.uuid.js" type="text/javascript"></script>
+	<script src="javascript/MIDIFile.js" type="text/javascript"></script>
+	<script src="javascript/jszip.min.js" type="text/javascript"></script>
+	<script src="javascript/FileSaver.js" type="text/javascript"></script>
+	<script src="javascript/Math.uuid.js" type="text/javascript"></script>
 	<script>
 		manifestBE={"format_version":2,"header":{"description":"url:https://dislink.github.io/midi2mcfunction","name":"","uuid":"","min_engine_version":[],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
 	</script>
@@ -173,10 +173,10 @@
 					document.getElementById("tracksCount").innerText="音轨数："+midiFile.header.getTracksCount();
 					document.getElementById("noteOnCount").innerText="音符数："+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
 					document.getElementById("convertSounds").innerHTML='<td>数据(以出现时间顺序排列)</td><td>音效值</td><td>音量乘数</td><td>音调偏移</td>';
-					soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
+					soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
 					let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
 					for(let n in playList){
-						if(playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
+						if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
 							let row=document.createElement("tr");
 							let data=document.createElement("td");
 							let value1=document.createElement("td");
@@ -187,17 +187,17 @@
 							input2.type="number";
 							let input3=document.createElement("input");
 							input3.type="number";
-							data.innerText=formatSeconds(playList[n].playTime/1000)+"T#"+playList[n].track+":"+melodicSounds[playList[n].param1];
-							soundStrings[playList[n].track].push([getSoundString(playList[n].param1),1,0]);
-							input1.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][0];
-							input1.seq=soundStrings[playList[n].track].length-1;
-							input1.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][0]=e.target.value});
-							input2.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][1];
-							input2.seq=soundStrings[playList[n].track].length-1;
-							input2.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][1]=parseFloat(e.target.value)});
-							input3.value=soundStrings[playList[n].track][soundStrings[playList[n].track].length-1][2];
-							input3.seq=soundStrings[playList[n].track].length-1;
-							input3.onchange=((e)=>{soundStrings[playList[n].track][e.target.seq][2]=parseFloat(e.target.value)});
+							data.innerText=formatSeconds(playList[n].playTime/1000)+"C#"+playList[n].channel+":"+melodicSounds[playList[n].param1];
+							soundStrings[playList[n].channel].push([getSoundString(playList[n].param1),1,0]);
+							input1.value=soundStrings[playList[n].channel][soundStrings[playList[n].channel].length-1][0];
+							input1.seq=soundStrings[playList[n].channel].length-1;
+							input1.onchange=((e)=>{soundStrings[playList[n].channel][e.target.seq][0]=e.target.value});
+							input2.value=soundStrings[playList[n].channel][soundStrings[playList[n].channel].length-1][1];
+							input2.seq=soundStrings[playList[n].channel].length-1;
+							input2.onchange=((e)=>{soundStrings[playList[n].channel][e.target.seq][1]=parseFloat(e.target.value)});
+							input3.value=soundStrings[playList[n].channel][soundStrings[playList[n].channel].length-1][2];
+							input3.seq=soundStrings[playList[n].channel].length-1;
+							input3.onchange=((e)=>{soundStrings[playList[n].channel][e.target.seq][2]=parseFloat(e.target.value)});
 							value1.appendChild(input1);
 							value2.appendChild(input2);
 							value3.appendChild(input3);
@@ -262,11 +262,11 @@
 			functions=zip.folder("functions");
 			functions.file("help.mcfunction", `say MIDI信息：名称：${upload.files[0].name} 时长：${formatSeconds(Math.round(parseFloat(speed.value)*midiFile.timeTotal/100000))}  音轨数：${midiFile.header.getTracksCount()}  音符数：${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}  乐器数：${(soundStrings.filter((d)=>{return d.length}).length+1)}`);
 			let tracksSelected=[];
-			let tracksInstrument=[];
+			let channelsInstrument=[];
 			for(let i in convertTracks.children){
 				if(convertTracks.children[i].selected){
 					tracksSelected.push(parseInt(i));
-					tracksInstrument[parseInt(i)]=-1;
+					channelsInstrument[parseInt(i)]=-1;
 				}
 			}
 			notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, mergeTracks.checked);
@@ -280,14 +280,14 @@
 				for(let j in notes[i]){
 					let timeReached=false;
 					if(notes[i][j].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
-						tracksInstrument[notes[i][j].track]++;
+						channelsInstrument[notes[i][j].channel]++;
 						continue;
 					}
 					if(notes[i][j].param2){
 						if(notes[i][j].channel==9&&ignorePercussionInstrument.checked) continue;
 						timeMin=(timeMin<Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMin:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
 						timeMax=(timeMax>Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMax:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
-						content+=`playsound ${convertToDefault.checked?defaultSound.value:(notes[i][j].channel==9?soundStrings[notes[i][j].param1][0]:((soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:[])[0]?(soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:[])[0]:defaultSound.value))} @a[scores={time=${Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)))}}] ~~5~ ${(notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value))*(notes[i][j].channel==9?soundStrings[notes[i][j].param1][1]:((soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:[])[1]?(soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:[])[1]:1)))} ${notes[i][j].channel==9?soundStrings[notes[i][j].param1][2]:(2**((notes[i][j].param1+((soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:[])[2]?(soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]?soundStrings[notes[i][j].track][tracksInstrument[notes[i][j].track]]:[])[2]:0)+parseFloat(pitchOffset.value)-66)/12))}\n`
+						content+=`playsound ${convertToDefault.checked?defaultSound.value:(notes[i][j].channel==9?soundStrings[notes[i][j].param1][0]:((soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]?soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]:[])[0]?(soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]?soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]:[])[0]:defaultSound.value))} @a[scores={time=${Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)))}}] ~~5~ ${(notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value))*(notes[i][j].channel==9?soundStrings[notes[i][j].param1][1]:((soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]?soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]:[])[1]?(soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]?soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]:[])[1]:1)))} ${notes[i][j].channel==9?soundStrings[notes[i][j].param1][2]:(2**((notes[i][j].param1+((soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]?soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]:[])[2]?(soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]?soundStrings[notes[i][j].channel][channelsInstrument[notes[i][j].channel]]:[])[2]:0)+parseFloat(pitchOffset.value)-66)/12))}\n`
 						let nxtTime;
 						if(notes[i].length>parseInt(j)+1) nxtTime=Math.round(notes[i][parseInt(j)+1].playTime/(50*(parseFloat(speed.value)/100)))
 						if((timeMin<Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))!=0&&!timeReached) timeReached=(Math.floor(nxtTime/parseInt(timeSplitLimit.value))>Math.floor(Math.round(notes[i][parseInt(j)].playTime/(50*(parseFloat(speed.value)/100)))/parseInt(timeSplitLimit.value)))
