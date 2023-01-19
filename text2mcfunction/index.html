@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <head>
-	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?">
+	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
 	<title>text2particle mcfunction | By Dislink</title>
-	<script src="jszip.min.js" type="text/javascript"></script>
-	<script src="FileSaver.js" type="text/javascript"></script>
-	<script src="Math.uuid.js" type="text/javascript"></script>
+	<script src="/javascript/jszip.min.js" type="text/javascript"></script>
+	<script src="/javascript/FileSaver.js" type="text/javascript"></script>
+	<script src="/javascript/Math.uuid.js" type="text/javascript"></script>
 	<script>
-		manifestBE={"format_version":1,"header":{"description":"url:https://dislink.github.io/img2mcfunction","name":"","uuid":"","min_engine_version":[1,16,0],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
+		manifestBE={"format_version":1,"header":{"description":"url:https://dislink.github.io/img2mcfunction","name":"","uuid":"","min_engine_version":[1,13,0],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
 	</script>
 	<script>
 		function getMousePos(canvas, event){
@@ -166,7 +166,7 @@
 				}
 			}
 			for(let section in content){
-				for(let i=0;i<content[section].length/10000+1;i++){
+				for(let i=0;i<content[section].length/10000;i++){
 					functions.file(`text${section}${i?"-"+i:''}.mcfunction`, content[section].slice(i*10000,(i+1)*10000).join('\n'));
 				}
 			}
