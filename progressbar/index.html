@@ -69,7 +69,7 @@
 			functions.file("Pinit.mcfunction",`scoreboard objectives add ${scoreboard.value} dummy\nscoreboard objectives setdisplay sidebar ${scoreboard.value}\nsummon armor_stand ${pst.value}\ntag @e[type=armor_stand,name=${pst.value},c=1] add ${tag.value}\nscoreboard players set @e[tag=${tag.value}] ${scoreboard.value} 0`)
 			rawJSON={"rawtext":[{"translate":textStyle.value.replace('%{progress}%',`${('%%s'+bar.value).repeat(parseInt(sections.value))}§r`),"with":{"rawtext":[]}}]}
 			for(let i=0;i<parseInt(sections.value);i++){
-				rawJSON.rawtext[0].with.rawtext.push({"selector":`@e[tag=${tag.value},scores={${scoreboard.value}=${Math.round(parseInt(full.value)*i/parseInt(sections.value))|1}..2147483647}]`})
+				rawJSON.rawtext[0].with.rawtext.push({"selector":`@e[tag=${tag.value},scores={${scoreboard.value}=${Math.round(parseInt(full.value)*i/parseInt(sections.value))|1}..}]`})
 			}
 			rawJSON.rawtext[0].with.rawtext.push({"text":clr.value})
 			functions.file("main.mcfunction",`titleraw ${selector.value} actionbar ${JSON.stringify(rawJSON)}`)
