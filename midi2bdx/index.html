@@ -138,6 +138,8 @@
 			<input type="number" id="zLength" step="1" value="8" />
 			<label for="zLength">block(s)</label>
 			<br/>
+			<div id="heightEstimate"></div>
+			<br/>
 			<label for="text">玩家选择器</label>
 			<input type="text" id="playerSelector" value="@a" />
 			<br/>
@@ -163,15 +165,19 @@
 		}
 		xLengthScroll.onchange=(e)=>{
 			xLength.value=e.target.value;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value)))}`:'';
 		}
 		xLength.onchange=(e)=>{
 			xLengthScroll.value=e.target.value;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value)))}`:'';
 		}
 		zLengthScroll.onchange=(e)=>{
 			zLength.value=e.target.value;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value)))}`:'';
 		}
 		zLength.onchange=(e)=>{
 			zLengthScroll.value=e.target.value;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value)))}`:'';
 		}
 		volume4MainScroll.onchange=(e)=>{
 			volume4Main.value=e.target.value;
@@ -298,6 +304,7 @@
 			let data=''
 			let x=0,y=0,z=0;
 			let xBackward=false,zBackward=false;
+			commandBlockLength=0;
 			while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length){
 				for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;x++){
 					for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;z++){
@@ -313,6 +320,7 @@
 							seq++
 							continue;
 						}
+						commandBlockLength++;
 						let soundString=((soundStrings[note.track]||[])[note.channel]||[])[channelsInstrument[note.track][note.channel]]||[defaultSound.value,1,0];
 						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), `${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToDefault.checked?defaultSound.value:(note.channel==9?soundStrings[note.track][note.param1][0]:soundString[0])} @${commandVersion.value=="no-execute"?"a":"s"} ~~6~ ${(note.param2*(note.channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(note.channel==9?soundStrings[note.track][note.param1][1]:(soundString[1]))*0.01} ${note.channel==9?soundStrings[note.track][note.param1][2]:(2**((note.param1+(soundString[2]||0)+parseFloat(pitchOffset.value)-66)/12))} ${(note.param2*(note.channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(note.channel==9?soundStrings[note.track][note.param1][1]:(soundString[1]))*0.01}`, '',((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)?Math.round((note.playTime-notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq-1)].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((note.playTime)/(50*(parseFloat(speed.value)/100)))),((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
