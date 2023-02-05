@@ -283,21 +283,7 @@
 					document.getElementById("mid_info").style="display: block;";
 					document.getElementById("download").style="display: block;";
 					fileName=upload.files[0].name;
-					let seq=0;x=0,y=0,z=0;
-					commandBlockLength=0;
-					while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length){
-						for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;x++){
-							for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;z++){
-								let note=notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)];
-								if(note.subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE||!note.param2||(ignorePercussionInstrument.checked&&note.channel==9)){
-									z--;
-									seq++;
-									continue;
-								}
-								commandBlockLength++;
-							}
-						}
-					}
+					commandBlockLength=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
 					heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 				}catch(e){
 					document.getElementById("status").innerText=e.toString().split('\n')[0];
