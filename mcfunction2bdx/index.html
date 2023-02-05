@@ -1,1 +1,152 @@
-<!DOCTYPE html><head><meta charset="UTF-8"><link href="/favicon.ico" rel="shortcut icon" type="image/x-icon"><title>mcfunction转BDX | By Dislink</title><script src="/javascript/brotli-js.js" type="text/javascript"></script><script src="/javascript/FileSaver.js" type="text/javascript"></script><script>function pointerMove(r,o,n){let t="";return 1==r?t+="":-1==r&&(t+=""),1==o?t+="":-1==o&&(t+=""),1==n?t+="":-1==n&&(t+=""),t}function placeCommandBlockWithCommandBlockData(r,o,n,t,a,e){return String.fromCharCode(36,(65280&r)>>>8,255&r,(4278190080&o)>>>24,(16711680&o)>>>16,(65280&o)>>>8,255&o)+n+"\0"+t+"\0\0"+String.fromCharCode((4278190080&a)>>>24,(16711680&a)>>>16,(65280&a)>>>8,255&a)+"\1\0"+String.fromCharCode(e)}BDXFileHdr=[66,68,64],BDXDataP1=[66,68,88,0,68,105,115,108,105,110,107,95,83,102,111,114,122,97,0],BDXDataEnd=[88,69]</script></head><body><form id="arguments"><input id="upload" type="file" accept=".mcfunction"> <label for="upload">上传mcfunction文件</label><br><fieldset id="fileInfo" style="display:none"><legend>文件信息</legend><h3 id="fileName"></h3><h3 id="linesTotal"><h3><h3 id="commandsTotal"><h3></h3></h3></h3></h3></fieldset><fieldset id="command_args"><legend>bdx、命令参数</legend><label for="pattern">命令储存方式	</label><input id="pattern" type="text" value="%{command}%"><br><input id="xLengthScroll" type="range" value="8" max="256" min="1"><label for="xLengthScroll">x轴延伸长度</label><input id="xLength" type="number" value="8" step="1"><label for="xLength">block(s)</label><br><input id="zLengthScroll" type="range" value="8" max="256" min="1"><label for="zLengthScroll">z轴延伸长度</label><input id="zLength" type="number" value="8" step="1"><label for="zLength">block(s)</label></fieldset><br></form><br><button id="download" style="display:none">下载文件</button><br><div id="status"></div><script>xLengthScroll.onchange=e=>{xLength.value=e.target.value},xLength.onchange=e=>{xLengthScroll.value=e.target.value},zLengthScroll.onchange=e=>{zLength.value=e.target.value},zLength.onchange=e=>{zLengthScroll.value=e.target.value},upload.onchange=()=>{var n;upload.files[0]&&((n=new FileReader).onload=()=>{document.getElementById("fileInfo").style="display: block;",document.getElementById("download").style="display: block;",document.getElementById("fileName").innerText="文件名："+upload.files[0].name;var e=new TextDecoder;contentRaw=e.decode(n.result),contents=contentRaw.split("\n"),commands=contents.filter(e=>e.match(/^[^#]*/)[0].trim()),document.getElementById("linesTotal").innerText=`文件大小：${contentRaw.lenth}字符`,document.getElementById("linesTotal").innerText="文件行数："+contents.length,document.getElementById("commandsTotal").innerText="命令数："+commands.length},n.readAsArrayBuffer(upload.files[0]))},download.onclick=()=>{let e="",n=0,t=0,a=0,l=0,o=!1,r=!1;for(;a*parseInt(xLength.value)*parseInt(zLength.value)+t*parseInt(zLength.value)+l+n<commands.length;){for(t=0;t<parseInt(xLength.value)&&a*parseInt(xLength.value)*parseInt(zLength.value)+t*parseInt(zLength.value)+l+n<commands.length;t++){for(l=0;l<parseInt(zLength.value)&&a*parseInt(xLength.value)*parseInt(zLength.value)+t*parseInt(zLength.value)+l+n<commands.length;l++){var c=commands[a*parseInt(xLength.value)*parseInt(zLength.value)+t*parseInt(zLength.value)+l];c.match(/^[^#]*/)[0]?e=(e+=placeCommandBlockWithCommandBlockData(l==parseInt(zLength.value)-1?t==parseInt(xLength.value)-1?1:o?4:5:r?2:3,0==t&&0==a&&0==l?0:2,pattern.value.replaceAll("%{command}%",c.match(/^[^#]*/)[0].trim()),"",0,0==t&&0==a&&0==l))+(l==parseInt(zLength.value)-1?"":pointerMove(0,0,0==r?1:-1)):(l--,n++)}e+=t==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove(0==o?1:-1,0,0),r=!r,l=0}o=!o,t=0,a++}var g=Array.from(new TextEncoder().encode(e));compressed=(new Brotli).compressArray(Uint8Array.from(BDXDataP1.concat(g.concat(BDXDataEnd))),6),saveAs(new Blob([Uint8Array.from(BDXFileHdr.concat(Array.from(compressed)))]),fileName.innerText.slice(4).replace(/\.mcfunction$/,"")+".bdx")}</script></body>
+<!DOCTYPE html>
+<head>
+	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+	<title>mcfunction转BDX | By Dislink</title>
+	<script src="/javascript/brotli-js.js" type="text/javascript"></script>
+	<script src="/javascript/FileSaver.js" type="text/javascript"></script>
+	<script>
+		BDXFileHdr=[66,68,64]
+		BDXDataP1=[66,68,88,0,68,105,115,108,105,110,107,95,83,102,111,114,122,97,0]
+		BDXDataEnd=[88,69];//XE
+		function pointerMove(x, y, z){
+			let result='';
+			//if(x) result+="\x15"+String.fromCharCode((x&0xff000000)>>>24, (x&0xff0000)>>>16, (x&0xff00)>>>8, (x&0xff));
+			//if(y) result+="\x17"+String.fromCharCode((y&0xff000000)>>>24, (y&0xff0000)>>>16, (y&0xff00)>>>8, (y&0xff));
+			//if(z) result+="\x19"+String.fromCharCode((z&0xff000000)>>>24, (z&0xff0000)>>>16, (z&0xff00)>>>8, (z&0xff));
+			if(x==1){
+				result+="\x0E";
+			}else if(x==-1){
+				result+="\x0F";
+			}
+			if(y==1){
+				result+="\x10";
+			}else if(y==-1){
+				result+="\x11";
+			}
+			if(z==1){
+				result+="\x12";
+			}else if(z==-1){
+				result+="\x13";
+			}
+			return result;
+		}
+		function placeCommandBlockWithCommandBlockData(data, mode, command, hoverText, ticksDelay, needsRedstone){
+			return String.fromCharCode(0x24, (data&0xff00)>>>8, data&0xff, (mode&0xff000000)>>>24, (mode&0xff0000)>>>16, (mode&0xff00)>>>8, (mode&0xff))+command+'\x00'+hoverText+'\x00\x00'+String.fromCharCode((ticksDelay&0xff000000)>>>24, (ticksDelay&0xff0000)>>>16, (ticksDelay&0xff00)>>>8, ticksDelay&0xff)+"\x01"+"\x00"+"\x00"+String.fromCharCode(needsRedstone);
+		}
+	</script>
+</head>
+<body>
+	<form id="arguments">
+		<input type="file" id="upload" accept=".mcfunction">
+		 <label for="upload">上传mcfunction文件</label>
+		<br/>
+		<fieldset id="fileInfo" style="display: none;">
+		<legend>文件信息</legend>
+			<h3 id="fileName"></h3>
+			<h3 id="linesTotal"><h3>
+			<h3 id="commandsTotal"><h3>
+		</fieldset>
+		<fieldset id="command_args">
+		<legend>bdx、命令参数</legend>
+			<label for="pattern">命令储存方式	</label>
+			<input type="text" id="pattern" value="%{command}%" />
+			<br/>
+			<input type="range" id="xLengthScroll" min="1" max="256" value="8" />
+			<label for="xLengthScroll">x轴延伸长度</label>
+			<input type="number" id="xLength" step="1" value="8" />
+			<label for="xLength">block(s)</label>
+			<br/>
+			<input type="range" id="zLengthScroll" min="1" max="256" value="8" />
+			<label for="zLengthScroll">z轴延伸长度</label>
+			<input type="number" id="zLength" step="1" value="8" />
+			<label for="zLength">block(s)</label>
+			<br/>
+			<div id="heightEstimate"></div>
+			<br/>
+		</fieldset>
+		<br/>
+	</form>
+	<br/>
+	<button id="download" style="display: none;">下载文件</button>
+	<br/>
+	<div id="status"></div>
+	<script>
+		xLengthScroll.onchange=(e)=>{
+			xLength.value=e.target.value;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		xLength.onchange=(e)=>{
+			xLengthScroll.value=e.target.value;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		zLengthScroll.onchange=(e)=>{
+			zLength.value=e.target.value;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		zLength.onchange=(e)=>{
+			zLengthScroll.value=e.target.value;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		upload.onchange=(()=>{
+			if(!upload.files[0]) return;
+			var fr=new FileReader();
+			fr.onload=()=>{
+				document.getElementById("fileInfo").style="display: block;";
+				document.getElementById("download").style="display: block;";
+				document.getElementById("fileName").innerText=`文件名：${upload.files[0].name}`;
+				let decoder = new TextDecoder()
+				contentRaw=decoder.decode(fr.result);
+				contents=contentRaw.split("\n");
+				commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
+				document.getElementById("linesTotal").innerText=`文件大小：${contentRaw.lenth}字符`;
+				document.getElementById("linesTotal").innerText=`文件行数：${contents.length}`;
+				document.getElementById("commandsTotal").innerText=`命令数：${commands.length}`;
+				commandBlockLength=0;
+				let seq=0,x=0,y=0,z=0;
+				while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length){
+					for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;x++){
+						for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;z++){
+							let command=commands[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)];
+							if(!command.match(/^[^#]*/)[0]){
+								z--;
+								seq++;
+								continue;
+							}
+						commandBlockLength++;
+						}
+					}
+				}
+				heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			}
+			fr.readAsArrayBuffer(upload.files[0]);
+		})
+		download.onclick=(()=>{
+			data=''
+			let seq=0,x=0,y=0,z=0;
+			let xBackward=false,zBackward=false;
+			while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length){
+				for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;x++){
+					for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;z++){
+						let command=commands[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)];
+						if(!command.match(/^[^#]*/)[0]){
+							z--;
+							seq++;
+							continue;
+						}
+						commandBlockLength++;
+						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), pattern.value.replaceAll("%{command}%", command.match(/^[^#]*/)[0]), '', 0, ((x==0&&y==0&&z==0)?true:false));
+						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
+					}
+					data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
+					zBackward=!zBackward;
+					z=0;
+				}
+				xBackward=!xBackward;
+				x=0;
+				y++;
+			}
+			compressed=new Brotli().compressArray(Uint8Array.from(BDXDataP1.concat(Array.from(new TextEncoder().encode(data)).concat(BDXDataEnd))), 6);
+			saveAs(new Blob([Uint8Array.from(BDXFileHdr.concat(Array.from(compressed)))]),`${fileName.innerText.slice(4).replace(/\.mcfunction$/, '')}.bdx`)
+		})
+	</script>
+</body>
