@@ -283,7 +283,7 @@
 					document.getElementById("mid_info").style="display: block;";
 					document.getElementById("download").style="display: block;";
 					fileName=upload.files[0].name;
-					let x=0,y=0,z=0;
+					let seq=0;x=0,y=0,z=0;
 					commandBlockLength=0;
 					while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length){
 						for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;x++){
