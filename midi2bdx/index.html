@@ -191,6 +191,17 @@
 		volume4Sub.onchange=(e)=>{
 			volume4SubScroll.value=e.target.value;
 		}
+		convertTracks.onchange=(e)=>{
+			tracksSelected=[];
+			for(let i in e.target.children){
+				if(e.target.children[i].selected){
+					tracksSelected.push(parseInt(i));
+				}
+			}
+			tracksCount.innerText=`音轨数/选中音轨数:${midiFile.header.getTracksCount()}/${tracksSelected.length}`;
+			noteOnCount.innerText=`音符数/选中音符数:${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}/${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].filter((d)=>{return d.param2}).length}`;
+			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
 		upload.onchange=(()=>{
 			if(!upload.files[0]) return;
 			var fr=new FileReader();
@@ -201,8 +212,8 @@
 						midiFile.timeTotal=(midiFile.timeTotal>midiFile.getEvents()[i].slice(-1)[0].playTime?midiFile.timeTotal:midiFile.getEvents()[i].slice(-1)[0].playTime)
 					}
 					document.getElementById("timeTotal").innerText="时长："+formatSeconds(Math.round(midiFile.timeTotal/1000));
-					document.getElementById("tracksCount").innerText="音轨数："+midiFile.header.getTracksCount();
-					document.getElementById("noteOnCount").innerText="音符数："+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
+					document.getElementById("tracksCount").innerText=`音轨数/选中音轨数:${midiFile.header.getTracksCount()}/${midiFile.header.getTracksCount()}`;
+					document.getElementById("noteOnCount").innerText=`音符数/选中音符数:${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}/${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}`;
 					document.getElementById("convertSounds").innerHTML='<td>数据(以出现时间顺序排列)</td><td>音效值</td><td>音量乘数</td><td>音调偏移</td>';
 					soundStrings=[];
 					let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
@@ -285,6 +296,7 @@
 					fileName=upload.files[0].name;
 					commandBlockLength=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
 					heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+					tracksSelected=[];
 				}catch(e){
 					document.getElementById("status").innerText=e.toString().split('\n')[0];
 					alert(e.toString().split('\n')[0]+",可能是midi文件损坏");
@@ -293,12 +305,10 @@
 			fr.readAsArrayBuffer(upload.files[0]);
 		})
 		download.onclick=(()=>{
-			let tracksSelected=[];
 			let channelsInstrument=[];
 			for(let i in convertTracks.children){
 				if(convertTracks.children[i].selected){
 					if (!channelsInstrument[parseInt(i)]) channelsInstrument[parseInt(i)]=[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
-					tracksSelected.push(parseInt(i));
 				}
 			}
 			let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].sort((a,b)=>{return a.playTime>b.playTime});
