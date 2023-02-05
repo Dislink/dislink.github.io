@@ -200,6 +200,7 @@
 			}
 			tracksCount.innerText=`音轨数/选中音轨数:${midiFile.header.getTracksCount()}/${tracksSelected.length}`;
 			noteOnCount.innerText=`音符数/选中音符数:${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}/${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].filter((d)=>{return d.param2}).length}`;
+			commandBlockLength=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].filter((d)=>{return d.param2}).length;
 			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 		}
 		upload.onchange=(()=>{
