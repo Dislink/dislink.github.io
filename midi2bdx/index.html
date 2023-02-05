@@ -289,7 +289,7 @@
 						for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;x++){
 							for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;z++){
 								let note=notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)];
-								if(note.subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE||!note.param2||(ignorePercussionInstrument.checked&&note.channel==9){
+								if(note.subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE||!note.param2||(ignorePercussionInstrument.checked&&note.channel==9)){
 									z--;
 									seq++;
 									continue;
