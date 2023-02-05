@@ -283,6 +283,22 @@
 					document.getElementById("mid_info").style="display: block;";
 					document.getElementById("download").style="display: block;";
 					fileName=upload.files[0].name;
+					let x=0,y=0,z=0;
+					commandBlockLength=0;
+					while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length){
+						for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;x++){
+							for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;z++){
+								let note=notes[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)];
+								if(note.subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE||!note.param2||(ignorePercussionInstrument.checked&&note.channel==9){
+									z--;
+									seq++;
+									continue;
+								}
+								commandBlockLength++;
+							}
+						}
+					}
+					heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 				}catch(e){
 					document.getElementById("status").innerText=e.toString().split('\n')[0];
 					alert(e.toString().split('\n')[0]+",可能是midi文件损坏");
@@ -304,7 +320,6 @@
 			let data=''
 			let x=0,y=0,z=0;
 			let xBackward=false,zBackward=false;
-			commandBlockLength=0;
 			while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length){
 				for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;x++){
 					for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<notes.length;z++){
