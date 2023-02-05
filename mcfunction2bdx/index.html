@@ -73,19 +73,19 @@
 	<script>
 		xLengthScroll.onchange=(e)=>{
 			xLength.value=e.target.value;
-			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 		}
 		xLength.onchange=(e)=>{
 			xLengthScroll.value=e.target.value;
-			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 		}
 		zLengthScroll.onchange=(e)=>{
 			zLength.value=e.target.value;
-			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 		}
 		zLength.onchange=(e)=>{
 			zLengthScroll.value=e.target.value;
-			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 		}
 		upload.onchange=(()=>{
 			if(!upload.files[0]) return;
@@ -101,22 +101,7 @@
 				document.getElementById("linesTotal").innerText=`文件大小：${contentRaw.lenth}字符`;
 				document.getElementById("linesTotal").innerText=`文件行数：${contents.length}`;
 				document.getElementById("commandsTotal").innerText=`命令数：${commands.length}`;
-				commandBlockLength=0;
-				let seq=0,x=0,y=0,z=0;
-				while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length){
-					for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;x++){
-						for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;z++){
-							let command=commands[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)];
-							if(!command.match(/^[^#]*/)[0]){
-								z--;
-								seq++;
-								continue;
-							}
-						commandBlockLength++;
-						}
-					}
-				}
-				heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+				heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 			}
 			fr.readAsArrayBuffer(upload.files[0]);
 		})
@@ -133,7 +118,6 @@
 							seq++;
 							continue;
 						}
-						commandBlockLength++;
 						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), pattern.value.replaceAll("%{command}%", command.match(/^[^#]*/)[0]), '', 0, ((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
 					}
