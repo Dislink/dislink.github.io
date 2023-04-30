@@ -340,7 +340,7 @@
 			manifestBE.header.uuid=Math.uuid();
 			manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,50]:[1,13,0]);
 			manifestBE.modules[0].uuid=Math.uuid();
-			zip.file("manifest.json", JSON.stringify(manifestBE));
+			zip.file("manifest.json", JSON.stringify(manifestBE, "", "\t"));
 			zip.generateAsync({type:"blob"}).then(function(content,err) {
 				if(err) console.log(err)
 				saveAs(content, `${fileName}.mcpack`);
