@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<head>
+	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+	<title>mcfunction转mcstructure | By Dislink</title>
+	<script src="/javascript/FileSaver.js" type="text/javascript"></script>
+	<script src="/javascript/jszip.min.js" type="text/javascript"></script>
+	<script src="/javascript/Math.uuid.js" type="text/javascript"></script>
+	<script src="/javascript/nbt.js" type="text/javascript"></script>
+	<script>
+		manifestBE={"format_version":0,"header":{"description":"url:https://dislink.github.io/mcfunction2mcstructure","name":"","uuid":"","version":[0,0,1],"min_engine_version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
+	</script>
+	<script>
+		structureNBT={"name":"","value":{"format_version":{"type":"int","value":1},"size":{"type":"list","value":{"type":"int","value":[0,0,0]}},"structure":{"type":"compound","value":{"block_indices":{"type":"list","value":{"type":"list","value":[{"type":"int","value":[]},{"type":"int","value":[]}]}},"entities":{"type":"list","value":{"type":"end","value":[]}},"palette":{"type":"compound","value":{"default":{"type":"compound","value":{"block_palette":{"type":"list","value":{"type":"compound","value":[{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":1}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":2}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":4}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":5}}}}]}},"block_position_data":{"type":"compound","value":{}}}}}}}},"structure_world_origin":{"type":"list","value":{"type":"int","value":[0,0,0]}}}};
+		function commandBlockEntityData(command='', customName='', ticksDelay=0, auto=false, position=[0,0,0]){
+			return {"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"Command":{"type":"string","value":command},"CustomName":{"type":"string","value":customName},"ExecuteOnFirstTick":{"type":"byte","value":0},"LastOutput":{"type":"string","value":""},"LastOutputParams":{"type":"list","value":{"type":"end","value":[]}},"SuccessCount":{"type":"int","value":0},"TickDelay":{"type":"int","value":ticksDelay},"TrackOutput":{"type":"byte","value":1},"Version":{"type":"int","value":32},"auto":{"type":"byte","value":Number(auto)},"conditionMet":{"type":"byte","value":0},"conditionalMode":{"type":"byte","value":0},"id":{"type":"string","value":"CommandBlock"},"isMovable":{"type":"byte","value":1},"powered":{"type":"byte","value":0},"x":{"type":"int","value":position[0]},"y":{"type":"int","value":position[1]},"z":{"type":"int","value":position[2]}}}}};
+		}
+	</script>
+	
+</head>
+<body>
+	<form id="arguments">
+		<input type="file" id="upload" accept=".mcfunction">
+		 <label for="upload">上传mcfunction文件</label>
+		<br/>
+		<fieldset id="fileInfo" style="display: none;">
+		<legend>文件信息</legend>
+			<h3 id="fileName"></h3>
+			<h3 id="linesTotal"><h3>
+			<h3 id="commandsTotal"><h3>
+		</fieldset>
+		<fieldset id="command_args">
+		<legend>bdx、命令参数</legend>
+			<label for="pattern">命令储存方式	</label>
+			<input type="text" id="pattern" value="%{command}%" />
+			<br/>
+			<input type="range" id="xLengthScroll" min="1" max="256" value="8" />
+			<label for="xLengthScroll">x轴延伸长度</label>
+			<input type="number" id="xLength" step="1" value="8" />
+			<label for="xLength">block(s)</label>
+			<br/>
+			<input type="range" id="zLengthScroll" min="1" max="256" value="8" />
+			<label for="zLengthScroll">z轴延伸长度</label>
+			<input type="number" id="zLength" step="1" value="8" />
+			<label for="zLength">block(s)</label>
+			<br/>
+			<div id="heightEstimate"></div>
+			<br/>
+			<label for="commandVersion">命令版本</label>
+			<select id="commandVersion">
+				<option value="formal">旧规范</option>
+				<option value="new"  selected>新规范</option>
+			</select>
+		</fieldset>
+		<br/>
+	</form>
+	<br/>
+	<button id="download" style="display: none;">下载文件</button>
+	<br/>
+	<div id="status"></div>
+	<script>
+		xLengthScroll.onchange=(e)=>{
+			xLength.value=e.target.value;
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		xLength.onchange=(e)=>{
+			xLengthScroll.value=e.target.value;
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		zLengthScroll.onchange=(e)=>{
+			zLength.value=e.target.value;
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		zLength.onchange=(e)=>{
+			zLengthScroll.value=e.target.value;
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		upload.onchange=(()=>{
+			if(!upload.files[0]) return;
+			var fr=new FileReader();
+			fr.onload=()=>{
+				document.getElementById("fileInfo").style="display: block;";
+				document.getElementById("download").style="display: block;";
+				document.getElementById("fileName").innerText=`文件名：${upload.files[0].name}`;
+				let decoder = new TextDecoder()
+				contentRaw=decoder.decode(fr.result);
+				contents=contentRaw.split("\n");
+				commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
+				document.getElementById("linesTotal").innerText=`文件大小：${contentRaw.lenth}字符`;
+				document.getElementById("linesTotal").innerText=`文件行数：${contents.length}`;
+				document.getElementById("commandsTotal").innerText=`命令数：${commands.length}`;
+				heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			}
+			fr.readAsArrayBuffer(upload.files[0]);
+		})
+		download.onclick=(()=>{
+			let seq=0,x=0,y=0,z=0,X=parseInt(xLength.value),Y=Math.ceil(commands.length/parseInt(xLength.value)*parseInt(zLength.value)),Z=parseInt(zLength.value);
+			structureNBT.value.size.value.value=[X, Y, Z];
+			//fill in structure void
+			structureNBT.value.structure.value.block_indices.value.value[0].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
+			structureNBT.value.structure.value.block_indices.value.value[1].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
+			let xBackward=false,zBackward=false;
+			while((y*X*Z+x*Z+z+seq)<commands.length){
+				for(x=0;x<X&&(y*X*Z+x*Z+z+seq)<commands.length;x++){
+					for(z=0;z<Z&&(y*X*Z+x*Z+z+seq)<commands.length;z++){
+						let command=commands[(y*X*Z+x*Z+z)];
+						if(!command.match(/^[^#]*/)[0]){
+							z--;
+							seq++;
+							continue;
+						}
+						structureNBT.value.structure.value.block_indices.value.value[0].value[Y*Z*(xBackward?X-x-1:x)+Z*y+(zBackward?Z-z-1:z)]=(x==0&&y==0&&z==0)?0:(z==Z-1?(x==X-1?1:(xBackward?4:5)):(zBackward?2:3));
+						structureNBT.value.structure.value.palette.value.default.value.block_position_data.value[Y*Z*(xBackward?X-x-1:x)+Z*y+(zBackward?Z-z-1:z)]=commandBlockEntityData(pattern.value.replaceAll("%{command}%", command.match(/^[^#]*/)[0]), '', 0, (x==0&&y==0&&z==0)?false:true, [(xBackward?X-x-1:x),y,(zBackward?Z-z-1:z)]);
+					}
+					zBackward=!zBackward;
+					z=0;
+				}
+				xBackward=!xBackward;
+				x=0;
+				y++;
+			}
+			zip=new JSZip();
+			manifestBE.format_version=(commandVersion.value=="new"?2:1);
+			manifestBE.header.name=fileName.innerText.slice(4).replace(/\.mcfunction$/, '');
+			manifestBE.header.uuid=Math.uuid();
+			manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,0]:[1,13,0]);
+			manifestBE.modules[0].uuid=Math.uuid();
+			zip.file("manifest.json", JSON.stringify(manifestBE, "", "\t"));
+			zip.folder("structures").file(`${fileName.innerText.slice(4).replace(/\.mcfunction$/, '')}.mcstructure`, nbt.writeUncompressed(structureNBT))
+			zip.generateAsync({type:"blob"}).then(function(content,err) {
+				if(err) console.log(err)
+				saveAs(content, `${fileName.innerText.slice(4).replace(/\.mcfunction$/, '')}.mcpack`);
+			});
+		})
+	</script>
+</body>
