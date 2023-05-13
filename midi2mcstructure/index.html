@@ -310,14 +310,14 @@
 				}
 			}
 			let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].sort((a,b)=>{return a.playTime>b.playTime});
-			//fix size
-			structureNBT.value.size.value.value=[parseInt(xLength.value), Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value)))), parseInt(zLength.value)];
-			//fill in structure void
-			structureNBT.value.structure.value.block_indices.value.value[0].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
-			structureNBT.value.structure.value.block_indices.value.value[1].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
 			let seq=0;
 			let data=''
 			let x=0,y=0,z=0,X=parseInt(xLength.value),Y=Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value)))),Z=parseInt(zLength.value);
+			//fix size
+			structureNBT.value.size.value.value=[X, Y, Z];
+			//fill in structure void
+			structureNBT.value.structure.value.block_indices.value.value[0].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
+			structureNBT.value.structure.value.block_indices.value.value[1].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
 			let xBackward=false,zBackward=false;
 			while((y*X*Z+x*Z+z+seq)<notes.length){
 				for(x=0;x<X&&(y*X*Z+x*Z+z+seq)<notes.length;x++){
