@@ -318,6 +318,7 @@
 			//fill in structure void
 			structureNBT.value.structure.value.block_indices.value.value[0].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
 			structureNBT.value.structure.value.block_indices.value.value[1].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
+			structureNBT.value.structure.value.palette.value.default.value.block_palette.value.value[0].states.value.facing_direction.value=(!(Z-1)?(!(X-1)?1:5):3);
 			let xBackward=false,zBackward=false;
 			while((y*X*Z+x*Z+z+seq)<notes.length){
 				for(x=0;x<X&&(y*X*Z+x*Z+z+seq)<notes.length;x++){
