@@ -118,7 +118,7 @@
 							seq++;
 							continue;
 						}
-						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), pattern.value.replaceAll("%{command}%", command.match(/^[^#]*/)[0]), '', 0, ((x==0&&y==0&&z==0)?true:false));
+						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), pattern.value.replaceAll("%{command}%", command.match(/^[^#]*/)[0]).replace(/^\-/,""), '', Number(command.match(/^[^#]*/)[0]).test(/^\-/)), ((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
 					}
 					data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
