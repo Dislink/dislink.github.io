@@ -26,6 +26,7 @@
 	/** @exports nbt */
 
 	var nbt = this;
+	var zlib = typeof require !== 'undefined' ? require('zlib') : window.zlib;
 
 	/**
 	 * A mapping from type names to NBT type numbers.
@@ -147,7 +148,9 @@
 	 *
 	 * @example
 	 * var writer = new nbt.Writer();
-	 *
+	 * 
+	 * @param {boolean} littleEndian - the byteorder of the writer
+	 * 
 	 * // all equivalent
 	 * writer.int(42);
 	 * writer[3](42);
@@ -158,8 +161,11 @@
 	 * writer.int(999);
 	 *
 	 * return writer.buffer; */
-	nbt.Writer = function() {
+	nbt.Writer = function(littleEndian) {
 		var self = this;
+		
+		/* To see if the writer is in little endian */
+		this.littleEndian = littleEndian;
 
 		/* Will be resized (x2) on write if necessary. */
 		var buffer = new ArrayBuffer(1024);
@@ -206,7 +212,7 @@
 
 		function write(dataType, size, value) {
 			accommodate(size);
-			dataView['set' + dataType](self.offset, value, true);
+			dataView['set' + dataType](self.offset, value, self.littleEndian);
 			self.offset += size;
 			return self;
 		}
@@ -354,10 +360,9 @@
 		this[nbt.tagTypes.compound] = function(value) {
 			var self = this;
 			Object.keys(value).map(function (key) {
-				try{
 				self.byte(nbt.tagTypes[value[key].type]);
 				self.string(key);
-				self[value[key].type](value[key].value);}catch(e){console.log(nbt.tagTypes[value[key].type]);console.log(key)}
+				self[value[key].type](value[key].value);
 			});
 			this.byte(nbt.tagTypes.end);
 			return this;
@@ -378,16 +383,21 @@
 	 *
 	 * @constructor
 	 * @see module:nbt.Writer
+	 * 
+	 * @param {boolean} littleEndian - the byteorder of the reader
 	 *
 	 * @example
 	 * var reader = new nbt.Reader(buf);
 	 * int x = reader.int();
 	 * int y = reader[3]();
 	 * int z = reader[nbt.tagTypes.int](); */
-	nbt.Reader = function(buffer) {
+	nbt.Reader = function(buffer, littleEndian) {
 		if (!buffer) { throw new Error('Argument "buffer" is falsy'); }
 
 		var self = this;
+
+		/* To see if the reader is in little endian */
+		this.littleEndian = littleEndian;
 
 		/**
 		 * The current location in the buffer. Can be freely changed
@@ -400,7 +410,7 @@
 		var dataView = new DataView(arrayView.buffer);
 
 		function read(dataType, size) {
-			var val = dataView['get' + dataType](self.offset, true);
+			var val = dataView['get' + dataType](self.offset, self.littleEndian);
 			self.offset += size;
 			return val;
 		}
@@ -553,6 +563,7 @@
 	 * @param {Object} value - a named compound
 	 * @param {string} value.name - the top-level name
 	 * @param {Object} value.value - a compound
+	 * @param {boolean} [littleEndian=false] - the byte order of the writer
 	 * @returns {ArrayBuffer}
 	 *
 	 * @see module:nbt.parseUncompressed
@@ -566,10 +577,10 @@
 	 *         bar: { type: string, value: 'Hi!' }
 	 *     }
 	 * }); */
-	nbt.writeUncompressed = function(value) {
+	nbt.writeUncompressed = function(value, littleEndian=false) {
 		if (!value) { throw new Error('Argument "value" is falsy'); }
 
-		var writer = new nbt.Writer();
+		var writer = new nbt.Writer(littleEndian);
 
 		writer.byte(nbt.tagTypes.compound);
 		writer.string(value.name);
@@ -579,7 +590,33 @@
 	};
 
 	/**
+	 * @param {Object} value - a named compound
+	 * @param {string} value.name - the top-level name
+	 * @param {Object} value.value - a compound
+	 * @param {boolean} [littleEndian=false] - the byteorder of the writer
+	 */
+	nbt.writeCompressed = function(value, callback, littleEndian=false) {
+		if (!zlib) {
+			callback(new Error('Zlib is not available'), null);
+		} else {
+			try {
+				var buffer = nbt.writeUncompressed(value, littleEndian);
+				zlib.gzip(buffer, function(error, compressed) {
+					if (error) {
+						callback(error, null);
+					} else {
+						callback(null, compressed);
+					}
+				});
+			} catch(error) {
+				callback(error, null);
+			}
+		}
+	};
+
+	/**
 	 * @param {ArrayBuffer|Buffer} data - an uncompressed NBT archive
+	 * @param {boolean} [littleEndian=false] - the byte order of the writer
 	 * @returns {{name: string, value: Object.<string, Object>}}
 	 *     a named compound
 	 *
@@ -591,10 +628,10 @@
 	 * // -> { name: 'My Level',
 	 * //      value: { foo: { type: int, value: 42 },
 	 * //               bar: { type: string, value: 'Hi!' }}} */
-	nbt.parseUncompressed = function(data) {
+	nbt.parseUncompressed = function(data, littleEndian=false) {
 		if (!data) { throw new Error('Argument "data" is falsy'); }
 
-		var reader = new nbt.Reader(data);
+		var reader = new nbt.Reader(data, littleEndian);
 
 		var type = reader.byte();
 		if (type !== nbt.tagTypes.compound) {
@@ -605,5 +642,74 @@
 			name: reader.string(),
 			value: reader.compound()
 		};
+	};
+
+	/**
+	 * @callback parseCallback
+	 * @param {Object} error
+	 * @param {Object} result - a named compound
+	 * @param {string} result.name - the top-level name
+	 * @param {Object} result.value - the top-level compound */
+
+	/**
+	 * This accepts both gzipped and uncompressd NBT archives.
+	 * If the archive is uncompressed, the callback will be
+	 * called directly from this method. For gzipped files, the
+	 * callback is async.
+	 *
+	 * For use in the browser, window.zlib must be defined to decode
+	 * compressed archives. It will be passed a Buffer if the type is
+	 * available, or an Uint8Array otherwise.
+	 *
+	 * @param {ArrayBuffer|Buffer} data - gzipped or uncompressed data
+	 * @param {parseCallback} callback
+	 * @param {boolean} [littleEndian=false] - the byte order of the writer
+	 *
+	 * @see module:nbt.parseUncompressed
+	 * @see module:nbt.Reader#compound
+	 *
+	 * @example
+	 * nbt.parse(buf, function(error, results) {
+	 *     if (error) {
+	 *         throw error;
+	 *     }
+	 *     console.log(result.name);
+	 *     console.log(result.value.foo);
+	 * }); */
+	nbt.parse = function(data, callback, littleEndian=false) {
+		if (!data) { throw new Error('Argument "data" is falsy'); }
+
+		var self = this;
+
+		/* To see if the writer is in little endian */
+		this.littleEndian = littleEndian;
+
+		if (!hasGzipHeader(data)) {
+			callback(null, self.parseUncompressed(data));
+		} else if (!zlib) {
+			callback(new Error('NBT archive is compressed but zlib is not ' +
+				'available'), null);
+		} else {
+			/* zlib.gunzip take a Buffer, at least in Node, so try to convert
+			   if possible. */
+			var buffer;
+			if (data.length) {
+				buffer = data;
+			} else if (typeof Buffer !== 'undefined') {
+				buffer = new Buffer(data);
+			} else {
+				/* In the browser? Unknown zlib library. Let's settle for
+				   Uint8Array and see what happens. */
+				buffer = new Uint8Array(data);
+			}
+
+			zlib.gunzip(buffer, function(error, uncompressed) {
+				if (error) {
+					callback(error, null);
+				} else {
+					callback(null, self.parseUncompressed(uncompressed));
+				}
+			});
+		}
 	};
 }).apply(typeof exports !== 'undefined' ? exports : (window.nbt = {}));
