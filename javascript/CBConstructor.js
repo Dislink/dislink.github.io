@@ -16,13 +16,13 @@ class commandBlock{
 
     /**
      * 
-     * @param {string} command - Command
-     * @param {string} [customName=''] - CustomName
-     * @param {number} [mode=autoFill] - Mode
-     * @param {boolean} [conditionalMode=false] - Conditional
-     * @param {number} [tickDelay=0] - TickDelay
-     * @param {boolean} [auto=false] - Auto
-     * @param {number} [facingDirection=autoFill] - Facing direction
+     * @param {String} command - Command
+     * @param {String} [customName=''] - CustomName
+     * @param {Number} [mode=autoFill] - Mode
+     * @param {Boolean} [conditionalMode=false] - Conditional
+     * @param {Number} [tickDelay=0] - TickDelay
+     * @param {Boolean} [auto=false] - Auto
+     * @param {Number} [facingDirection=autoFill] - Facing direction
      * 
      */
     constructor(command, customName='', mode=undefined, conditionalMode=false, tickDelay=0, auto=false, facingDirection=undefined){
@@ -50,10 +50,10 @@ class CBConstructor{
     /**
      * Generate structure NBT
      * | blocks out of the given size will be ignored
-     * @param {number} X - The x limit of the structure
-     * @param {number} Y - The y limit of the structure
-     * @param {number} Z - The z limit of the structure
-     * @param {boolean} [littleEndian=false] - Byte order
+     * @param {Number} X - The x limit of the structure
+     * @param {Number} Y - The y limit of the structure
+     * @param {Number} Z - The z limit of the structure
+     * @param {Boolean} [littleEndian=false] - Byte order
      * @returns {ArrayBuffer} NBT data
      */
     generateNBT(X,Y,Z,littleEndian=false){
@@ -62,9 +62,10 @@ class CBConstructor{
         this.structure.value.structure.value.block_indices.value.value[1].value=new Array(X*Y*Z).fill(-1);
         this.structure.value.structure.value.palette.value.default.value.block_palette.value.value[0].states.value.facing_direction.value=(!(Z-1)?(!(X-1)?1:5):3);
         let x=0,y=0,z=0;
-        while((y-1)*X*Z+(x-1)*Z+z<this.commandBlocks.length){
-            for(x=0;x<X&&(y-1)*X*Z+(x-1)*Z+z<this.commandBlocks.length;x++){
-                for(z=0;z<Z&&y*X*Z+x*Z+z<this.commandBlocks.length;z++){
+        while((y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop()){
+            for(x=0;x<X&&(y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop();x++){
+                for(z=0;z<Z&&y*X*Z+x*Z+z<Object.keys(this.commandBlocks).pop();z++){
+                    if(!this.commandBlocks[y*X*Z+x*Z+z]) continue;
                     this.structure.value.structure.value.block_indices.value.value[0].value[Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z)]=(this.commandBlocks[y*X*Z+x*Z+z].mode===undefined?(x==0&y==0&z==0?0:1):this.commandBlocks[y*X*Z+x*Z+z].mode)*6+(this.commandBlocks[y*X*Z+x*Z+z].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[y*X*Z+x*Z+z].facingDirection);
                     this.structure.value.structure.value.palette.value.default.value.block_position_data.value[Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z)]={"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"id":{"type":"string","value":"CommandBlock"},"Command":{"type":"string","value":this.commandBlocks[y*X*Z+x*Z+z].command},"CustomName":{"type":"string","value":this.commandBlocks[y*X*Z+x*Z+z].customName},"TickDelay":{"type":"int","value":this.commandBlocks[y*X*Z+x*Z+z].tickDelay},"TrackOutput":{"type":"byte","value":1},"auto":{"type":"byte","value":this.commandBlocks[y*X*Z+x*Z+z].auto},"conditionalMode": {"type": "byte","value": this.commandBlocks[y*X*Z+x*Z+z].conditionalMode}}}}};
                 }
@@ -80,10 +81,10 @@ class CBConstructor{
     /**
      * Generate MCStructure(NBT in little endian)
      * | blocks out of the given size will be ignored
-     * @param {number} X - The x limit of the structure
-     * @param {number} Y - The y limit of the structure
-     * @param {number} Z - The z limit of the structure
-     * @param {boolean} littleEndian - Byte order
+     * @param {Number} X - The x limit of the structure
+     * @param {Number} Y - The y limit of the structure
+     * @param {Number} Z - The z limit of the structure
+     * @param {Boolean} littleEndian - Byte order
      * @returns {ArrayBuffer} MCStructure data
      */
     generateMCStructure(X,Y,Z){
@@ -93,17 +94,17 @@ class CBConstructor{
 
     /**
      * 
-     * @param {number} X - The x limit of the structure
-     * @param {number} Z - The z limit of the structure
+     * @param {Number} X - The x limit of the structure
+     * @param {Number} Z - The z limit of the structure
      * @returns {ArrayBuffer} BDX data
      */
     generateBDX(X,Z){
         this.dataArray=[66,68,88,0,68,105,115,108,105,110,107,95,83,102,111,114,122,97,0];
         let x=0,y=0,z=0;
-        while((y-1)*X*Z+(x-1)*Z+z<this.commandBlocks.length){
-            for(x=0;x<X&&(y-1)*X*Z+(x-1)*Z+z<this.commandBlocks.length;x++){
-                for(z=0;z<Z&&y*X*Z+x*Z+z<this.commandBlocks.length;z++){
-                    this.dataArray=this.dataArray.concat(0x24, 0, this.commandBlocks[y*X*Z+x*Z+z].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[y*X*Z+x*Z+z].facingDirection, 0, 0, 0, this.commandBlocks[y*X*Z+x*Z+z].mode===undefined?(x==0&y==0&z==0?0:2):(this.commandBlocks[y*X*Z+x*Z+z].mode==0?this.commandBlocks[y*X*Z+x*Z+z].mode:(this.commandBlocks[y*X*Z+x*Z+z].mode==1?2:1)), Array.from(new TextEncoder().encode(this.commandBlocks[y*X*Z+x*Z+z].command)), 0, Array.from(new TextEncoder().encode(this.commandBlocks[y*X*Z+x*Z+z].customName)), 0, 0, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff000000)>>>24, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff0000)>>>16, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff00)>>>8, this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff, 1, 0, 0, !this.commandBlocks[y*X*Z+x*Z+z].auto);
+        while((y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop()){
+            for(x=0;x<X&&(y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop();x++){
+                for(z=0;z<Z&&y*X*Z+x*Z+z<Object.keys(this.commandBlocks).pop();z++){
+                    if(this.commandBlocks[y*X*Z+x*Z+z]) this.dataArray=this.dataArray.concat(0x24, 0, this.commandBlocks[y*X*Z+x*Z+z].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[y*X*Z+x*Z+z].facingDirection, 0, 0, 0, this.commandBlocks[y*X*Z+x*Z+z].mode===undefined?(x==0&y==0&z==0?0:2):(this.commandBlocks[y*X*Z+x*Z+z].mode==0?this.commandBlocks[y*X*Z+x*Z+z].mode:(this.commandBlocks[y*X*Z+x*Z+z].mode==1?2:1)), Array.from(new TextEncoder().encode(this.commandBlocks[y*X*Z+x*Z+z].command)), 0, Array.from(new TextEncoder().encode(this.commandBlocks[y*X*Z+x*Z+z].customName)), 0, 0, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff000000)>>>24, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff0000)>>>16, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff00)>>>8, this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff, 1, 0, 0, !this.commandBlocks[y*X*Z+x*Z+z].auto);
                     if (z!=Z-1) this.dataArray=this.dataArray.concat((X*y+x)%2?19:18);
                 }
                 this.dataArray=this.dataArray.concat(x==X-1?16:(y%2?15:14));
@@ -114,7 +115,7 @@ class CBConstructor{
         return this.data;
     }
 
-
+    //这些是可以改的 每个对象都可以不一样 所以不用static
     modeDesc={
         0:'脉冲',
         1:'连锁',
@@ -141,13 +142,13 @@ class CBConstructor{
     }
     /**
      * 
-     * @returns {string} The command block description data
+     * @returns {String} The command block description data
      */
     generateCBDesc(){
         this.data='#meta Serialized\n'
         +'';
         for(i in this.commandBlocks){
-            this.data+=`${this.commandBlocks[i].customName}:${this.commandBlocks[i].mode===undefined?'-':this.modeDesc[this.commandBlocks[i].mode]} ${this.conditionalModeDesc[this.commandBlocks[i].conditionalMode]} ${this.autoBitDesc[this.commandBlocks[i].auto]} [${this.commandBlocks[i].tickDelay}] ${this.commandBlocks[i].facingDirection===undefined?'':'{'+this.directionDesc[this.commandBlocks[i].facingDirection]+'}'}\n${this.commandBlocks[i].command}\n\n`;
+            this.data+=`${this.commandBlocks[i].customName}:${this.commandBlocks[i].mode===undefined?'-':this.modeDesc[this.commandBlocks[i].mode]} ${this.conditionalModeDesc[this.commandBlocks[i].conditionalMode]} ${this.autoBitDesc[this.commandBlocks[i].auto]} [${this.commandBlocks[i].tickDelay}] ${this.commandBlocks[i].facingDirection===undefined?'':'{'+this.directionDesc[this.commandBlocks[i].facingDirection]+'}'}\n/${this.commandBlocks[i].command}\n\n`;
         }
         return this.data;
     }
