@@ -41,33 +41,45 @@ class CBConstructor{
     /**
      * 
      * @param {commandBlock[]} init - Command blocks of the structure
+     * @param {Boolean} [serialized=true] - Whether the given array is a serialized array
+     * @param {Number[3]} [size] - The size of the structure
      */
-    constructor(init){
+    constructor(init, serialized=true, size=[]){
         this.commandBlocks=init;
+        this.serialized=serialized;
+        this.size=size;
+        /*if(!serialized){
+            for(let i in init){
+                console.log([Math.floor(i/(size[1]*size[2])),Math.floor((i%(size[1]*size[2]))/size[2]),(i%(size[1]*size[2]))%size[2]])
+                this.commandBlocks[size[1]*size[2]*(Math.floor((i%(size[1]*size[2]))/size[2])%2?size[0]-Math.floor(i/(size[1]*size[2]))-1:Math.floor(i/(size[1]*size[2])))+size[0]*Math.floor((i%(size[1]*size[2]))/size[2])+((size[0]*Math.floor((i%(size[1]*size[2]))/size[2])+Math.floor(i/(size[1]*size[2])))%2?size[0]-(i%(size[1]*size[2]))%size[2]-1:(i%(size[1]*size[2]))%size[2])]=init[i];
+            }
+        }else{
+            this.commandBlocks=init;
+        }*/
     }
 
 
     /**
      * Generate structure NBT
      * | blocks out of the given size will be ignored
-     * @param {Number} X - The x limit of the structure
-     * @param {Number} Y - The y limit of the structure
-     * @param {Number} Z - The z limit of the structure
+     * @param {Number} [X=this.size[0]] - The x limit of the structure
+     * @param {Number} [Y=this.size[1]] - The y limit of the structure
+     * @param {Number} [Z=this.size[2]] - The z limit of the structure
      * @param {Boolean} [littleEndian=false] - Byte order
      * @returns {ArrayBuffer} NBT data
      */
-    generateNBT(X,Y,Z,littleEndian=false){
+    generateNBT(X=this.size[0],Y=this.size[1],Z=this.size[2],littleEndian=false){
         this.structure={"name":"","value":{"format_version":{"type":"int","value":1},"size":{"type":"list","value":{"type":"int","value":[X,Y,Z]}},"structure":{"type":"compound","value":{"block_indices":{"type":"list","value":{"type":"list","value":[{"type":"int","value":[]},{"type":"int","value":[]}]}},"entities":{"type":"list","value":{"type":"end","value":[]}},"palette":{"type":"compound","value":{"default":{"type":"compound","value":{"block_palette":{"type":"list","value":{"type":"compound","value":[{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":0}}}},{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":1}}}},{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":2}}}},{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":4}}}},{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":5}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":0}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":1}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":2}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":4}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":5}}}},{"name":{"type":"string","value":"minecraft:repeating_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":0}}}},{"name":{"type":"string","value":"minecraft:repeating_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":1}}}},{"name":{"type":"string","value":"minecraft:repeating_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":2}}}},{"name":{"type":"string","value":"minecraft:repeating_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:repeating_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":4}}}},{"name":{"type":"string","value":"minecraft:repeating_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":5}}}}]}},"block_position_data":{"type":"compound","value":{}}}}}}}},"structure_world_origin":{"type":"list","value":{"type":"int","value":[0,0,0]}}}};
         this.structure.value.structure.value.block_indices.value.value[0].value=new Array(X*Y*Z).fill(-1);
         this.structure.value.structure.value.block_indices.value.value[1].value=new Array(X*Y*Z).fill(-1);
         this.structure.value.structure.value.palette.value.default.value.block_palette.value.value[0].states.value.facing_direction.value=(!(Z-1)?(!(X-1)?1:5):3);
         let x=0,y=0,z=0;
-        while((y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop()){
-            for(x=0;x<X&&(y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop();x++){
-                for(z=0;z<Z&&y*X*Z+x*Z+z<Object.keys(this.commandBlocks).pop();z++){
+        while(/*(y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop()*/1){
+            for(x=0;x<X/*&&(y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop()*/;x++){
+                for(z=0;z<Z/*&&y*X*Z+x*Z+z<Object.keys(this.commandBlocks).pop()*/;z++){
                     if(!this.commandBlocks[y*X*Z+x*Z+z]) continue;
-                    this.structure.value.structure.value.block_indices.value.value[0].value[Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z)]=(this.commandBlocks[y*X*Z+x*Z+z].mode===undefined?(x==0&y==0&z==0?0:1):this.commandBlocks[y*X*Z+x*Z+z].mode)*6+(this.commandBlocks[y*X*Z+x*Z+z].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[y*X*Z+x*Z+z].facingDirection);
-                    this.structure.value.structure.value.palette.value.default.value.block_position_data.value[Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z)]={"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"id":{"type":"string","value":"CommandBlock"},"Command":{"type":"string","value":this.commandBlocks[y*X*Z+x*Z+z].command},"CustomName":{"type":"string","value":this.commandBlocks[y*X*Z+x*Z+z].customName},"TickDelay":{"type":"int","value":this.commandBlocks[y*X*Z+x*Z+z].tickDelay},"TrackOutput":{"type":"byte","value":1},"auto":{"type":"byte","value":this.commandBlocks[y*X*Z+x*Z+z].auto},"conditionalMode": {"type": "byte","value": this.commandBlocks[y*X*Z+x*Z+z].conditionalMode}}}}};
+                    this.structure.value.structure.value.block_indices.value.value[0].value[this.serialized?Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z):x*Y*Z+y*Z+z]=(this.commandBlocks[y*X*Z+x*Z+z].mode===undefined?(x==0&y==0&z==0?0:1):this.commandBlocks[y*X*Z+x*Z+z].mode)*6+(this.commandBlocks[y*X*Z+x*Z+z].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[y*X*Z+x*Z+z].facingDirection);
+                    this.structure.value.structure.value.palette.value.default.value.block_position_data.value[this.serialized?Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z):x*Y*Z+y*Z+z]={"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"id":{"type":"string","value":"CommandBlock"},"Command":{"type":"string","value":this.commandBlocks[y*X*Z+x*Z+z].command},"CustomName":{"type":"string","value":this.commandBlocks[y*X*Z+x*Z+z].customName},"TickDelay":{"type":"int","value":this.commandBlocks[y*X*Z+x*Z+z].tickDelay},"TrackOutput":{"type":"byte","value":1},"auto":{"type":"byte","value":this.commandBlocks[y*X*Z+x*Z+z].auto},"conditionalMode": {"type": "byte","value": this.commandBlocks[y*X*Z+x*Z+z].conditionalMode}}}}};
                 }
             }
             y++;
@@ -81,9 +93,9 @@ class CBConstructor{
     /**
      * Generate MCStructure(NBT in little endian)
      * | blocks out of the given size will be ignored
-     * @param {Number} X - The x limit of the structure
-     * @param {Number} Y - The y limit of the structure
-     * @param {Number} Z - The z limit of the structure
+     * @param {Number} [X=this.size[0]] - The x limit of the structure
+     * @param {Number} [Y=this.size[1]] - The y limit of the structure
+     * @param {Number} [Z=this.size[2]] - The z limit of the structure
      * @param {Boolean} littleEndian - Byte order
      * @returns {ArrayBuffer} MCStructure data
      */
@@ -94,17 +106,18 @@ class CBConstructor{
 
     /**
      * 
-     * @param {Number} X - The x limit of the structure
-     * @param {Number} Z - The z limit of the structure
+     * @param {Number} [X=this.size[0]] - The x limit of the structure
+     * @param {Number} [Y=this.size[1]] - The y limit of the structure
+     * @param {Number} [Z=this.size[2]] - The z limit of the structure
      * @returns {ArrayBuffer} BDX data
      */
-    generateBDX(X,Z){
+    generateBDX(X=this.size[0],Y=this.size[1],Z=this.size[2]){
         this.dataArray=[66,68,88,0,68,105,115,108,105,110,107,95,83,102,111,114,122,97,0];
         let x=0,y=0,z=0;
         while((y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop()){
             for(x=0;x<X&&(y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop();x++){
                 for(z=0;z<Z&&y*X*Z+x*Z+z<Object.keys(this.commandBlocks).pop();z++){
-                    if(this.commandBlocks[y*X*Z+x*Z+z]) this.dataArray=this.dataArray.concat(0x24, 0, this.commandBlocks[y*X*Z+x*Z+z].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[y*X*Z+x*Z+z].facingDirection, 0, 0, 0, this.commandBlocks[y*X*Z+x*Z+z].mode===undefined?(x==0&y==0&z==0?0:2):(this.commandBlocks[y*X*Z+x*Z+z].mode==0?this.commandBlocks[y*X*Z+x*Z+z].mode:(this.commandBlocks[y*X*Z+x*Z+z].mode==1?2:1)), Array.from(new TextEncoder().encode(this.commandBlocks[y*X*Z+x*Z+z].command)), 0, Array.from(new TextEncoder().encode(this.commandBlocks[y*X*Z+x*Z+z].customName)), 0, 0, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff000000)>>>24, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff0000)>>>16, (this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff00)>>>8, this.commandBlocks[y*X*Z+x*Z+z].tickDelay&0xff, 1, 0, 0, !this.commandBlocks[y*X*Z+x*Z+z].auto);
+                    if(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)]) this.dataArray=this.dataArray.concat(0x24, 0, this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].facingDirection, 0, 0, 0, this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].mode===undefined?(x==0&y==0&z==0?0:2):(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].mode==0?this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].mode:(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].mode==1?2:1)), Array.from(new TextEncoder().encode(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].command)), 0, Array.from(new TextEncoder().encode(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].customName)), 0, 0, (this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].tickDelay&0xff000000)>>>24, (this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].tickDelay&0xff0000)>>>16, (this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].tickDelay&0xff00)>>>8, this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].tickDelay&0xff, 1, 0, 0, !this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].auto);
                     if (z!=Z-1) this.dataArray=this.dataArray.concat((X*y+x)%2?19:18);
                 }
                 this.dataArray=this.dataArray.concat(x==X-1?16:(y%2?15:14));
@@ -145,10 +158,22 @@ class CBConstructor{
      * @returns {String} The command block description data
      */
     generateCBDesc(){
-        this.data='#meta Serialized\n'
-        +'';
-        for(i in this.commandBlocks){
-            this.data+=`${this.commandBlocks[i].customName}:${this.commandBlocks[i].mode===undefined?'-':this.modeDesc[this.commandBlocks[i].mode]} ${this.conditionalModeDesc[this.commandBlocks[i].conditionalMode]} ${this.autoBitDesc[this.commandBlocks[i].auto]} [${this.commandBlocks[i].tickDelay}] ${this.commandBlocks[i].facingDirection===undefined?'':'{'+this.directionDesc[this.commandBlocks[i].facingDirection]+'}'}\n/${this.commandBlocks[i].command}\n\n`;
+        if(this.serialized){
+            this.data='#meta Serialized\n'
+            for(i in this.commandBlocks){
+                this.data+=`${this.commandBlocks[i].customName}:${this.commandBlocks[i].mode===undefined?'-':this.modeDesc[this.commandBlocks[i].mode]} ${this.conditionalModeDesc[this.commandBlocks[i].conditionalMode]} ${this.autoBitDesc[this.commandBlocks[i].auto]} [${this.commandBlocks[i].tickDelay}] ${this.commandBlocks[i].facingDirection===undefined?'':'{'+this.directionDesc[this.commandBlocks[i].facingDirection]+'}'}\n/${this.commandBlocks[i].command}\n\n`;
+            }
+        }else{
+            /*this.data=`#meta size ${this.size[0]} ${this.size[1]} ${this.size[2]}\n`;
+            this.data+='#defaultAxis z';
+            for(let x=0;x<this.size[0];x++){
+                for(let y=0;y<this.size[1];y++){
+                    for(let z=0;z<this.size[2];z++){
+                        if()
+                    }
+                }
+            }*/
+			Error("暂时不支持非序列化生成cbd文件，建议手动写入");
         }
         return this.data;
     }
