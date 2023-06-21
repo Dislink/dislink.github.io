@@ -30,8 +30,8 @@
 			}
 			return result;
 		}
-		function placeCommandBlockWithCommandBlockData(data, mode, command, hoverText, ticksDelay, needsRedstone){
-			return String.fromCharCode(0x24, (data&0xff00)>>>8, data&0xff, (mode&0xff000000)>>>24, (mode&0xff0000)>>>16, (mode&0xff00)>>>8, (mode&0xff))+command+'\x00'+hoverText+'\x00\x00'+String.fromCharCode((ticksDelay&0xff000000)>>>24, (ticksDelay&0xff0000)>>>16, (ticksDelay&0xff00)>>>8, ticksDelay&0xff)+"\x01"+"\x00"+"\x00"+String.fromCharCode(needsRedstone);
+		function placeCommandBlockWithCommandBlockData(data, mode, command, hoverText, ticksDelay, conditionalMode, needsRedstone){
+			return String.fromCharCode(0x24, (data&0xff00)>>>8, data&0xff, (mode&0xff000000)>>>24, (mode&0xff0000)>>>16, (mode&0xff00)>>>8, (mode&0xff))+command+'\x00'+hoverText+'\x00\x00'+String.fromCharCode((ticksDelay&0xff000000)>>>24, (ticksDelay&0xff0000)>>>16, (ticksDelay&0xff00)>>>8, ticksDelay&0xff)+"\x01"+"\x01"+String.fromCharCode(conditionalMode,needsRedstone);
 		}
 	</script>
 </head>
@@ -118,7 +118,7 @@
 							seq++;
 							continue;
 						}
-						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), pattern.value.replaceAll("%{command}%", command.match(/^[^#]*/)[0].replace(/^\-/,"")), '', Number(command.match(/^[^#]*/)[0].test(/^\-/)), ((x==0&&y==0&&z==0)?true:false));
+						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), pattern.value.replaceAll("%{command}%", command.replace(/^\-/,"")), '', Number(/^\-/.test(command)), ((x==0&&y==0&&z==0)?true:false));
 						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
 					}
 					data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
