@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <head>
 	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
@@ -73,19 +72,22 @@
 	<script>
 		xLengthScroll.onchange=(e)=>{
 			xLength.value=e.target.value;
-			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			heightChange();
 		}
 		xLength.onchange=(e)=>{
 			xLengthScroll.value=e.target.value;
-			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			heightChange();
 		}
 		zLengthScroll.onchange=(e)=>{
 			zLength.value=e.target.value;
-			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			heightChange();
 		}
 		zLength.onchange=(e)=>{
 			zLengthScroll.value=e.target.value;
-			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			heightChange();
+		}
+		function heightChange(){
+			heightEstimate.innerText=contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length?`预计高度：${Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 		}
 		upload.onchange=((e)=>{
 			if((typeof upload.seq==='undefined')||e){
@@ -122,7 +124,7 @@
 					cbs[0].push(new commandBlock(i));
 				}
 			}
-			let cbc=new CBConstructor(cbs[0],cbs[1],cbs[2]?cbs[2]:[parseInt(xLength.value),Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/parseInt(xLength.value)*parseInt(zLength.value)),parseInt(zLength.value)]);
+			let cbc=new CBConstructor(cbs[0],cbs[1]);
 			if(convertResult.value=='mcpack'){
 				if(upload.seq==0){
 					zip=new JSZip();
@@ -137,7 +139,7 @@
 					loadContent='';
 				}
 				loadContent+=`execute ${commandVersion.value=="new"?'at ':''}@s ${commandVersion.value=="new"?'run':'~~~'} structure load "${upload.files[upload.seq].name.replace(/\.mcfunction$/,'')}" ~${parseInt(xLength.value)*(upload.seq-Math.round(upload.files.length/2))}~~\n`;
-				structures.file(`${upload.files[upload.seq].name.replace(/\.mcfunction$/,'')}.mcstructure`, cbs[2]?cbc.generateMCStructure(cbs[2][0], cbs[2][1], cbs[2][2]):cbc.generateMCStructure(parseInt(xLength.value),Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/parseInt(xLength.value)*parseInt(zLength.value)),parseInt(zLength.value)));
+				structures.file(`${upload.files[upload.seq].name.replace(/\.mcfunction$/,'')}.mcstructure`, cbs[2]?cbc.generateMCStructure(cbs[2][0], cbs[2][1], cbs[2][2]):cbc.generateMCStructure(parseInt(xLength.value),Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/(parseInt(xLength.value)*parseInt(zLength.value))),parseInt(zLength.value)));
 				if(upload.seq==upload.files.length-1){
 					functions.file("load.mcfunction", loadContent);
 					zip.generateAsync({type:"blob"}).then(function(content,err) {
@@ -147,12 +149,13 @@
 					return;
 				}
 			}else if(convertResult.value=='bdx'){
-				saveAs(new Blob([cbs[2]?cbc.generateBDX(cbs[2][0], cbs[2][1], cbs[2][2]):cbc.generateBDX(parseInt(xLength.value),Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/parseInt(xLength.value)*parseInt(zLength.value)),parseInt(zLength.value))]),`${upload.files[upload.seq].name.replace(/\.mcfunction$/,'')}.bdx`)
+				saveAs(new Blob([cbs[2]?cbc.generateBDX(cbs[2][0], cbs[2][1], cbs[2][2]):cbc.generateBDX(parseInt(xLength.value),Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/(parseInt(xLength.value)*parseInt(zLength.value))),parseInt(zLength.value))]),`${upload.files[upload.seq].name.replace(/\.mcfunction$/,'')}.bdx`)
 				if(upload.seq==upload.files.length-1) return;
 			}
 			upload.onchange();
 		}catch(e){
-			alert(e)
+			alert(e);
+			throw e;
 		}
 		})
 	</script>
