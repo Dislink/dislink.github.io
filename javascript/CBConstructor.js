@@ -21,17 +21,17 @@ class commandBlock{
      * @param {Number} [mode=autoFill] - Mode
      * @param {Boolean} [conditionalMode=false] - Conditional
      * @param {Number} [tickDelay=0] - TickDelay
-     * @param {Boolean} [auto=false] - Auto
+     * @param {Boolean} [auto=autoFill] - Auto
      * @param {Number} [facingDirection=autoFill] - Facing direction
      * 
      */
-    constructor(command, customName='', mode=undefined, conditionalMode=false, tickDelay=0, auto=false, facingDirection=undefined){
+    constructor(command, customName='', mode=undefined, conditionalMode=false, tickDelay=0, auto=undefined, facingDirection=undefined){
         this.command=command;
         this.customName=customName;
         this.mode=mode;
         this.conditionalMode=Number(conditionalMode);
         this.tickDelay=tickDelay;
-        this.auto=Number(auto);
+        this.auto=auto;
         this.facingDirection=facingDirection;
     }
 
@@ -78,8 +78,9 @@ class CBConstructor{
             for(x=0;x<X/*&&(y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop()*/;x++){
                 for(z=0;z<Z/*&&y*X*Z+x*Z+z<Object.keys(this.commandBlocks).pop()*/;z++){
                     if(!this.commandBlocks[y*X*Z+x*Z+z]) continue;
-                    this.structure.value.structure.value.block_indices.value.value[0].value[this.serialized?Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z):x*Y*Z+y*Z+z]=(this.commandBlocks[y*X*Z+x*Z+z].mode===undefined?(x==0&y==0&z==0?0:1):this.commandBlocks[y*X*Z+x*Z+z].mode)*6+(this.commandBlocks[y*X*Z+x*Z+z].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[y*X*Z+x*Z+z].facingDirection);
-                    this.structure.value.structure.value.palette.value.default.value.block_position_data.value[this.serialized?Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z):x*Y*Z+y*Z+z]={"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"id":{"type":"string","value":"CommandBlock"},"Command":{"type":"string","value":this.commandBlocks[y*X*Z+x*Z+z].command},"CustomName":{"type":"string","value":this.commandBlocks[y*X*Z+x*Z+z].customName},"TickDelay":{"type":"int","value":this.commandBlocks[y*X*Z+x*Z+z].tickDelay},"TrackOutput":{"type":"byte","value":1},"auto":{"type":"byte","value":this.commandBlocks[y*X*Z+x*Z+z].auto},"conditionalMode": {"type": "byte","value": this.commandBlocks[y*X*Z+x*Z+z].conditionalMode}}}}};
+					let CommandBlock=this.commandBlocks[y*X*Z+x*Z+z];
+                    this.structure.value.structure.value.block_indices.value.value[0].value[this.serialized?Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z):x*Y*Z+y*Z+z]=(CommandBlock.mode===undefined?(x==0&y==0&z==0?0:1):CommandBlock.mode)*6+(CommandBlock.facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):CommandBlock.facingDirection);
+                    this.structure.value.structure.value.palette.value.default.value.block_position_data.value[this.serialized?Y*Z*(y%2?X-x-1:x)+Z*y+((X*y+x)%2?Z-z-1:z):x*Y*Z+y*Z+z]={"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"id":{"type":"string","value":"CommandBlock"},"Command":{"type":"string","value":CommandBlock.command},"CustomName":{"type":"string","value":CommandBlock.customName},"TickDelay":{"type":"int","value":CommandBlock.tickDelay},"TrackOutput":{"type":"byte","value":1},"auto":{"type":"byte","value":CommandBlock.auto===undefined?((this.serialized&&(x!=0|y!=0|z!=0))||CommandBlock.mode==2?true:false):CommandBlock.auto},"conditionalMode": {"type": "byte","value": CommandBlock.conditionalMode}}}}};
                 }
             }
             y++;
@@ -117,13 +118,15 @@ class CBConstructor{
         while((y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop()){
             for(x=0;x<X&&(y-1)*X*Z+(x-1)*Z+z<Object.keys(this.commandBlocks).pop();x++){
                 for(z=0;z<Z&&y*X*Z+x*Z+z<Object.keys(this.commandBlocks).pop();z++){
-                    if(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)]) this.dataArray=this.dataArray.concat(0x24, 0, this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].facingDirection, 0, 0, 0, this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].mode===undefined?(x==0&y==0&z==0?0:2):(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].mode==0?this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].mode:(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].mode==1?2:1)), Array.from(new TextEncoder().encode(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].command)), 0, Array.from(new TextEncoder().encode(this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].customName)), 0, 0, (this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].tickDelay&0xff000000)>>>24, (this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].tickDelay&0xff0000)>>>16, (this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].tickDelay&0xff00)>>>8, this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].tickDelay&0xff, 1, 1, this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].conditionalMode, !this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)].auto);
+					let CommandBlock=this.commandBlocks[this.serialized?y*X*Z+x*Z+z:y*X*Z+(y%2?X-x-1:x)*Z+((X*y+x)%2?Z-z-1:z)];
+                    if(CommandBlock) this.dataArray=this.dataArray.concat(0x24, 0, CommandBlock.facingDirection===undefined?(z==Z-1?(x==X-1?1:(y%2?4:5)):((X*y+x)%2?2:3)):CommandBlock.facingDirection, 0, 0, 0, CommandBlock.mode===undefined?(x==0&y==0&z==0?0:2):(CommandBlock.mode==0?CommandBlock.mode:(CommandBlock.mode==1?2:1)), Array.from(new TextEncoder().encode(CommandBlock.command)), 0, Array.from(new TextEncoder().encode(CommandBlock.customName)), 0, 0, (CommandBlock.tickDelay&0xff000000)>>>24, (CommandBlock.tickDelay&0xff0000)>>>16, (CommandBlock.tickDelay&0xff00)>>>8, CommandBlock.tickDelay&0xff, 1, 1, CommandBlock.conditionalMode, !CommandBlock.auto===undefined?((this.serialized&&(x!=0|y!=0|z!=0))||this.mode==2?true:false):CommandBlock.auto);
                     if (z!=Z-1) this.dataArray=this.dataArray.concat((X*y+x)%2?19:18);
                 }
                 this.dataArray=this.dataArray.concat(x==X-1?16:(y%2?15:14));
             }
             y++;
         }
+		let Buffer;
 		if (typeof Buffer === 'undefined') {
 			Buffer=Uint8Array;
 		}
@@ -135,7 +138,8 @@ class CBConstructor{
     modeDesc={
         0:'脉冲',
         1:'连锁',
-        2:'循环'
+        2:'循环',
+		undefined:'-'
     }
 
     directionDesc={
@@ -144,7 +148,7 @@ class CBConstructor{
         2:'north',
         3:'south',
         4:'west',
-        5:'east'
+        5:'east',
     }
 
     conditionalModeDesc={
@@ -154,7 +158,8 @@ class CBConstructor{
 
     autoBitDesc={
         0:'需要红石',
-        1:'始终活动'
+        1:'始终活动',
+		undefined:'-'
     }
     /**
      * 
@@ -163,8 +168,8 @@ class CBConstructor{
     generateCBDesc(){
         if(this.serialized){
             this.data='#meta Serialized\n'
-            for(i in this.commandBlocks){
-                this.data+=`${this.commandBlocks[i].customName}:${this.commandBlocks[i].mode===undefined?'-':this.modeDesc[this.commandBlocks[i].mode]} ${this.conditionalModeDesc[this.commandBlocks[i].conditionalMode]} ${this.autoBitDesc[this.commandBlocks[i].auto]} [${this.commandBlocks[i].tickDelay}] ${this.commandBlocks[i].facingDirection===undefined?'':'{'+this.directionDesc[this.commandBlocks[i].facingDirection]+'}'}\n/${this.commandBlocks[i].command}\n\n`;
+            for(let i of this.commandBlocks){
+                this.data+=`${i.customName}:${this.modeDesc[i.mode]} ${this.conditionalModeDesc[Number(i.conditionalMode)]} ${this.autoBitDesc[i.auto]} [${i.tickDelay}] ${i.facingDirection===undefined?'':'{'+this.directionDesc[i.facingDirection]+'}'}\n/${i.command}\n\n`;
             }
         }else{
             /*this.data=`#meta size ${this.size[0]} ${this.size[1]} ${this.size[2]}\n`;
