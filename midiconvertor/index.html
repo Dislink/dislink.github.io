@@ -62,11 +62,12 @@
 </head>
 <body>
 	<form id="arguments">
-		<input type="file" id="upload" accept="audio/midi">
+		<input type="file" id="upload" multiple accept="audio/midi">
 		 <label for="upload">上传midi文件</label>
 		<br/>
 		<fieldset id="mid_info" style="display: none;">
 		<legend>MIDI信息</legend>
+			<h2 id="fileName"></h2>
 			<h3 id="timeTotal"></h3>
 			<h3 id="tracksCount"><h3>
 			<h3 id="noteOnCount"><h3>
@@ -90,13 +91,13 @@
 			<br/>
 			<input type="range" id="volume4MainScroll" min="0" max="1" value="0.9" step="0.01"/>
 			<label for="volume4MainScroll">主音轨音量衰减系数</label>
-			<input type="number" id="volume4Main" step="0.01" value="0.9" />
+			<input type="number" id="volume4Main" step="0.01" value="1" />
 			<br/>
 			<input type="range" id="volume4SubScroll" min="0" max="1" value="0.7" step="0.01"/>
 			<label for="volume4SubScroll">副音轨音量衰减系数</label>
-			<input type="number" id="volume4Sub" step="0.01" value="0.7" />
+			<input type="number" id="volume4Sub" step="0.01" value="1" />
 			<label for="convertTracks" style="display:none;">转换音轨</label>
-			<select id="convertTracks" multiple="true" style="display:none;">
+			<select id="convertTracks" multiple style="display:none;">
 			</select>
 			<br/>
 			<label for="defaultMelodic">声学默认音色</label>
@@ -142,7 +143,6 @@
 			<select id="commandVersion">
 				<option value="formal">旧execute语法规范</option>
 				<option value="new"  selected>新execute语法规范</option>
-				<option value="no-execute">不使用execute(不推荐，会影响效果)</option>
 			</select>
 		</fieldset>
 		<br/>
@@ -198,8 +198,13 @@
 			commandBlockLength=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, true)[0].filter((d)=>{return d.param2}).length;
 			heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 		}
-		upload.onchange=(()=>{
-			if(!upload.files[0]) return;
+		upload.onchange=((e)=>{
+			if((typeof upload.seq==='undefined')||e){
+				upload.seq=0;
+			}else{
+				upload.seq++;
+			}
+			if(!upload.files[upload.seq]) return;
 			var fr=new FileReader();
 			fr.onload=()=>{
 				try{
@@ -213,6 +218,7 @@
 					for(let i in midiFile.getEvents()){
 						midiFile.timeTotal=(midiFile.timeTotal>midiFile.getEvents()[i].slice(-1)[0].playTime?midiFile.timeTotal:midiFile.getEvents()[i].slice(-1)[0].playTime)
 					}
+					document.getElementById("fileName").innerText=upload.files[upload.seq].name;
 					document.getElementById("timeTotal").innerText="时长："+formatSeconds(Math.round(midiFile.timeTotal/1000));
 					document.getElementById("tracksCount").innerText=`音轨数/选中音轨数:${midiFile.header.getTracksCount()}/${midiFile.header.getTracksCount()}`;
 					document.getElementById("noteOnCount").innerText=`音符数/选中音符数:${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}/${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}`;
@@ -293,7 +299,6 @@
 					document.getElementById("convertTracks").style="display: block";
 					document.getElementById("mid_info").style="display: block;";
 					document.getElementById("download").style="display: block;";
-					fileName=upload.files[0].name;
 					commandBlockLength=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
 					heightEstimate.innerText=commandBlockLength?`预计高度：${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
 				}catch(e){
@@ -301,9 +306,10 @@
 					alert(e.toString().split('\n')[0]+",可能是midi文件损坏");
 				}
 			}
-			fr.readAsArrayBuffer(upload.files[0]);
+			fr.readAsArrayBuffer(upload.files[upload.seq]);
 		})
 		download.onclick=(()=>{
+		try{
 			let channelsInstrument=[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
 			let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
 			let commandBlocks=[];
@@ -317,26 +323,40 @@
 					continue;
 				}
 				let soundString=((soundStrings||[])[notes[i].channel]||[])[channelsInstrument[notes[i].channel]]||[notes[i].channel==9?defaultPercussion.value:defaultMelodic.value,1,0];
-				commandBlocks.push(new commandBlock(`${(commandVersion.value=="no-execute")?'':(commandVersion.value=="formal")?"execute "+playerSelector.value+" ~~~ ":"execute as "+playerSelector.value+" run "}playsound ${convertToDefault.checked?(notes[i].channel==9?defaultPercussion.value:defaultMelodic.value):(notes[i].channel==9?soundStrings[notes[i].param1][0]:soundString[0])} @${commandVersion.value=="no-execute"?"a":"s"} ~~6~ ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)} ${(notes[i].channel==9?soundStrings[notes[i].param1][2]:(2**((notes[i].param1+(soundString[2]||0)+parseFloat(pitchOffset.value)-66)/12))).toFixed(5)} ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)}`, '', undefined, false, ((i!=0?Math.round((notes[i].playTime-notes[seq].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[i].playTime)/(50*(parseFloat(speed.value)/100))))), seq==0?false:true, undefined));
+				commandBlocks.push(new commandBlock(`execute ${commandVersion.value=="new"?'at ':''}${playerSelector.value} ${commandVersion.value=="new"?'run':'~~~'} playsound ${convertToDefault.checked?(notes[i].channel==9?defaultPercussion.value:defaultMelodic.value):(notes[i].channel==9?soundStrings[notes[i].param1][0]:soundString[0])} @${commandVersion.value=="no-execute"?"a":"s"} ~~6~ ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)} ${(notes[i].channel==9?soundStrings[notes[i].param1][2]:(2**((notes[i].param1+(soundString[2]||0)+parseFloat(pitchOffset.value)-66)/12))).toFixed(5)} ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)}`, '', undefined, false, ((i!=0?Math.round((notes[i].playTime-notes[seq].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[i].playTime)/(50*(parseFloat(speed.value)/100)))))));
 				seq=i;
 			}
-//			compressed=new Brotli().compressArray(Uint8Array.from(BDXDataP1.concat(Array.from(new TextEncoder().encode(data)).concat(BDXDataEnd))), 6);
 			if(convertResult.value=='mcpack'){
-				zip=new JSZip();
-				manifestBE.format_version=(commandVersion.value=="new"?2:1);
-				manifestBE.header.name=fileName;
-				manifestBE.header.uuid=Math.uuid();
-				manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,0]:[1,13,0]);
-				manifestBE.modules[0].uuid=Math.uuid();
-				zip.file("manifest.json", JSON.stringify(manifestBE, "", "\t"));
-				zip.folder("structures").file(`${fileName.replace(/\.midi?$/,'')}.mcstructure`, new CBConstructor(commandBlocks).generateMCStructure(parseInt(xLength.value), Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value)))),parseInt(zLength.value)))
-				zip.generateAsync({type:"blob"}).then(function(content,err) {
-					if(err) console.log(err)
-					saveAs(content, `${fileName.replace(/.midi?$/,'')}.mcpack`);
-				});
+				if(upload.seq==0){
+					zip=new JSZip();
+					manifestBE.format_version=(commandVersion.value=="new"?2:1);
+					manifestBE.header.name=upload.files.length>1?`mixed_midis${Math.random().toFixed(5).replace("0.",'')}`:upload.files[0].name.replace(/.midi?$/,'');
+					manifestBE.header.uuid=Math.uuid();
+					manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,0]:[1,13,0]);
+					manifestBE.modules[0].uuid=Math.uuid();
+					zip.file("manifest.json", JSON.stringify(manifestBE, "", "\t"));
+					structures=zip.folder("structures");
+					functions=zip.folder("functions");
+					loadContent='';
+				}
+				loadContent+=`execute ${commandVersion.value=="new"?'at ':''}@s ${commandVersion.value=="new"?'run':'~~~'} structure load "${upload.files[upload.seq].name.replace(/\.midi?$/,'')}" ~${parseInt(xLength.value)*(upload.seq-Math.round(upload.files.length/2))}~~\n`;
+				structures.file(`${upload.files[upload.seq].name.replace(/\.midi?$/,'')}.mcstructure`, new CBConstructor(commandBlocks).generateMCStructure(parseInt(xLength.value), Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value)))),parseInt(zLength.value)));
+				if(upload.seq==upload.files.length-1){
+					functions.file("load.mcfunction", loadContent);
+					zip.generateAsync({type:"blob"}).then(function(content,err) {
+						if(err) console.log(err)
+						saveAs(content, `${manifestBE.header.name}.mcpack`);
+					});
+					return;
+				}
 			}else if(convertResult.value=='bdx'){
-				saveAs(new Blob([new CBConstructor(commandBlocks).generateBDX(parseInt(xLength.value), parseInt(zLength.value))]),`${fileName.replace(/.midi?$/,'')}.bdx`)
+				saveAs(new Blob([new CBConstructor(commandBlocks).generateBDX(parseInt(xLength.value), parseInt(zLength.value))]),`${upload.files[upload.seq].name.replace(/.midi?$/,'')}.bdx`)
+				if(upload.seq==upload.files.length-1) return;
 			}
+			upload.onchange();
+		}catch(e){
+			alert(e);
+		}
 		})
 	</script>
 </body>
