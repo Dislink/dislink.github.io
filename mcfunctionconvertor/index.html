@@ -1,0 +1,159 @@
+
+<!DOCTYPE html>
+<head>
+	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+	<title>mcfunction转转换器 | By Dislink</title>
+	<script src="/javascript/nbt.js" type="text/javascript"></script>
+	<script src="/javascript/jszip.min.js" type="text/javascript"></script>
+	<script src="/javascript/brotli-js.js" type="text/javascript"></script>
+	<script src="/javascript/Math.uuid.js" type="text/javascript"></script>
+	<script src="/javascript/FileSaver.js" type="text/javascript"></script>
+	<script src="/javascript/CBConstructor.js" type="text/javascript"></script>
+	<script src="/javascript/CBDParser.js" type="text/javascript"></script>
+	<script>
+		manifestBE={"format_version":0,"header":{"description":"url:https://dislink.github.io/mcfunction2mcstructure","name":"","uuid":"","version":[0,0,1],"min_engine_version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
+	</script>
+	<script>
+		structureNBT={"name":"","value":{"format_version":{"type":"int","value":1},"size":{"type":"list","value":{"type":"int","value":[0,0,0]}},"structure":{"type":"compound","value":{"block_indices":{"type":"list","value":{"type":"list","value":[{"type":"int","value":[]},{"type":"int","value":[]}]}},"entities":{"type":"list","value":{"type":"end","value":[]}},"palette":{"type":"compound","value":{"default":{"type":"compound","value":{"block_palette":{"type":"list","value":{"type":"compound","value":[{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":1}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":2}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":4}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":5}}}}]}},"block_position_data":{"type":"compound","value":{}}}}}}}},"structure_world_origin":{"type":"list","value":{"type":"int","value":[0,0,0]}}}};
+		function commandBlockEntityData(command='', customName='', ticksDelay=0, auto=false, position=[0,0,0]){
+			return {"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"id":{"type":"string","value":"CommandBlock"},"Command":{"type":"string","value":command},"CustomName":{"type":"string","value":customName},"TickDelay":{"type":"int","value":ticksDelay},"TrackOutput":{"type":"byte","value":1},"auto":{"type":"byte","value":Number(auto)}}}}};
+		}
+	</script>
+	
+</head>
+<body>
+	<form id="arguments">
+		<input type="file" id="upload" accept=".mcfunction,.cbd,.txt" multiple />
+		 <label for="upload">上传mcfunction文件</label>
+		<br/>
+		<fieldset id="fileInfo" style="display: none;">
+		<legend>文件信息</legend>
+			<h3 id="fileName"></h3>
+			<h3 id="linesTotal"><h3>
+			<h3 id="commandsTotal"><h3>
+			<br/>
+			<label for="enableCBD">启用命令方块描述(CBD)扩展</label>
+			<input type="checkbox" id="enableCBD" />
+		</fieldset>
+		<fieldset id="command_args">
+		<legend>结构、命令参数</legend>
+			<label for="pattern">命令储存方式	</label>
+			<input type="text" id="pattern" value="%{command}%" />
+			<br/>
+			<input type="range" id="xLengthScroll" min="1" max="256" value="8" />
+			<label for="xLengthScroll">x轴延伸长度</label>
+			<input type="number" id="xLength" step="1" value="8" />
+			<label for="xLength">block(s)</label>
+			<br/>
+			<input type="range" id="zLengthScroll" min="1" max="256" value="8" />
+			<label for="zLengthScroll">z轴延伸长度</label>
+			<input type="number" id="zLength" step="1" value="8" />
+			<label for="zLength">block(s)</label>
+			<br/>
+			<div id="heightEstimate"></div>
+			<br/>
+			<label for="commandVersion">命令版本</label>
+			<select id="commandVersion">
+				<option value="formal">旧规范</option>
+				<option value="new"  selected>新规范</option>
+			</select>
+			<br/>
+			<label for="convertResult">生成结果</label>
+			<select id="convertResult">
+				<option value="bdx">BDX</option>
+				<option value="mcpack"  selected>mcpack(mcstructure)</option>
+			</select>
+		</fieldset>
+		<br/>
+	</form>
+	<br/>
+	<button id="download" style="display: none;">下载文件</button>
+	<br/>
+	<div id="status"></div>
+	<script>
+		xLengthScroll.onchange=(e)=>{
+			xLength.value=e.target.value;
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		xLength.onchange=(e)=>{
+			xLengthScroll.value=e.target.value;
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		zLengthScroll.onchange=(e)=>{
+			zLength.value=e.target.value;
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		zLength.onchange=(e)=>{
+			zLengthScroll.value=e.target.value;
+			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+		}
+		upload.onchange=((e)=>{
+			if((typeof upload.seq==='undefined')||e){
+				upload.seq=0;
+			}else{
+				upload.seq++;
+			}
+			if(!upload.files[upload.seq]) return;
+			enableCBD.checked=/\.cbd$/i.test(upload.files[upload.seq].name)?true:false;
+			var fr=new FileReader();
+			fr.onload=()=>{
+				document.getElementById("fileInfo").style="display: block;";
+				document.getElementById("download").style="display: block;";
+				document.getElementById("fileName").innerText=`文件名：${upload.files[upload.seq].name}`;
+				let decoder = new TextDecoder()
+				contentRaw=decoder.decode(fr.result);
+				contents=contentRaw.split("\n");
+				document.getElementById("linesTotal").innerText=`文件大小：${contentRaw.lenth}字符`;
+				document.getElementById("linesTotal").innerText=`文件行数：${contents.length}`;
+				document.getElementById("commandsTotal").style=`display: ${document.getElementById("enableCBD").checked?'none':'block'};`
+				document.getElementById("commandsTotal").innerText=`命令数：${contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length}`;
+				document.getElementById("heightEstimate").style=`display: ${document.getElementById("enableCBD").checked?'none':'block'};`
+				heightEstimate.innerText=contents?`预计高度：${Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+			}
+			fr.readAsArrayBuffer(upload.files[upload.seq]);
+		})
+		download.onclick=(()=>{
+		try{
+			let cbs=[[], true];
+			if(enableCBD.checked){
+				cbs=parseCBD(contentRaw);
+			}else{
+				for(let i of contents.filter((d)=>{return (/^\s*[^#].*/.test(d))})){
+					cbs[0].push(new commandBlock(i));
+				}
+			}
+			let cbc=new CBConstructor(cbs[0],cbs[1],cbs[2]?cbs[2]:[parseInt(xLength.value),Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/parseInt(xLength.value)*parseInt(zLength.value)),parseInt(zLength.value)]);
+			if(convertResult.value=='mcpack'){
+				if(upload.seq==0){
+					zip=new JSZip();
+					manifestBE.format_version=(commandVersion.value=="new"?2:1);
+					manifestBE.header.name=upload.files.length>1?`mixed_files${Math.random().toFixed(5).replace("0.",'')}`:upload.files[upload.seq].name.replace(/\.mcfunction$/,'');
+					manifestBE.header.uuid=Math.uuid();
+					manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,0]:[1,13,0]);
+					manifestBE.modules[0].uuid=Math.uuid();
+					zip.file("manifest.json", JSON.stringify(manifestBE, "", "\t"));
+					structures=zip.folder("structures");
+					functions=zip.folder("functions");
+					loadContent='';
+				}
+				loadContent+=`execute ${commandVersion.value=="new"?'at ':''}@s ${commandVersion.value=="new"?'run':'~~~'} structure load "${upload.files[upload.seq].name.replace(/\.mcfunction$/,'')}" ~${parseInt(xLength.value)*(upload.seq-Math.round(upload.files.length/2))}~~\n`;
+				structures.file(`${upload.files[upload.seq].name.replace(/\.mcfunction$/,'')}.mcstructure`, cbs[2]?cbc.generateMCStructure(cbs[2][0], cbs[2][1], cbs[2][2]):cbc.generateMCStructure(parseInt(xLength.value),Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/parseInt(xLength.value)*parseInt(zLength.value)),parseInt(zLength.value)));
+				if(upload.seq==upload.files.length-1){
+					functions.file("load.mcfunction", loadContent);
+					zip.generateAsync({type:"blob"}).then(function(content,err) {
+						if(err) console.log(err)
+						saveAs(content, `${manifestBE.header.name}.mcpack`);
+					});
+					return;
+				}
+			}else if(convertResult.value=='bdx'){
+				saveAs(new Blob([cbs[2]?cbc.generateBDX(cbs[2][0], cbs[2][1], cbs[2][2]):cbc.generateBDX(parseInt(xLength.value),Math.ceil(contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length/parseInt(xLength.value)*parseInt(zLength.value)),parseInt(zLength.value))]),`${upload.files[upload.seq].name.replace(/\.mcfunction$/,'')}.bdx`)
+				if(upload.seq==upload.files.length-1) return;
+			}
+			upload.onchange();
+		}catch(e){
+			alert(e)
+		}
+		})
+	</script>
+</body>
