@@ -118,10 +118,10 @@
 		try{
 			let cbs=[[], true];
 			if(enableCBD.checked){
-				cbs=parseCBD(pattern.value.replace("%{command}%",contentRaw));
+				cbs=parseCBD(contentRaw);
 			}else{
 				for(let i of contents.filter((d)=>{return (/^\s*[^#].*/.test(d))})){
-					cbs[0].push(new commandBlock(i));
+					cbs[0].push(new commandBlock(pattern.value.replace("%{command}%",i)));
 				}
 			}
 			let cbc=new CBConstructor(cbs[0],cbs[1]);
