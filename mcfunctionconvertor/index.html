@@ -118,7 +118,7 @@
 		try{
 			let cbs=[[], true];
 			if(enableCBD.checked){
-				cbs=parseCBD(contentRaw);
+				cbs=parseCBD(pattern.value.replace("%{command}%",contentRaw));
 			}else{
 				for(let i of contents.filter((d)=>{return (/^\s*[^#].*/.test(d))})){
 					cbs[0].push(new commandBlock(i));
