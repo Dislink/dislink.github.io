@@ -353,9 +353,11 @@
 				saveAs(new Blob([new CBConstructor(commandBlocks).generateBDX(parseInt(xLength.value), parseInt(zLength.value))]),`${upload.files[upload.seq].name.replace(/.midi?$/,'')}.bdx`)
 				if(upload.seq==upload.files.length-1) return;
 			}
-			upload.onchange();
 		}catch(e){
 			alert(e);
+			console.error(e);
+		}finally{
+			upload.onchange();
 		}
 		})
 	</script>
