@@ -104,7 +104,7 @@
 				document.getElementById("fileName").innerText=`文件名：${upload.files[upload.seq].name}`;
 				let decoder = new TextDecoder()
 				contentRaw=decoder.decode(fr.result);
-				contents=contentRaw.split("\n");
+				contents=contentRaw.split(\(\n|\r)+\);
 				document.getElementById("linesTotal").innerText=`文件大小：${contentRaw.lenth}字符`;
 				document.getElementById("linesTotal").innerText=`文件行数：${contents.length}`;
 				document.getElementById("commandsTotal").style=`display: ${document.getElementById("enableCBD").checked?'none':'block'};`
