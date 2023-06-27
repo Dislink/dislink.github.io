@@ -143,12 +143,12 @@ class CBConstructor{
     }
 
     directionDesc={
-        0:'down',
-        1:'up',
-        2:'north',
-        3:'south',
-        4:'west',
-        5:'east',
+        0:/*'down'*/'y-',
+        1:/*'up'*/'y+',
+        2:/*'north'*/'z-',
+        3:/*'south'*/'z+',
+        4:/*'west'*/'x-',
+        5:/*'east'*/'x+',
     }
 
     conditionalModeDesc={

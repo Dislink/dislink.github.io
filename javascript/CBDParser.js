@@ -21,38 +21,35 @@ function parseCBD(CBDesc){
             continue;
         }
         if (/^\s*#defaultAxis\s+[xyz]/i.test(CBDesc.split(/(\n|\r)+/)[i])){
-            switch(CBDesc.split(/(\n|\r)+/)[i].match(/^\s*#defaultAxis\s+([xyz])/)[1]){
+            switch(CBDesc.split(/(\n|\r)+/)[i].match(/^\s*#defaultAxis\s+([xyz])/)[1].toLowerCase()){
                 case 'X':
-                case 'x':
                     defaultAxis=0;
                     break;
                 case 'Y':
-                case 'y':
                     defaultAxis=1;
                     break;
                 case 'Z':
-                case 'z':
                     defaultAxis=2;
                     break;
             }
             continue;
         }
-        if (/^\s*#default\s(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|0|1|2|3|4|5)\})?\s*/i.test(CBDesc.split(/(\n|\r)+/)[i])){
-            let properties=CBDesc.split(/(\n|\r)+/)[i].match(/^\s*#default\s(.*):((?:脉冲?)|(?:连锁?)|(?:循环?)|(?:(?:im)?pulse)|(?:chain)|(?:repeat(?:ing)?)|\-|p|c|r|0|1|2)\s*((?:有|无)条件的?|(?:(?:un)?conditional)|u|c|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:always(?:\-active)?)|(?:needs(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|0|1|2|3|4|5)\})?\s*/i);
+        if (/^\s*#default\s(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|[0-5]|[xyz][\+\-])\})?\s*/i.test(CBDesc.split(/(\n|\r)+/)[i])){
+            let properties=CBDesc.split(/(\n|\r)+/)[i].match(/^\s*#default\s(.*):((?:脉冲?)|(?:连锁?)|(?:循环?)|(?:(?:im)?pulse)|(?:chain)|(?:repeat(?:ing)?)|\-|p|c|r|0|1|2)\s*((?:有|无)条件的?|(?:(?:un)?conditional)|u|c|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:always(?:\-active)?)|(?:needs(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|[0-5]|[xyz][\+\-])\})?\s*/i);
             defaultCB.customName=properties[1];
             if(/(?:脉冲)|(?:(?:im)?p(?:ulse)?)|0/i.test(properties[2])){
                 defaultCB.mode=0;
             }else if(/(?:连锁)|链|(?:c(?:hain)?)|1/i.test(properties[2])){
                 defaultCB.mode=1;
-            }else if(/(?:循环)|(?:重复)|(?:r(?:epeat)?(?:ing)?)|2/.test(properties[2])){
+            }else if(/(?:循环)|(?:重复)|(?:r(?:epeat)?(?:ing)?)|2/i.test(properties[2])){
                 defaultCB.mode=2;
             }
-            if(/(有条件的?|(?:c(?:onditional)?)|1)/.test(properties[3])){
+            if(/(有条件的?|(?:c(?:onditional)?)|1)/i.test(properties[3])){
                 defaultCB.conditionalMode=true;
             }else{
                 defaultCB.conditionalMode=false;
             }
-            if(/(?:始终活动)|(?:保持开启)|(?:a(?:lways)?(?:\-active)?)/.test(properties[4])){
+            if(/(?:始终活动)|(?:保持开启)|(?:a(?:lways)?(?:\-active)?)/i.test(properties[4])){
                 defaultCB.auto=1;
             }else{
                 defaultCB.auto=0;
@@ -61,28 +58,34 @@ function parseCBD(CBDesc){
                 defaultCB.tickDelay=parseInt(properties[5]);
             }
             if(properties[6]){
-                switch(properties[6]){
+                switch(properties[6].toLowerCase()){
                     case 'down':
+                    case 'y-':
                     case '0':
                         defaultCB.facingDirection=0;
                         break;
                     case 'up':
+                    case 'y+':
                     case '1':
                         defaultCB.facingDirection=1;
                         break;
                     case 'north':
+                    case 'z-':
                     case '2':
                         defaultCB.facingDirection=2;
                         break;
                     case 'south':
+                    case 'z+':
                     case '3':
                         defaultCB.facingDirection=3;
                         break;
                     case 'west':
+                    case 'x-':
                     case '4':
                         defaultCB.facingDirection=4;
                         break;
                     case 'east':
+                    case 'x+':
                     case '5':
                         defaultCB.facingDirection=5;
                 }
@@ -97,7 +100,6 @@ function parseCBD(CBDesc){
             }else{
                 if(position[0]>size[0]-1||position[1]>size[1]-1||position[2]>size[2]-1){
                     throw new Error(`Size out of range:[${position[0]},${position[1]},${position[2]}]>[${size[0]-1},${size[1]-1},${size[2]-1}]`);
-                    return;
                 }
                 commandBlocks[position[1]*size[0]*size[2]+position[0]*size[2]+position[2]]=cb;
                 if(defaultAxis!==undefined) position[defaultAxis]++;
@@ -105,7 +107,7 @@ function parseCBD(CBDesc){
             cb=JSON.parse(JSON.stringify(defaultCB));
             fulfilled=false;
             continue;
-        }else if(/(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|0|1|2|3|4|5)\})?\s*/i.test(CBDesc.split(/(\n|\r)+/)[i])){
+        }else if(/(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|[0-5]|[xyz][\+\-])\})?\s*/i.test(CBDesc.split(/(\n|\r)+/)[i])){
             if(fulfilled){
                 cb.command='';
                 if(serialized){
@@ -113,14 +115,13 @@ function parseCBD(CBDesc){
                 }else{
                     if(position[0]>size[0]-1||position[1]>size[1]-1||position[2]>size[2]-1){
                         throw new Error(`Size out of range:[${position[0]},${position[1]},${position[2]}]>[${size[0]-1},${size[1]-1},${size[2]-1}]`);
-                        return;
                     }
                     commandBlocks[position[1]*size[0]*size[2]+position[0]*size[2]+position[2]]=cb;
                     if(defaultAxis!==undefined) position[defaultAxis]++;
                 }
                 cb=JSON.parse(JSON.stringify(defaultCB));
             }
-            let properties=CBDesc.split(/(\n|\r)+/)[i].match(/(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|0|1|2|3|4|5)\})?\s*/i);
+            let properties=CBDesc.split(/(\n|\r)+/)[i].match(/(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|[0-5]|[xyz][\+\-])\})?\s*/i);
             cb.customName=properties[1];
             if(/(?:脉冲)|(?:(?:im)?p(?:ulse)?)|0/i.test(properties[2])){
                 cb.mode=0;
@@ -143,28 +144,34 @@ function parseCBD(CBDesc){
                 cb.tickDelay=parseInt(properties[5]);
             }
             if(properties[6]){
-                switch(properties[6]){
+                switch(properties[6].toLowerCase()){
                     case 'down':
+                    case 'y-':
                     case '0':
                         cb.facingDirection=0;
                         break;
                     case 'up':
+                    case 'y+':
                     case '1':
                         cb.facingDirection=1;
                         break;
                     case 'north':
+                    case 'z-':
                     case '2':
                         cb.facingDirection=2;
                         break;
                     case 'south':
+                    case 'z+':
                     case '3':
                         cb.facingDirection=3;
                         break;
                     case 'west':
+                    case 'x-':
                     case '4':
                         cb.facingDirection=4;
                         break;
                     case 'east':
+                    case 'x+':
                     case '5':
                         cb.facingDirection=5;
                 }
@@ -172,11 +179,10 @@ function parseCBD(CBDesc){
             fulfilled=true;
             continue;
         }
-        if(/^\s*#(x|y|z)(\+|\-|=)(\d*|~)/.test(CBDesc.split(/(\n|\r)+/)[i])){
-            let properties=CBDesc.split(/(\n|\r)+/)[i].match(/^\s*#(x|y|z)(\+|\-|=)(\d*)/);
-            switch(properties[1]){
+        if(/^\s*#(x|y|z)(\+|\-|=)(\d*|~)/i.test(CBDesc.split(/(\n|\r)+/)[i])){
+            let properties=CBDesc.split(/(\n|\r)+/)[i].match(/^\s*#(x|y|z)(\+|\-|=)(\d*)/i);
+            switch(properties[1].toUpperCase()){
                 case 'X':
-                case 'x':
                     if(properties[2]=='+'){
                         position[0]=position[0]+parseInt(properties[3]);
                     }else if(properties[2]=='-'){
@@ -186,7 +192,6 @@ function parseCBD(CBDesc){
                     }
                     break;
                 case 'Y':
-                case 'y':
                     if(properties[2]=='+'){
                         position[1]=position[0]+parseInt(properties[3]);
                     }else if(properties[2]=='-'){
@@ -196,7 +201,6 @@ function parseCBD(CBDesc){
                     }
                     break;
                 case 'Z':
-                case 'z':
                     if(properties[2]=='+'){
                         position[2]=position[0]+parseInt(properties[3]);
                     }else if(properties[2]=='-'){
