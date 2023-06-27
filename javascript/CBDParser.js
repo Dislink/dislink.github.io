@@ -1,3 +1,61 @@
+function parseCommandBlock(CBDesc, defaultCommandBlock){
+    let properties=CBDesc.match(/(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|[0-5]|[xyz][\+\-])\})?\s*/i);
+    defaultCommandBlock.customName=properties[1];
+    if(/(?:脉冲)|(?:(?:im)?p(?:ulse)?)|0/i.test(properties[2])){
+        defaultCommandBlock.mode=0;
+    }else if(/(?:连锁)|链|(?:c(?:hain)?)|1/i.test(properties[2])){
+        defaultCommandBlock.mode=1;
+    }else if(/(?:循环)|(?:重复)|(?:r(?:epeat)?(?:ing)?)|2/.test(properties[2])){
+        defaultCommandBlock.mode=2;
+    }
+    if(/(有条件的?|(?:c(?:onditional)?)|1)/.test(properties[3])){
+        defaultCommandBlock.conditionalMode=true;
+    }else if(/(无条件的?|(?:u(?:nconditional)?)|0)/.test(properties[3])){
+        defaultCommandBlock.conditionalMode=false;
+    }
+    if(/(?:始终活动)|(?:保持开启)|(?:a(?:lways)?(?:\-active)?)|1/.test(properties[4])){
+        defaultCommandBlock.auto=1;
+    }else if(/(?:需要红石)|(?:n(?:eeds)?(?:\-redstone)?)|0/.test(properties[4])){
+        defaultCommandBlock.auto=0;
+    }
+    if(properties[5]){
+        defaultCommandBlock.tickDelay=parseInt(properties[5]);
+    }
+    if(properties[6]){
+        switch(properties[6].toLowerCase()){
+            case 'down':
+            case 'y-':
+            case '0':
+                defaultCommandBlock.facingDirection=0;
+                break;
+            case 'up':
+            case 'y+':
+            case '1':
+                defaultCommandBlock.facingDirection=1;
+                break;
+            case 'north':
+            case 'z-':
+            case '2':
+                defaultCommandBlock.facingDirection=2;
+                break;
+            case 'south':
+            case 'z+':
+            case '3':
+                defaultCommandBlock.facingDirection=3;
+                break;
+            case 'west':
+            case 'x-':
+            case '4':
+                defaultCommandBlock.facingDirection=4;
+                break;
+            case 'east':
+            case 'x+':
+            case '5':
+                defaultCommandBlock.facingDirection=5;
+        }
+    }
+    return defaultCommandBlock;
+}
 function parseCBD(CBDesc){
     let serialized=false;
     let size=[1,1,1];
@@ -35,61 +93,8 @@ function parseCBD(CBDesc){
             continue;
         }
         if (/^\s*#default\s(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|[0-5]|[xyz][\+\-])\})?\s*/i.test(CBDesc.split(/(\n|\r)+/)[i])){
-            let properties=CBDesc.split(/(\n|\r)+/)[i].match(/^\s*#default\s(.*):((?:脉冲?)|(?:连锁?)|(?:循环?)|(?:(?:im)?pulse)|(?:chain)|(?:repeat(?:ing)?)|\-|p|c|r|0|1|2)\s*((?:有|无)条件的?|(?:(?:un)?conditional)|u|c|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:always(?:\-active)?)|(?:needs(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|[0-5]|[xyz][\+\-])\})?\s*/i);
-            defaultCB.customName=properties[1];
-            if(/(?:脉冲)|(?:(?:im)?p(?:ulse)?)|0/i.test(properties[2])){
-                defaultCB.mode=0;
-            }else if(/(?:连锁)|链|(?:c(?:hain)?)|1/i.test(properties[2])){
-                defaultCB.mode=1;
-            }else if(/(?:循环)|(?:重复)|(?:r(?:epeat)?(?:ing)?)|2/i.test(properties[2])){
-                defaultCB.mode=2;
-            }
-            if(/(有条件的?|(?:c(?:onditional)?)|1)/i.test(properties[3])){
-                defaultCB.conditionalMode=true;
-            }else{
-                defaultCB.conditionalMode=false;
-            }
-            if(/(?:始终活动)|(?:保持开启)|(?:a(?:lways)?(?:\-active)?)/i.test(properties[4])){
-                defaultCB.auto=1;
-            }else{
-                defaultCB.auto=0;
-            }
-            if(properties[5]){
-                defaultCB.tickDelay=parseInt(properties[5]);
-            }
-            if(properties[6]){
-                switch(properties[6].toLowerCase()){
-                    case 'down':
-                    case 'y-':
-                    case '0':
-                        defaultCB.facingDirection=0;
-                        break;
-                    case 'up':
-                    case 'y+':
-                    case '1':
-                        defaultCB.facingDirection=1;
-                        break;
-                    case 'north':
-                    case 'z-':
-                    case '2':
-                        defaultCB.facingDirection=2;
-                        break;
-                    case 'south':
-                    case 'z+':
-                    case '3':
-                        defaultCB.facingDirection=3;
-                        break;
-                    case 'west':
-                    case 'x-':
-                    case '4':
-                        defaultCB.facingDirection=4;
-                        break;
-                    case 'east':
-                    case 'x+':
-                    case '5':
-                        defaultCB.facingDirection=5;
-                }
-            }
+            let commandBlockDesc=CBDesc.split(/(\n|\r)+/)[i].match(/^\s*#default\s(.*)/i)[1].trim();
+            defaultCB=parseCommandBlock(commandBlockDesc,defaultCB);
             cb=JSON.parse(JSON.stringify(defaultCB));
             continue;
         }
@@ -121,61 +126,7 @@ function parseCBD(CBDesc){
                 }
                 cb=JSON.parse(JSON.stringify(defaultCB));
             }
-            let properties=CBDesc.split(/(\n|\r)+/)[i].match(/(.*):((?:脉冲)|(?:连锁)|链|(?:循环)|(?:重复)|(?:(?:im)?p(?:ulse)?)|(?:c(?:hain)?)|(?:r(?:epeat)?(?:ing)?)|\-|0|1|2)\s*((?:有|无)条件的?|(?:(?:u(?:n)?)?c?(?:onditional)?)|0|1)\s*((?:始终活动)|(?:保持开启)|(?:需要红石)|(?:a(?:lways)?(?:\-active)?)|(?:n(?:eeds)?(?:\-redstone)?)|0|1)\s*(?:\[(\d+)\])?\s*(?:\{(up|down|north|south|east|west|[0-5]|[xyz][\+\-])\})?\s*/i);
-            cb.customName=properties[1];
-            if(/(?:脉冲)|(?:(?:im)?p(?:ulse)?)|0/i.test(properties[2])){
-                cb.mode=0;
-            }else if(/(?:连锁)|链|(?:c(?:hain)?)|1/i.test(properties[2])){
-                cb.mode=1;
-            }else if(/(?:循环)|(?:重复)|(?:r(?:epeat)?(?:ing)?)|2/.test(properties[2])){
-                cb.mode=2;
-            }
-            if(/(有条件的?|(?:c(?:onditional)?)|1)/.test(properties[3])){
-                cb.conditionalMode=true;
-            }else{
-                cb.conditionalMode=false;
-            }
-            if(/(?:始终活动)|(?:保持开启)|(?:a(?:lways)?(?:\-active)?)/.test(properties[4])){
-                cb.auto=1;
-            }else{
-                cb.auto=0;
-            }
-            if(properties[5]){
-                cb.tickDelay=parseInt(properties[5]);
-            }
-            if(properties[6]){
-                switch(properties[6].toLowerCase()){
-                    case 'down':
-                    case 'y-':
-                    case '0':
-                        cb.facingDirection=0;
-                        break;
-                    case 'up':
-                    case 'y+':
-                    case '1':
-                        cb.facingDirection=1;
-                        break;
-                    case 'north':
-                    case 'z-':
-                    case '2':
-                        cb.facingDirection=2;
-                        break;
-                    case 'south':
-                    case 'z+':
-                    case '3':
-                        cb.facingDirection=3;
-                        break;
-                    case 'west':
-                    case 'x-':
-                    case '4':
-                        cb.facingDirection=4;
-                        break;
-                    case 'east':
-                    case 'x+':
-                    case '5':
-                        cb.facingDirection=5;
-                }
-            }
+            cb=parseCommandBlock(CBDesc.split(/(\n|\r)+/)[i].trim(),cb);
             fulfilled=true;
             continue;
         }
