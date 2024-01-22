@@ -40,6 +40,7 @@
             min-width: 50px;
             max-width: 500px;
             resize: none;
+            white-space: pre-wrap;
         }
         .add-button {
             margin-right: 10px;
@@ -82,7 +83,7 @@
     </fieldset>
     <fieldset>
         <legend>display</legend>
-        <span class="display" id="evaluateDisplay" title="点击刷新"></span>
+        <pre class="display" id="evaluateDisplay" title="点击刷新"></pre>
     </fieldset>
     <script>
         function evaluate(rawJSON, scores={}, selectors={}) {
