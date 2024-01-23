@@ -86,7 +86,7 @@
             white-space: pre-wrap;
         }
         .random{
-            text-decoration: blink;
+            text-decoration: wavy line-through blink;
         }
     </style>
     <title>原始JSON文本编辑器|By Dislink</title>
@@ -105,6 +105,7 @@
         <p class="display" id="evaluateDisplay" title="点击刷新">
         </p>
     </fieldset>
+    <p>note: 随机文本以波浪删除线以及，如果浏览器支持，闪烁表示</p>
     <script>
         function evaluate(rawJSON, scores={}, selectors={}) {
             var rawtext=[];
