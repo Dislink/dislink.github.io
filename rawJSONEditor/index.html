@@ -125,7 +125,7 @@
                 }
                 while(/%[1-9sd]/.test(translate)&&replacer){
                     if(/%[1-9]/.test(translate)){
-                        var tindex=translate.match(/%([1-9])/)[1];
+                        var tindex=translate.match(/%([1-9])/)[1]-1;
                         translate=translate.replace(/%([1-9])/,replacer[tindex]||'')
                     }else{
                         translate=translate.replace(/%[sd]/,replacer[index++]||'')
