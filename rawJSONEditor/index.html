@@ -393,7 +393,7 @@
         const rawtextContainer = document.getElementById('rawtext');
         const evaluateDisplay = document.getElementById('evaluateDisplay');
         evaluateDisplay.addEventListener('click', () => {
-            var text=evaluate(data, extra.scores, extra.selector).join('');
+            var text=evaluate(data, extra.scores, extra.selectors).join('');
             if(/[\u1000-\uffff]/.test(text)){
                 evaluateDisplay.style.fontFamily="unifont";
             }else{
