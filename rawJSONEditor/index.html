@@ -286,8 +286,8 @@
                             obj.splice(key, 1);
                         }else{
                             delete obj[key];
-                        }ent.stopPropagation();
-                        
+                        }
+                        event.stopPropagation();
                         renderObject(obj, container, level, basePath);
                     });
                     container.appendChild(keyValue);
