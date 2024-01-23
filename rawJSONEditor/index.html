@@ -86,7 +86,7 @@
             white-space: pre-wrap;
         }
         .random{
-            text-decoration: wavy line-through blink;
+            color: #00000020
         }
     </style>
     <title>原始JSON文本编辑器|By Dislink</title>
@@ -105,7 +105,7 @@
         <p class="display" id="evaluateDisplay" title="点击刷新">
         </p>
     </fieldset>
-    <p>note: 随机文本以波浪删除线以及，如果浏览器支持，闪烁表示</p>
+    <p>note: 随机文本以淡色透明表示，可选中查看原文</p>
     <script>
         function evaluate(rawJSON, scores={}, selectors={}) {
             var rawtext=[];
@@ -419,7 +419,7 @@
                 .replaceAll("§o","<span class=\"text\" style=\"font-style: italic\">")
                 .replaceAll("§p","<span class=\"text\" style=\"color: #deb12d\">")
                 .replaceAll("§q","<span class=\"text\" style=\"color: #11a036\">")
-                .replaceAll("§r","<span class=\"text\" style=\"color: #ffffff;font-weight: normal;font-style: normal;text-decoration: none\">")
+                .replaceAll("§r","<span class=\"text\" style=\"color: #ffffff;font-weight: normal;font-style: normal\">")
                 .replaceAll("§s","<span class=\"text\" style=\"color: #2cbaa8\">")
                 .replaceAll("§t","<span class=\"text\" style=\"color: #21497b\">")
                 .replaceAll("§u","<span class=\"text\" style=\"color: #9a5cc6\">")
