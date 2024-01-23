@@ -84,11 +84,13 @@
         }
         .text{
             white-space: pre-wrap;
+            vertical-align: middle;
         }
         .random{
             animation: random 0.05s infinite;
         }
     </style>
+    <title>原始JSON文本编辑器|By Dislink</title>
 </head>
 <body style="background-color: white;">
     <fieldset>
@@ -386,8 +388,9 @@
                 evaluateDisplay.style.fontFamily="Minecraft";
             }
             text=text.replace(/§[^0-9a-u]/g,'');
-            var sectionCount=/§[0-9a-u]/g.exec(text)?.length||0;
-            evaluateDisplay.innerHTML = 
+            var sectionCount=(/§[0-9a-u]/g.exec(text)?.length||0)+1;
+            evaluateDisplay.innerHTML =
+                "<span class=\"text\">"+
                 text
                 .replaceAll("§0","<span class=\"text\" style=\"color: #000000\">")
                 .replaceAll("§1","<span class=\"text\" style=\"color: #0000aa\">")
