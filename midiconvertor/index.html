@@ -359,7 +359,7 @@
 					functions.file("load.mcfunction", loadContent);
 					zip.generateAsync({type:"blob"}).then(function(content,err) {
 						if(err) console.log(err)
-						saveAs(content, `${manifestBE.header.name}.mcpack`);
+						saveAs(content, `${manifestBE.header.name}.mcpack.zip`);
 					});
 					return;
 				}
