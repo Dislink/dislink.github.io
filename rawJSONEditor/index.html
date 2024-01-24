@@ -126,9 +126,10 @@
                 while(/%[1-9sd]/.test(translate)&&replacer){
                     if(/%[1-9]/.test(translate)){
                         var tindex=translate.match(/%([1-9])/)[1]-1;
-                        translate=translate.replace(/%([1-9])/,replacer[tindex]||'')
+                        translate=translate.replace(/%([1-9])/,replacer[tindex]===undefined?"":replacer[tindex])
                     }else{
-                        translate=translate.replace(/%[sd]/,replacer[index++]||'')
+                        translate=translate.replace(/%[sd]/,replacer[index]===undefined?"":replacer[index])
+                        index++;
                     }
                 };
                 rawtext.push(translate);
