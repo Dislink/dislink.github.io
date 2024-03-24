@@ -115,6 +115,9 @@
 			<input type="checkbox" id="convertToDefault" />
 			<label for="convertToDefault">全部使用默认音色</label>
 			<br/>
+			<input type="checkbox" id="hideDebugMsg" checked/>
+			<label for="hideDebugMsg">隐藏DEBUG消息</label>
+			<br/>
 			<label for="convertResult">生成结果</label>
 			<select id="convertResult">
 				<option value="bdx">BDX</option>
@@ -237,7 +240,7 @@
 							let input3=document.createElement("input");
 							input3.type="number";
 							data.innerText=formatSeconds(i.playTime/1000)+"C#"+i.channel+":"+melodicSounds[i.param1];
-							soundStrings[i.channel].push([getSoundString(i.param1, false, [defaultMelodic.value, defaultPercussion.value]),1,0]);
+							soundStrings[i.channel].push([getSoundString(i.param1, false, [defaultMelodic.value, defaultPercussion.value]),1,0,"C#"+i.channel+":"+melodicSounds[i.param1]]);
 							input1.value=soundStrings[i.channel][soundStrings[i.channel].length-1][0];
 							input1.seq=soundStrings[i.channel].length-1;
 							input1.onchange=((e)=>{soundStrings[i.channel][e.target.seq][0]=e.target.value});
@@ -268,7 +271,7 @@
 							let input3=document.createElement("input");
 							input3.type="number";
 							data.innerText=formatSeconds(i.playTime/1000)+"P#"+i.param1+":"+percussionNotes[i.param1];
-							soundStrings[i.channel][i.param1]=[getSoundString(i.param1,true, [defaultMelodic.value, defaultPercussion.value]),1,1];
+							soundStrings[i.channel][i.param1]=[getSoundString(i.param1,true, [defaultMelodic.value, defaultPercussion.value]),1,1,"P#"+i.param1+":"+percussionNotes[i.param1]];
 							input1.value=soundStrings[i.channel][i.param1][0];
 							input1.onchange=((e)=>{soundStrings[i.channel][i.param1][0]=e.target.value});
 							input2.value=soundStrings[i.channel][i.param1][1];
@@ -321,8 +324,8 @@
 				if(!convertTracks.children[notes[i].track].selected||!notes[i].param2||(ignorePercussionInstrument.checked&&notes[i].channel==9)){
 					continue;
 				}
-				let soundString=((soundStrings||[])[notes[i].channel]||[])[channelsInstrument[notes[i].channel]]||[notes[i].channel==9?defaultPercussion.value:defaultMelodic.value,1,0];
-				commandBlocks.push(new commandBlock(`execute ${commandVersion.value=="new"?'as ':''}${playerSelector.value} ${commandVersion.value=="new"?'at @s run':'~~~'} playsound ${convertToDefault.checked?(notes[i].channel==9?defaultPercussion.value:defaultMelodic.value):(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][0]:soundString[0])} @${commandVersion.value=="no-execute"?"a":"s"} ^^^8 ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)} ${(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][2]:(2**((notes[i].param1+(soundString[2]||0)+parseFloat(pitchOffset.value)-66)/12))).toFixed(5)} ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)}`, seq!=0?'':upload.files[upload.seq].name.replace(/\.midi?$/,''), undefined, false, ((seq!=0?Math.round((notes[i].playTime-notes[seq].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[i].playTime)/(50*(parseFloat(speed.value)/100)))))));
+				let soundString=soundStrings?.[notes[i].channel]?.[channelsInstrument[notes[i].channel]]||[notes[i].channel==9?defaultPercussion.value:defaultMelodic.value,1,0,"C#"+notes[i].channel+`:默认${notes[i].channel==9?"打击":"声学"}乐器`];
+				commandBlocks.push(new commandBlock(`execute ${commandVersion.value=="new"?'as ':''}${playerSelector.value} ${commandVersion.value=="new"?'at @s run':'~~~'} playsound ${convertToDefault.checked?(notes[i].channel==9?defaultPercussion.value:defaultMelodic.value):(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][0]:soundString[0])} @${commandVersion.value=="no-execute"?"a":"s"} ^^^8 ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)} ${(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][2]:(2**((notes[i].param1+(soundString[2]||0)+parseFloat(pitchOffset.value)-66)/12))).toFixed(5)} ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)}`, seq!=0?'':upload.files[upload.seq].name.replace(/\.midi?$/,''), undefined, false, ((seq!=0?Math.round((notes[i].playTime-notes[seq].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[i].playTime)/(50*(parseFloat(speed.value)/100))))),!hideDebugMsg.checked?'[@'+formatSeconds(notes[i].playTime/1000)+']'+soundString[3]:''));
 				seq=i;
 			}
 		}catch(e){
