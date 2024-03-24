@@ -313,7 +313,7 @@
 		download.onclick=(()=>{
 			let channelsInstrument=[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
 			let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
-			let commandBlocks=[];
+			commandBlocks=[];
 			let seq=0;
 		try{
 			for(let i in notes){
