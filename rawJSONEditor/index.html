@@ -123,15 +123,34 @@
                 if(!replacer?.length){
                     replacer=undefined;
                 }
-                while(/%[1-9sd]/.test(translate)&&replacer){
-                    if(/%[1-9]/.test(translate)){
-                        var tindex=translate.match(/%([1-9])/)[1]-1;
-                        translate=translate.replace(/%([1-9])/,replacer[tindex]===undefined?"":replacer[tindex])
-                    }else{
-                        translate=translate.replace(/%[sd]/,replacer[index]===undefined?"":replacer[index])
-                        index++;
+                while(/%[sd0-9]/.test(translate)&&replacer){
+                    //debugger
+                while(/%[sd]/.test(translate)&&replacer){
+                    /*let temp="";
+                    let offset=0
+                    //debugger
+                    for(let m of translate.matchAll(/%([0-9sd])/g)){
+                        console.log(m,offset,m.index-offset);
+                        console.log(temp)
+                        temp+=translate.substring(offset,m.index);
+                        if(m[1]=="s"||m[1]=="d"){
+                            temp+=replacer[index]===undefined?"":replacer[index];
+                            index++;
+                        }else{
+                            var tindex=parseInt(m[1]);
+                            temp+=replacer[tindex+index-1]===undefined?"":replacer[tindex+index-1];
+                        }
+                        offset=m.index+2;
                     }
+                    temp+=translate.substring(offset);
+                    translate=temp;*/
+                    translate=translate.replace(/%[sd]/,replacer[index]===undefined?"":replacer[index])
+                    index++;
                 };
+                while(/%[0-9]/.test(translate)&&replacer){
+                    var tindex=translate.match(/%([0-9])/)[1]-1;
+                    translate=translate.replace(/%([0-9])/,replacer[tindex+index]===undefined?"":replacer[tindex+index])
+                }}
                 rawtext.push(translate);
             }
             if(rawJSON.text&&!rawJSON.translate){
