@@ -343,12 +343,13 @@
 						if((j%parseInt(functionCommandLimit.value)==0&&j!=0)||(timeReached)||j==notes[i].length-1){
 							if(commandCompression.value!="disabled"){
 								for(let key in compression){
+									compression[key]=Array.from(new Set(compression[key])).sort((a,b)=>{return a-b});
 									if(compression[key].length==1){
 										content+=key.replace(/%%time%%/g,compression[key][0]);
 										continue;
 									}
 									let last=-1;
-									let periods=[];
+									let periods=["!..-1"];
 									for(let score of compression[key]){
 										if(score-last>1){
 											periods.push(score-last==2?`!${last+1}`:`!${last+1}..${score-1}`);
@@ -372,12 +373,13 @@
 				}
 				if(commandCompression.value!="disabled"){
 					for(let key in compression){
+						compression[key]=Array.from(new Set(compression[key])).sort((a,b)=>{return a-b});
 						if(compression[key].length==1){
 							content+=key.replace(/%%time%%/g,compression[key][0]);
 							continue;
 						}
 						let last=-1;
-						let periods=[];
+						let periods=["!..-1"];
 						for(let score of compression[key]){
 							if(score-last>1){
 								periods.push(score-last==2?`!${last+1}`:`!${last+1}..${score-1}`);
