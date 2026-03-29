@@ -17,6 +17,7 @@
 		  s.parentNode.insertBefore(hm, s);
 		})();
 	</script>
+	<meta charset="utf-8">
 	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
 	<title>MIDI转mcfunction | By Dislink</title>
 	<script src="/javascript/MIDIFile.js" type="text/javascript"></script>
@@ -74,6 +75,7 @@
 	</style>
 </head>
 <body>
+	<h1>Bug反馈/功能建议/更多工具请前往<a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></h1>
 	<form id="arguments">
 		<input type="file" id="upload" accept="audio/midi">
 		 <label for="upload">上传midi文件</label>
@@ -130,12 +132,22 @@
 			<label for="timeSplitLimitScroll">MIDI单轨时间切分上限</label>
 			<input type="number" id="timeSplitLimit" step="1" value="12000" />
 			<label for="timeSplitLimit">tick(s)</label>
-			</br>
+			<br/>
+			<label for="scoreboard">计分板名称</label>
+			<input type="text" id="scoreboard" value="time" />
+			<br/>
 			<label for="commandVersion">命令版本</label>
 			<select id="commandVersion">
 				<option value="formal">旧execute语法规范</option>
 				<option value="new" selected>新execute语法规范</option>
 				<option value="no-easyPlay">不使用easyPlay</option>
+			</select>
+			<br/>
+			<label for="commandCompression">命令压缩选项</label>
+			<select id="commandCompression">
+				<option value="disabled" selected>禁用压缩</option>
+				<option value="normal">非失真压缩</option>
+				<option value="maximum">最大压缩</option>
 			</select>
 		</fieldset>
 		<br/>
@@ -174,6 +186,15 @@
 		}
 		volume4Sub.onchange=(e)=>{
 			volume4SubScroll.value=e.target.value;
+		}
+		commandCompression.onchange=(e)=>{
+			if(e.target.value=="maximum"){
+				alert("最大压缩会导致音量失真！如果对音质有较高要求，请勿使用此选项！");
+				volume4Main.value=1;
+				volume4Sub.value=1;
+				volume4MainScroll.value=1;
+				volume4SubScroll.value=1;
+			}
 		}
 		upload.onchange=(()=>{
 			if(!upload.files[0]) return;
@@ -288,11 +309,13 @@
 				}
 			}
 			notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, mergeTracks.checked);
+			console.log(notes);
 			if(tracksSelected.length>1&&mergeTracks.checked) notes[0]=notes[0].sort((a,b)=>{return a.playTime>b.playTime})
 			let contents=[];
 			let timerange=[];
 			for(let i in notes){
 				let content='';
+				let compression={};
 				let timeMin=Infinity;
 				let timeMax=0;
 				for(let j in notes[i]){
@@ -306,11 +329,37 @@
 						timeMin=(timeMin<Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMin:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
 						timeMax=(timeMax>Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))?timeMax:Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
 						let soundString=((soundStrings[notes[i][j].track]||[])[notes[i][j].channel]||[])[channelsInstrument[notes[i][j].track][notes[i][j].channel]]||[defaultSound.value,1,0]
-						content+=`playsound ${convertToDefault.checked?defaultSound.value:(notes[i][j].channel==9?soundStrings[notes[i][j].track][notes[i][j].param1][0]:soundString[0])} @a[scores={time=${Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)))}}] ~~6~ ${((notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value))*(notes[i][j].channel==9?soundStrings[notes[i][j].track][notes[i][j].param1][1]:soundString[1]))*0.01).toFixed(5)} ${(notes[i][j].channel==9?soundStrings[notes[i][j].track][notes[i][j].param1][2]:(2**((notes[i][j].param1+(soundString[2])+parseFloat(pitchOffset.value)-66)/12))).toFixed(5)} ${((notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value))*(notes[i][j].channel==9?soundStrings[notes[i][j].track][notes[i][j].param1][1]:soundString[1]))*0.01).toFixed(5)}\n`
+						let compressionKey = `playsound ${convertToDefault.checked?defaultSound.value:(notes[i][j].channel==9?soundStrings[notes[i][j].track][notes[i][j].param1][0]:soundString[0])} @a[scores={${document.getElementById('scoreboard').value}=%%time%%}] ~~6~ ${commandCompression.value=="maximum"?(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)):(((notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value))*(notes[i][j].channel==9?soundStrings[notes[i][j].track][notes[i][j].param1][1]:soundString[1]))*0.01).toFixed(5))} ${(notes[i][j].channel==9?soundStrings[notes[i][j].track][notes[i][j].param1][2]:(2**((notes[i][j].param1+(soundString[2])+parseFloat(pitchOffset.value)-66)/12))).toFixed(5)} ${commandCompression.value=="maximum"?(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)):(((notes[i][j].param2*(notes[i][j].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value))*(notes[i][j].channel==9?soundStrings[notes[i][j].track][notes[i][j].param1][1]:soundString[1]))*0.01).toFixed(5))}\n`;
+						let timeScore=Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100)));
+						if(commandCompression.value!="disabled"){
+							if(!compression[compressionKey]) compression[compressionKey]=[];
+							compression[compressionKey].push(timeScore);
+						}else{
+							content+=compressionKey.replace(/%%time%%/g,timeScore);
+						}
 						let nxtTime;
 						if(notes[i].length>parseInt(j)+1) nxtTime=Math.round(notes[i][parseInt(j)+1].playTime/(50*(parseFloat(speed.value)/100)))
 						if((timeMin<Math.round(notes[i][j].playTime/(50*(parseFloat(speed.value)/100))))!=0&&!timeReached) timeReached=(Math.floor(nxtTime/parseInt(timeSplitLimit.value))>Math.floor(Math.round(notes[i][parseInt(j)].playTime/(50*(parseFloat(speed.value)/100)))/parseInt(timeSplitLimit.value)))
-						if((j%parseInt(functionCommandLimit.value)==0)||(timeReached)||j==notes[i].length-1){							timeReached=false;
+						if((j%parseInt(functionCommandLimit.value)==0&&j!=0)||(timeReached)||j==notes[i].length-1){
+							if(commandCompression.value!="disabled"){
+								for(let key in compression){
+									if(compression[key].length==1){
+										content+=key.replace(/%%time%%/g,compression[key][0]);
+										continue;
+									}
+									let last=-1;
+									let periods=[];
+									for(let score of compression[key]){
+										if(score-last>1){
+											periods.push(score-last==2?`!${last+1}`:`!${last+1}..${score-1}`);
+										}
+										last=score;
+									}
+									periods.push(`!${last+1}..`);
+									content+=key.replace(/%%time%%/g,periods.join(`,${document.getElementById('scoreboard').value}=`));
+								}
+								compression={};
+							}
 							if (content!=''){
 								contents.push(content);
 								timerange.push([timeMin, timeMax]);
@@ -321,21 +370,39 @@
 						}
 					}
 				}
+				if(commandCompression.value!="disabled"){
+					for(let key in compression){
+						if(compression[key].length==1){
+							content+=key.replace(/%%time%%/g,compression[key][0]);
+							continue;
+						}
+						let last=-1;
+						let periods=[];
+						for(let score of compression[key]){
+							if(score-last>1){
+								periods.push(score-last==2?`!${last+1}`:`!${last+1}..${score-1}`);
+							}
+							last=score;
+						}
+						periods.push(`!${last+1}..`);
+						content+=key.replace(/%%time%%/g,periods.join(`,${document.getElementById('scoreboard').value}=`));
+					}
+					compression={};
+				}
 				if (content!=''){
 					contents.push(content);
 					timerange.push([timeMin, timeMax]);
-					content='';
 				}
 				timeMin=Infinity;
 				timeMax=0;
 			}
-			let easyPlay='scoreboard players add @a time 1\n'
+			let easyPlay='scoreboard players add @a ' + document.getElementById('scoreboard').value + ' 1\n'
 			for(let i in contents){
 				functions.file(`N${i}.mcfunction`, contents[i]);
-				if (commandVersion.value!="no-easyPlay") easyPlay+=`execute ${commandVersion.value=="new"?'at':''} @a[scores={time=${timerange[i][0]}..${timerange[i][1]}}] ${commandVersion.value=="new"?'run':'~~~'} function N${i}\n`
+				if (commandVersion.value!="no-easyPlay") easyPlay+=`execute ${commandVersion.value=="new"?'at':''} @a[scores={${document.getElementById('scoreboard').value}=${timerange[i][0]}..${timerange[i][1]}}] ${commandVersion.value=="new"?'run':'~~~'} function N${i}\n`
 			}
 			if (commandVersion.value!="no-easyPlay") functions.file("play.mcfunction", easyPlay);
-			functions.file("init.mcfunction", "scoreboard objectives add time dummy\nscoreboard objectives setdisplay sidebar time\nscoreboard players set @s time -1\n");
+			functions.file("init.mcfunction", "scoreboard objectives add " + document.getElementById('scoreboard').value + " dummy\nscoreboard objectives setdisplay sidebar " + document.getElementById('scoreboard').value + "\nscoreboard players set @s " + document.getElementById('scoreboard').value + " -1\n");
 			manifestBE.format_version=(commandVersion.value=="new"?2:1);
 			manifestBE.header.name=fileName;
 			manifestBE.header.uuid=Math.uuid();
