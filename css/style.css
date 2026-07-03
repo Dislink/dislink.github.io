@@ -679,3 +679,119 @@ canvas {
     margin-bottom: 1.25rem;
   }
 }
+
+/* --- MIDI Waterfall Player --- */
+
+.waterfall-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.waterfall-header .wf-title {
+  flex-shrink: 0;
+}
+
+.waterfall-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.waterfall-controls .wf-btn {
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  transition: all 0.12s;
+  line-height: 1.4;
+}
+
+.waterfall-controls .wf-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.waterfall-controls .wf-btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.waterfall-controls .wf-btn-primary:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  color: #fff;
+}
+
+.waterfall-controls .wf-speed {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  min-width: 4rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  outline: none;
+  cursor: pointer;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.waterfall-controls .wf-speed:focus {
+  border-color: var(--color-primary);
+}
+
+.waterfall-controls label {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+
+#waterfall-container {
+  position: relative;
+  width: 100%;
+}
+
+#waterfall-container canvas {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.waterfall-timeline {
+  width: 100%;
+  padding: 0.2rem 0;
+}
+
+.waterfall-time-display {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 0.25rem;
+}
+
+.waterfall-time-display span {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 600px) {
+  .waterfall-header {
+    flex-wrap: wrap;
+  }
+  .waterfall-controls {
+    margin-left: 0;
+    width: 100%;
+  }
+}

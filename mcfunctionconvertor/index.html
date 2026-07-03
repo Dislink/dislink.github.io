@@ -157,8 +157,7 @@
             document.getElementById("fileName").innerText=upload.files[upload.seq].name;
             let decoder = new TextDecoder()
             contentRaw=decoder.decode(fr.result);
-            contents=contentRaw.split(/[
-\r]+/);
+            contents=contentRaw.split(/[\n\r]+/);
             document.getElementById("linesTotal").innerText=`文件行数: ${contents.length}`;
             document.getElementById("commandsTotal").style=`display: ${document.getElementById("enableCBD").checked?'none':'block'};`
             document.getElementById("commandsTotal").innerText=`命令数: ${contents.filter((d)=>{return (/^\s*[^#].*/.test(d))}).length}`;

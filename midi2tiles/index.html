@@ -10,6 +10,7 @@
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HJVLPQTQE6');</script>
     <script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s);})();</script>
     <script src="/javascript/MIDIFile.js" type="text/javascript"></script>
+    <script src="/javascript/midi-waterfall.js" type="text/javascript"></script>
     <script src="/javascript/jszip.min.js" type="text/javascript"></script>
     <script src="/javascript/FileSaver.js" type="text/javascript"></script>
     <script src="/javascript/Math.uuid.js" type="text/javascript"></script>
@@ -55,6 +56,39 @@
                 <div class="info-display" id="timeTotal"></div>
                 <div class="info-display" id="tracksCount"></div>
                 <div class="info-display" id="noteOnCount"></div>
+            </div>
+        </div>
+
+        <!-- MIDI Waterfall -->
+        <div class="card" id="waterfall_card" style="display:none;">
+            <div class="card-header">
+                <div class="waterfall-header">
+                    <span class="wf-title">MIDI 瀑布流预览</span>
+                    <div class="waterfall-controls">
+                        <button id="wf-play" type="button" class="wf-btn wf-btn-primary">播放</button>
+                        <button id="wf-stop" type="button" class="wf-btn">停止</button>
+                        <label>
+                            <span>速度:</span>
+                            <select id="wf-speed" class="wf-speed">
+                                <option value="0.25">0.25x</option>
+                                <option value="0.5">0.5x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="2">2x</option>
+                                <option value="4">4x</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body" style="padding:0.5rem;">
+                <div id="waterfall-container"></div>
+                <div class="waterfall-timeline">
+                    <input type="range" id="wf-progress" min="0" max="1000" value="0" style="width:100%;">
+                </div>
+                <div class="waterfall-time-display">
+                    <span id="wf-current-time">0:00</span>
+                    <span id="wf-total-time">0:00</span>
+                </div>
             </div>
         </div>
 
@@ -197,6 +231,8 @@
                 document.getElementById("convertTracks").style="display: block";
                 document.getElementById("mid_info").style="display: block;";
                 document.getElementById("download").style="display: block;";
+                document.getElementById("waterfall_card").style="display: block;";
+                initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
                 fileName=upload.files[0].name;
             }catch(e){
                 var errMsg=e.toString().split('\n')[0];
@@ -249,18 +285,14 @@
             if (content!=''){ contents.push(content); timerange.push([timeMin, timeMax]); content=''; }
             timeMin=Infinity; timeMax=0;
         }
-        let easyPlay='scoreboard players add @e[tag=pointer] time 1
-'
+        let easyPlay='scoreboard players add @e[tag=pointer] time 1\n'
         for(let i in contents){
             functions.file(`T${i}.mcfunction`, contents[i]);
             easyPlay+=`execute ${commandVersion.value=="new"?'at':''} @e[tag=pointer,scores={time=${timerange[i][0]}..${timerange[i][1]}}] ${commandVersion.value=="new"?'run':'~~~'} function T${i}
 `
         }
         functions.file("tilePlay.mcfunction", easyPlay);
-        functions.file("tileInit.mcfunction", "scoreboard objectives add time dummy
-scoreboard objectives setdisplay sidebar time
-scoreboard players set @e[tag=pointer] time -1
-");
+        functions.file("tileInit.mcfunction", "scoreboard objectives add time\ndummy\nscoreboard objectives setdisplay sidebar time\nscoreboard players set @e[tag=pointer] time -1\n");
         manifestBE.format_version=(commandVersion.value=="new"?2:1);
         manifestBE.header.name=fileName;
         manifestBE.header.uuid=Math.uuid();

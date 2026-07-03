@@ -137,8 +137,7 @@
             document.getElementById("fileName").innerText=upload.files[0].name;
             let decoder = new TextDecoder()
             contentRaw=decoder.decode(fr.result);
-            contents=contentRaw.split("
-");
+            contents=contentRaw.split("\n");
             commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
             document.getElementById("linesTotal").innerText=`文件行数: ${contents.length}`;
             document.getElementById("commandsTotal").innerText=`命令数: ${commands.length}`;

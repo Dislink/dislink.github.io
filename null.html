@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <head>
-	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?">
+	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
 	<meta charset="UTF-8"/>
 	<title>字符画生成器 | By Dislink</title>
 	<script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
@@ -103,8 +103,7 @@
 					}
 					asciiStr+=String.fromCharCode(0x2800+((a[0][0])+(a[0][1]<<1)+(a[0][2]<<2)+(a[1][0]<<3)+(a[1][1]<<4)+(a[1][2]<<5)+(a[0][3]<<6)+(a[1][3]<<7)));
 				}
-				asciiStr+='
-';
+				asciiStr+='\n';
 			}
 			return asciiStr;
 		})

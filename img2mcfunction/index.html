@@ -197,7 +197,6 @@ xRange.onchange=e=>{xRangeLabel.textContent=e.target.value;yRange.max=Math.floor
 yRange.onchange=e=>{yRangeLabel.textContent=e.target.value;xRange.max=Math.floor((1e4-(guideCommand.checked?2:0))/e.target.value);xRangeLabel.textContent=xRange.value}
 upload.onchange=()=>{var e;upload.files[0]&&((e=new FileReader).onload=()=>{img.src=e.result,convert.style="display: inline-block;",status.innerText='文件已改变，请点击"转换"按钮以应用改变',status.className='status-bar info'},e.readAsDataURL(upload.files[0]))}
 img.onload=()=>{download.style="display: none;";img_preview.width=img.width;img_preview.height=img.height;img_preview.style="display: block;";img_size.innerText=`宽: ${img.width}    高: ${img.height}`;img_info.style="display: block;";preview_card.style="display: block;";img_preview.getContext("2d").drawImage(img,0,0,img.width,img.height)}
-convert_args.onchange=()=>{document.getElementById("status").innerText="参数已改变，请"+(upload.files[0]?'点击"转换"按钮':"上传图片")+"以应用改变";document.getElementById("status").className="status-bar"}
 convert.onclick=()=>{upload.files[0]?(document.getElementById("status").innerText="正在转换...",document.getElementById("status").className="status-bar info",setTimeout(()=>{imgConvert()},50)):(document.getElementById("status").innerText="请上传图片文件",document.getElementById("status").className="status-bar error")}
 download.onclick=()=>{
     if(!blocks)return alert("没有什么可下载的");
