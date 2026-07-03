@@ -1,17 +1,179 @@
-<!DOCTYPE html><head><script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
-	<script>
-	  window.dataLayer = window.dataLayer || [];
-	  function gtag(){dataLayer.push(arguments);}
-	  gtag('js', new Date());
-	
-	  gtag('config', 'G-HJVLPQTQE6');
-	</script>
-	<script>
-		var _hmt = _hmt || [];
-		(function() {
-		  var hm = document.createElement("script");
-		  hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
-		  var s = document.getElementsByTagName("script")[0]; 
-		  s.parentNode.insertBefore(hm, s);
-		})();
-	</script><link href=/favicon.ico rel="shortcut icon" type=image/x-icon><title>text2particle mcfunction | By Dislink</title><script src=/javascript/jszip.min.js type=text/javascript></script><script src=/javascript/FileSaver.js type=text/javascript></script><script src=/javascript/Math.uuid.js type=text/javascript></script><script>manifestBE={format_version:1,header:{description:"url:https://dislink.github.io/img2mcfunction",name:"",uuid:"",min_engine_version:[1,13,0],version:[0,0,1]},modules:[{description:"",type:"data",uuid:"",version:[0,0,1]}]}</script><script>function getMousePos(t,e){return[Math.round(e.clientX-t.getBoundingClientRect().left*t.width/t.getBoundingClientRect().width+1),Math.round(e.clientY-t.getBoundingClientRect().top*t.height/t.getBoundingClientRect().height+1)]}</script><style>input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appearance:none}input[type=number]{-moz-appearance:textfield;width:2.5rem}</style></head><body><form id=arguments><fieldset id=convert_args><legend>转换参数</legend><textarea id=text placeholder=在此处输入文本></textarea><br><input id=sizexScroll type=range value=256 min=1 max=2048 step=1> <label for=sizexScroll>画布x轴宽度</label> <input id=sizex type=number value=256 min=1 step=1> <label for=sizex>px</label><br><input id=sizeyScroll type=range value=256 min=1 max=2048 step=1> <label for=sizeyScroll>画布y轴长度</label> <input id=sizey type=number value=256 min=1 step=1> <label for=sizey>px</label><br><label for=font>字体</label> <input id=font type=text value="bold 36px 黑体"><br><input id=stroke type=checkbox> <label for=stroke>空心文本</label><br><input id=sliceByLine type=checkbox> <label for=sliceByLine>按行切分</label> <input id=lineHeight type=number value=38 min=1 max=32768 step=1> <label for=lineHeight>单行高度</label><br><input id=overlay type=checkbox> <label for=overlay>叠加文本</label> <input id=convert type=button value=转换 style=display:none></fieldset><fieldset id=command_args><legend>命令参数</legend><label for=particleOffset>坐标偏移量</label> <input id=particleOffset type=number value=0.1 min=0> <label for=particleOffset>blocks/px</label> <label for=particleID>粒子ID</label> <input id=particleID type=text value=minecraft:endrod><br><label for=no_slice/>不切分mcfunction</label><input id=no_slice type=checkbox></fieldset><br></form><canvas height=256 id=preview style=display:block title=预览 width=256></canvas><br><div id=status></div><button id=download style=display:block>下载文件</button><br><script>sizexScroll.onchange=e=>{preview.width=e.target.value,sizex.value=e.target.value},sizex.onchange=e=>{preview.width=e.target.value,sizexScroll.value=e.target.value},sizeyScroll.onchange=e=>{preview.height=e.target.value,sizey.value=e.target.value},sizey.onchange=e=>{preview.height=e.target.value,sizeyScroll.value=e.target.value},overlay.onchange=e=>{e.target.checked?convert.style="display: block;":convert.style="display: none;"},convert.onclick=()=>{flag=1,convert_args.onchange()},convert_args.onchange=()=>{var e=preview.getContext("2d");if(overlay.checked||(preview.height=preview.height),!overlay.checked||flag){if(flag=0,e.font=font.value,e.textAlign="left",e.textBaseline="bottom",stroke.checked)for(var t in e.strokeStyle="#ff0000",text.value.split("\n"))e.strokeText(text.value.split("\n")[t],0,(parseInt(t)+1)*parseInt(lineHeight.value));else for(var a in e.fillStyle="#ff0000",text.value.split("\n"))e.fillText(text.value.split("\n")[a],0,(parseInt(a)+1)*parseInt(lineHeight.value));filled=!0}},download.onclick=()=>{if(!filled)return alert("没有什么可下载的");var t,e=new JSZip,a=e.folder("functions"),l=(manifestBE.header.name=text.value+" "+font.value+(stroke.checked?"s":""),manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),e.file("manifest.json",JSON.stringify(manifestBE)),preview.getContext("2d").getImageData(0,0,preview.width,preview.height)),i=[[]];for(let t=0;t<preview.height;t++){t%parseInt(lineHeight.value)==0&&sliceByLine.checked&&(i[Math.floor(t/parseInt(lineHeight.value))]=[]);for(let e=0;e<preview.width;e++)0!=l.data[4*(t*preview.width+e)]&&i[sliceByLine.checked?Math.floor(t/parseInt(lineHeight.value)):0].push(`particle ${particleID.value} ^${((preview.width-e)*parseFloat(particleOffset.value)).toFixed(6)} ^${((preview.height-t)*parseFloat(particleOffset.value)).toFixed(6)} ^`)}for(t in i){if(no_slice.checked){a.file(`text${t}.mcfunction`,i[t].join("\n"))}else{for(let e=0;e<i[t].length/1e4;e++)a.file(`text${t}${e?"-"+e:""}.mcfunction`,i[t].slice(1e4*e,1e4*(e+1)).join("\n"))}};e.generateAsync({type:"blob"}).then(function(e){saveAs(e,`${text.value} ${font.value}${stroke.checked?"s":""}.mcpack`)})},preview.onmousemove=e=>{var t=getMousePos(e.target,e);e.target.title=`Pos: ${t[0]},`+t[1]}</script></body>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>text2particle mcfunction | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-HJVLPQTQE6');
+    </script>
+    <script>
+        var _hmt = _hmt || [];
+        (function() {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <script src="/javascript/jszip.min.js" type="text/javascript"></script>
+    <script src="/javascript/FileSaver.js" type="text/javascript"></script>
+    <script src="/javascript/Math.uuid.js" type="text/javascript"></script>
+    <script>
+        manifestBE={format_version:1,header:{description:"url:https://dislink.github.io/img2mcfunction",name:"",uuid:"",min_engine_version:[1,13,0],version:[0,0,1]},modules:[{description:"",type:"data",uuid:"",version:[0,0,1]}]}
+    </script>
+    <script>
+        function getMousePos(t,e){return[Math.round(e.clientX-t.getBoundingClientRect().left*t.width/t.getBoundingClientRect().width+1),Math.round(e.clientY-t.getBoundingClientRect().top*t.height/t.getBoundingClientRect().height+1)]}
+    </script>
+    <script src="/javascript/error-handler.js"></script>
+</head>
+<body>
+<div class="tool-container">
+    <div class="page-header">
+        <h1>文本转粒子 mcfunction</h1>
+        <div class="subtitle">Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <form id="arguments">
+        <!-- Convert Args -->
+        <div class="card">
+            <div class="card-header">转换参数</div>
+            <div class="card-body">
+                <div class="form-group" style="flex-direction:column;align-items:stretch;">
+                    <label for="text" style="min-width:auto;">文本内容</label>
+                    <textarea id="text" placeholder="在此处输入文本" style="min-height:5rem;width:100%;resize:vertical;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="sizexScroll">画布x轴宽度</label>
+                    <input type="range" id="sizexScroll" value="256" min="1" max="2048" step="1">
+                    <input type="number" id="sizex" value="256" min="1" step="1">
+                    <span class="unit-label">px</span>
+                </div>
+                <div class="form-group">
+                    <label for="sizeyScroll">画布y轴高度</label>
+                    <input type="range" id="sizeyScroll" value="256" min="1" max="2048" step="1">
+                    <input type="number" id="sizey" value="256" min="1" step="1">
+                    <span class="unit-label">px</span>
+                </div>
+                <div class="form-group">
+                    <label for="font">字体</label>
+                    <input type="text" id="font" value="bold 36px 黑体">
+                </div>
+                <div class="inline-group">
+                    <input type="checkbox" id="stroke">
+                    <label for="stroke">空心文本</label>
+                </div>
+                <div class="inline-group">
+                    <input type="checkbox" id="sliceByLine">
+                    <label for="sliceByLine">按行切分</label>
+                </div>
+                <div class="form-group">
+                    <label for="lineHeight">单行高度</label>
+                    <input type="number" id="lineHeight" value="38" min="1" max="32768" step="1">
+                    <span class="unit-label">px</span>
+                </div>
+                <div class="inline-group">
+                    <input type="checkbox" id="overlay">
+                    <label for="overlay">叠加文本</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Command Args -->
+        <div class="card">
+            <div class="card-header">命令参数</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="particleOffset">坐标偏移量</label>
+                    <input type="number" id="particleOffset" value="0.1" min="0" step="0.01">
+                    <span class="unit-label">blocks/px</span>
+                </div>
+                <div class="form-group">
+                    <label for="particleID">粒子ID</label>
+                    <input type="text" id="particleID" value="minecraft:endrod">
+                </div>
+                <div class="inline-group">
+                    <input type="checkbox" id="no_slice">
+                    <label for="no_slice">不切分mcfunction</label>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Actions -->
+    <div style="text-align:center;margin-bottom:1rem;">
+        <input type="button" id="convert" class="btn btn-primary" value="转换" style="display:none;">
+        <button id="download" class="btn btn-success">下载文件</button>
+    </div>
+
+    <div class="status-bar" id="status"></div>
+
+    <!-- Preview -->
+    <div class="card" style="text-align:center;">
+        <div class="card-header">预览</div>
+        <div class="card-body">
+            <canvas id="preview" width="256" height="256" title="预览"></canvas>
+        </div>
+    </div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+sizexScroll.onchange=e=>{preview.width=e.target.value;sizex.value=e.target.value}
+sizex.onchange=e=>{preview.width=e.target.value;sizexScroll.value=e.target.value}
+sizeyScroll.onchange=e=>{preview.height=e.target.value;sizey.value=e.target.value}
+sizey.onchange=e=>{preview.height=e.target.value;sizeyScroll.value=e.target.value}
+overlay.onchange=e=>{e.target.checked?convert.style="display: inline-block;":convert.style="display: none;"}
+convert.onclick=()=>{flag=1;convert_args.onchange()}
+convert_args.onchange=()=>{
+    var e=preview.getContext("2d");
+    if(overlay.checked||(preview.height=preview.height),!overlay.checked||flag){
+        if(flag=0,e.font=font.value,e.textAlign="left",e.textBaseline="bottom",stroke.checked)
+            for(var t in e.strokeStyle="#ff0000",text.value.split("
+"))e.strokeText(text.value.split("
+")[t],0,(parseInt(t)+1)*parseInt(lineHeight.value));
+        else for(var a in e.fillStyle="#ff0000",text.value.split("
+"))e.fillText(text.value.split("
+")[a],0,(parseInt(a)+1)*parseInt(lineHeight.value));
+        filled=!0
+    }
+}
+download.onclick=()=>{
+    if(!filled)return alert("没有什么可下载的");
+    var t,e=new JSZip,a=e.folder("functions"),l=(manifestBE.header.name=text.value+" "+font.value+(stroke.checked?"s":""),manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),e.file("manifest.json",JSON.stringify(manifestBE)),preview.getContext("2d").getImageData(0,0,preview.width,preview.height)),i=[[]];
+    for(let t=0;t<preview.height;t++){
+        t%parseInt(lineHeight.value)==0&&sliceByLine.checked&&(i[Math.floor(t/parseInt(lineHeight.value))]=[]);
+        for(let e=0;e<preview.width;e++)0!=l.data[4*(t*preview.width+e)]&&i[sliceByLine.checked?Math.floor(t/parseInt(lineHeight.value)):0].push(`particle ${particleID.value} ^${((preview.width-e)*parseFloat(particleOffset.value)).toFixed(6)} ^${((preview.height-t)*parseFloat(particleOffset.value)).toFixed(6)} ^`)
+    }
+    for(t in i){
+        if(no_slice.checked){a.file(`text${t}.mcfunction`,i[t].join("
+"))}
+        else{for(let e=0;e<i[t].length/1e4;e++)a.file(`text${t}${e?"-"+e:""}.mcfunction`,i[t].slice(1e4*e,1e4*(e+1)).join("
+"))}
+    }
+    e.generateAsync({type:"blob"}).then(function(e){saveAs(e,`${text.value} ${font.value}${stroke.checked?"s":""}.mcpack`)})
+}
+preview.onmousemove=e=>{var t=getMousePos(e.target,e);e.target.title=`Pos: ${t[0]},${t[1]}`}
+</script>
+</body>
+</html>

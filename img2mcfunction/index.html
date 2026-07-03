@@ -1,21 +1,238 @@
-<!DOCTYPE html><head><script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
-	<script>
-	  window.dataLayer = window.dataLayer || [];
-	  function gtag(){dataLayer.push(arguments);}
-	  gtag('js', new Date());
-	
-	  gtag('config', 'G-HJVLPQTQE6');
-	</script>
-	<script>
-		var _hmt = _hmt || [];
-		(function() {
-		  var hm = document.createElement("script");
-		  hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
-		  var s = document.getElementsByTagName("script")[0]; 
-		  s.parentNode.insertBefore(hm, s);
-		})();
-	</script><link href=/favicon.ico? rel="shortcut icon" type=image/x-icon><title>图片转mcfunction | By Dislink</title><script src=/javascript/palettes.js type=text/javascript></script><script src=/javascript/jszip.min.js type=text/javascript></script><script src=/javascript/FileSaver.js type=text/javascript></script><script src=/javascript/Math.uuid.js type=text/javascript></script><script>manifestBE={format_version:1,header:{description:"url:https://dislink.github.io/img2mcfunction",name:"",uuid:"",min_engine_version:[1,13,0],version:[0,0,1]},modules:[{description:"",type:"data",uuid:"",version:[0,0,1]}]}</script><script>function getMousePos(t,e){return[Math.round(e.clientX-t.getBoundingClientRect().left*t.width/t.getBoundingClientRect().width+1),Math.round(e.clientY-t.getBoundingClientRect().top*t.height/t.getBoundingClientRect().height+1)]}function getBlock(t,e,n,i,a=0,h=1,o=1,B=1,g=1){let R=1/0,u;for(var c in i)(a?Math.abs(i[c].R-t)*h+Math.abs(i[c].G-e)*o+Math.abs(i[c].B-n)*B-(g?(((i[c].R-t)/(t||1)-(i[c].G-e)/(e||1))**2+((i[c].G-e)/(e||1)-(i[c].B-n)/(n||1))**2+((i[c].B-n)/(n||1)-(i[c].R-t)/(t||1))**2)*g:0):(i[c].R-t)**2*h+(i[c].G-e)**2*o+(i[c].B-n)**2*B-(g?(((i[c].R-t)/(t||1)-(i[c].G-e)/(e||1))**2+((i[c].G-e)/(e||1)-(i[c].B-n)/(n||1))**2+((i[c].B-n)/(n||1)-(i[c].R-t)/(t||1))**2)*g:0))<R&&(R=a?Math.abs(i[c].R-t)*h+Math.abs(i[c].G-e)*o+Math.abs(i[c].B-n)*B:(i[c].R-t)**2*h+(i[c].G-e)**2*o+(i[c].B-n)**2*B,u=i[c]);return u}</script><style>input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appearance:none}input[type=number]{-moz-appearance:textfield;width:2rem}body{background-color:#fff}</style></head><body><form id=arguments><input id=upload type=file accept=image/*> <label for=upload>上传图片</label><br><fieldset id=img_info style=display:none><legend>图片信息</legend><h3 id=img_size></h3></fieldset><fieldset id=convert_args><legend>转换参数</legend><input id=rWeightScroll type=range value=1 step=0.01 max=10 min=0> <label for=rWeightScroll>红色差值权重</label> <input id=rWeight type=number value=1 step=0.01> <input id=rScaleScroll type=range value=100 step=0.1 max=200 min=0> <label for=rScaleScroll>红色缩放比例</label> <input id=rScale type=number value=100 step=0.1> <label for=rScale>%</label><br><input id=gWeightScroll type=range value=1 step=0.01 max=10 min=0> <label for=gWeightScroll>绿色差值权重</label> <input id=gWeight type=number value=1 step=0.01> <input id=gScaleScroll type=range value=100 step=0.1 max=200 min=0> <label for=gScaleScroll>绿色缩放比例</label> <input id=gScale type=number value=100 step=0.1> <label for=gScale>%</label><br><input id=bWeightScroll type=range value=1 step=0.01 max=10 min=0> <label for=bWeightScroll>蓝色差值权重</label> <input id=bWeight type=number value=1 step=0.01> <input id=bScaleScroll type=range value=100 step=0.1 max=200 min=0> <label for=bScaleScroll>蓝色缩放比例</label> <input id=bScale type=number value=100 step=0.1> <label for=bScale>%</label><br><input id=caWeightScroll type=range value=0 step=0.1 max=10 min=0> <label for=caWeightScroll>色差校准权重(Exp)</label> <input id=caWeight type=number value=0 step=0.1> <select id=fitMode><option value=stdDev selected=selected>标准差最小</option><option value=stdSqr>标准平方和最小</option></select> <label for=commandPlatform>拟合方式</label></fieldset><fieldset id=command_args><legend>命令参数</legend><input id=xRange type=range value=96 max=98 min=1> <label for=xRange>图片x轴function分割上限 96</label><br><input id=yRange type=range value=96 max=98 min=1> <label for=yRange>图片y轴function分割上限 96</label><br><br><input id=relativePos type=checkbox checked=checked> <label for=relativePos>使用相对坐标(~)</label> <input id=guideFunction type=checkbox checked=checked> <label for=guideFunction>添加引导function</label> <input id=guideCommand type=checkbox checked=checked> <label for=guideCommand>function结尾添加引导命令</label> <select id=commandPlatform><option value=BE selected=selected>基岩版</option><option value=JE>JAVA版</option></select> <label for=commandPlatform>命令版本</label></fieldset><br></form><canvas id=img_preview style=display:none title=图片预览></canvas><br><button id=convert style=display:none>转换</button> <button id=download style=display:none>下载文件</button><br><div id=status></div><canvas id=convert_preview style=display:none title=转换预览></canvas><script>var img=new Image;rWeightScroll.onchange=e=>{rWeight.value=e.target.value},rWeight.onchange=e=>{rWeightScroll.value=e.target.value},rScaleScroll.onchange=e=>{rScale.value=e.target.value},rScale.onchange=e=>{rScaleScroll.value=e.target.value},gWeightScroll.onchange=e=>{gWeight.value=e.target.value},gWeight.onchange=e=>{gWeightScroll.value=e.target.value},gScaleScroll.onchange=e=>{gScale.value=e.target.value},gScale.onchange=e=>{gScaleScroll.value=e.target.value},bWeightScroll.onchange=e=>{bWeight.value=e.target.value},bWeight.onchange=e=>{bWeightScroll.value=e.target.value},bScaleScroll.onchange=e=>{bScale.value=e.target.value},bScale.onchange=e=>{bScaleScroll.value=e.target.value},caWeightScroll.onchange=e=>{caWeight.value=e.target.value},caWeight.onchange=e=>{caWeightScroll.value=e.target.value},xRange.onchange=e=>{e.target.labels[0].textContent="图片x轴function分割上限 "+e.target.value,yRange.max=Math.floor((1e4-(guideCommand?2:0))/e.target.value)},yRange.onchange=e=>{e.target.labels[0].textContent="图片y轴function分割上限 "+e.target.value,xRange.max=Math.floor((1e4-(guideCommand?2:0))/e.target.value)},upload.onchange=()=>{var e;upload.files[0]&&((e=new FileReader).onload=()=>{img.src=e.result,convert.style="display: block;",status.innerText='文件已改变，请点击"转换"按钮以应用改变'},e.readAsDataURL(upload.files[0]))},img.onload=()=>{download.style="display: none;",img_preview.width=img.width,img_preview.height=img.height,img_preview.style="display: block;",img_size.innerText=`宽：${img.width}    高：`+img.height,img_info.style="display: block;",img_preview.getContext("2d").drawImage(img,0,0,img.width,img.height)},convert_args.onchange=()=>{document.getElementById("status").innerText="参数已改变，请"+(upload.files[0]?'点击"转换"按钮':"上传图片")+"以应用改变"},convert.onclick=()=>{upload.files[0]?(document.getElementById("status").innerText="正在转换...",setTimeout(()=>{imgConvert()},50)):document.getElementById("status").innerText="请上传图片文件"},download.onclick=()=>{if(!blocks)return alert("没有什么可下载的");let l=[],i=[];for(let a=0;a<img_preview.height;a+=parseFloat(yRange.value))for(let e=0;e<img_preview.width;e+=parseFloat(xRange.value))i[Math.floor(e/parseFloat(xRange.value))+","+Math.floor(a/parseFloat(yRange.value))]=[],l.push(Math.floor(e/parseFloat(xRange.value))+","+Math.floor(a/parseFloat(yRange.value)));for(var e in blocks)i[Math.floor(blocks[e][0]/parseFloat(xRange.value))+","+Math.floor(blocks[e][1]/parseFloat(yRange.value))].push([blocks[e][0]%parseFloat(xRange.value),blocks[e][1]%parseFloat(yRange.value),blocks[e][3]]);"BE"==commandPlatform.value&&(zip=new JSZip,functions=zip.folder("functions")),guideFunction.checked&&("JE"==commandPlatform?saveAs(new Blob([`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片转mcfunction | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-HJVLPQTQE6');
+    </script>
+    <script>
+        var _hmt = _hmt || [];
+        (function() {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <script src="/javascript/palettes.js" type="text/javascript"></script>
+    <script src="/javascript/jszip.min.js" type="text/javascript"></script>
+    <script src="/javascript/FileSaver.js" type="text/javascript"></script>
+    <script src="/javascript/Math.uuid.js" type="text/javascript"></script>
+    <script>manifestBE={format_version:1,header:{description:"url:https://dislink.github.io/img2mcfunction",name:"",uuid:"",min_engine_version:[1,13,0],version:[0,0,1]},modules:[{description:"",type:"data",uuid:"",version:[0,0,1]}]}</script>
+    <script>
+        function getMousePos(t,e){return[Math.round(e.clientX-t.getBoundingClientRect().left*t.width/t.getBoundingClientRect().width+1),Math.round(e.clientY-t.getBoundingClientRect().top*t.height/t.getBoundingClientRect().height+1)]}
+        function getBlock(t,e,n,i,a=0,h=1,o=1,B=1,g=1){
+            let R=1/0,u;
+            for(var c in i)(a?Math.abs(i[c].R-t)*h+Math.abs(i[c].G-e)*o+Math.abs(i[c].B-n)*B-(g?(((i[c].R-t)/(t||1)-(i[c].G-e)/(e||1))**2+((i[c].G-e)/(e||1)-(i[c].B-n)/(n||1))**2+((i[c].B-n)/(n||1)-(i[c].R-t)/(t||1))**2)*g:0):(i[c].R-t)**2*h+(i[c].G-e)**2*o+(i[c].B-n)**2*B-(g?(((i[c].R-t)/(t||1)-(i[c].G-e)/(e||1))**2+((i[c].G-e)/(e||1)-(i[c].B-n)/(n||1))**2+((i[c].B-n)/(n||1)-(i[c].R-t)/(t||1))**2)*g:0))<R&&(R=a?Math.abs(i[c].R-t)*h+Math.abs(i[c].G-e)*o+Math.abs(i[c].B-n)*B:(i[c].R-t)**2*h+(i[c].G-e)**2*o+(i[c].B-n)**2*B,u=i[c]);return u}
+    </script>
+    <script src="/javascript/error-handler.js"></script>
+</head>
+<body>
+<div class="tool-container">
+    <div class="page-header">
+        <h1>图片转 mcfunction</h1>
+        <div class="subtitle">Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <form id="arguments">
+        <!-- File Upload -->
+        <div class="card">
+            <div class="card-body">
+                <div class="file-upload-wrapper">
+                    <div class="file-upload-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <span class="file-upload-text">点击上传图片</span>
+                    <input type="file" id="upload" accept="image/*">
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Info -->
+        <div class="card" id="img_info" style="display:none;">
+            <div class="card-header">图片信息</div>
+            <div class="card-body">
+                <div class="info-display" id="img_size"></div>
+            </div>
+        </div>
+
+        <!-- Convert Args -->
+        <div class="card">
+            <div class="card-header">转换参数</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="rWeightScroll" class="label-short">R差值权重</label>
+                    <input type="range" id="rWeightScroll" value="1" step="0.01" max="10" min="0">
+                    <input type="number" id="rWeight" value="1" step="0.01">
+                    <label for="rScaleScroll" class="label-auto">R缩放</label>
+                    <input type="range" id="rScaleScroll" value="100" step="0.1" max="200" min="0">
+                    <input type="number" id="rScale" value="100" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="gWeightScroll" class="label-short">G差值权重</label>
+                    <input type="range" id="gWeightScroll" value="1" step="0.01" max="10" min="0">
+                    <input type="number" id="gWeight" value="1" step="0.01">
+                    <label for="gScaleScroll" class="label-auto">G缩放</label>
+                    <input type="range" id="gScaleScroll" value="100" step="0.1" max="200" min="0">
+                    <input type="number" id="gScale" value="100" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="bWeightScroll" class="label-short">B差值权重</label>
+                    <input type="range" id="bWeightScroll" value="1" step="0.01" max="10" min="0">
+                    <input type="number" id="bWeight" value="1" step="0.01">
+                    <label for="bScaleScroll" class="label-auto">B缩放</label>
+                    <input type="range" id="bScaleScroll" value="100" step="0.1" max="200" min="0">
+                    <input type="number" id="bScale" value="100" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="caWeightScroll" class="label-short">色差校准</label>
+                    <input type="range" id="caWeightScroll" value="0" step="0.1" max="10" min="0">
+                    <input type="number" id="caWeight" value="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="fitMode">拟合方式</label>
+                    <select id="fitMode">
+                        <option value="stdDev" selected>标准差最小</option>
+                        <option value="stdSqr">标准平方和最小</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Command Args -->
+        <div class="card">
+            <div class="card-header">命令参数</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="xRange">x轴function分割上限</label>
+                    <input type="range" id="xRange" value="96" max="98" min="1">
+                    <span class="unit-label" id="xRangeLabel">96</span>
+                </div>
+                <div class="form-group">
+                    <label for="yRange">y轴function分割上限</label>
+                    <input type="range" id="yRange" value="96" max="98" min="1">
+                    <span class="unit-label" id="yRangeLabel">96</span>
+                </div>
+                <div class="separator"></div>
+                <div class="inline-group">
+                    <input type="checkbox" id="relativePos" checked>
+                    <label for="relativePos">使用相对坐标(~)</label>
+                </div>
+                <div class="inline-group">
+                    <input type="checkbox" id="guideFunction" checked>
+                    <label for="guideFunction">添加引导function</label>
+                </div>
+                <div class="inline-group">
+                    <input type="checkbox" id="guideCommand" checked>
+                    <label for="guideCommand">function结尾添加引导命令</label>
+                </div>
+                <div class="form-group">
+                    <label for="commandPlatform">命令版本</label>
+                    <select id="commandPlatform">
+                        <option value="BE" selected>基岩版</option>
+                        <option value="JE">JAVA版</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div style="text-align:center;margin-bottom:1rem;">
+        <button id="convert" class="btn btn-primary" style="display:none;">转换</button>
+        <button id="download" class="btn btn-success" style="display:none;">下载文件</button>
+    </div>
+
+    <div class="status-bar" id="status"></div>
+
+    <!-- Previews -->
+    <div class="card" id="preview_card" style="display:none;">
+        <div class="card-header">预览</div>
+        <div class="card-body" style="text-align:center;">
+            <canvas id="img_preview" title="图片预览"></canvas>
+            <canvas id="convert_preview" title="转换预览" style="margin-top:0.75rem;"></canvas>
+        </div>
+    </div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+var img=new Image;
+rWeightScroll.onchange=e=>{rWeight.value=e.target.value}
+rWeight.onchange=e=>{rWeightScroll.value=e.target.value}
+rScaleScroll.onchange=e=>{rScale.value=e.target.value}
+rScale.onchange=e=>{rScaleScroll.value=e.target.value}
+gWeightScroll.onchange=e=>{gWeight.value=e.target.value}
+gWeight.onchange=e=>{gWeightScroll.value=e.target.value}
+gScaleScroll.onchange=e=>{gScale.value=e.target.value}
+gScale.onchange=e=>{gScaleScroll.value=e.target.value}
+bWeightScroll.onchange=e=>{bWeight.value=e.target.value}
+bWeight.onchange=e=>{bWeightScroll.value=e.target.value}
+bScaleScroll.onchange=e=>{bScale.value=e.target.value}
+bScale.onchange=e=>{bScaleScroll.value=e.target.value}
+caWeightScroll.onchange=e=>{caWeight.value=e.target.value}
+caWeight.onchange=e=>{caWeightScroll.value=e.target.value}
+xRange.onchange=e=>{xRangeLabel.textContent=e.target.value;yRange.max=Math.floor((1e4-(guideCommand.checked?2:0))/e.target.value);yRangeLabel.textContent=yRange.value}
+yRange.onchange=e=>{yRangeLabel.textContent=e.target.value;xRange.max=Math.floor((1e4-(guideCommand.checked?2:0))/e.target.value);xRangeLabel.textContent=xRange.value}
+upload.onchange=()=>{var e;upload.files[0]&&((e=new FileReader).onload=()=>{img.src=e.result,convert.style="display: inline-block;",status.innerText='文件已改变，请点击"转换"按钮以应用改变',status.className='status-bar info'},e.readAsDataURL(upload.files[0]))}
+img.onload=()=>{download.style="display: none;";img_preview.width=img.width;img_preview.height=img.height;img_preview.style="display: block;";img_size.innerText=`宽: ${img.width}    高: ${img.height}`;img_info.style="display: block;";preview_card.style="display: block;";img_preview.getContext("2d").drawImage(img,0,0,img.width,img.height)}
+convert_args.onchange=()=>{document.getElementById("status").innerText="参数已改变，请"+(upload.files[0]?'点击"转换"按钮':"上传图片")+"以应用改变";document.getElementById("status").className="status-bar"}
+convert.onclick=()=>{upload.files[0]?(document.getElementById("status").innerText="正在转换...",document.getElementById("status").className="status-bar info",setTimeout(()=>{imgConvert()},50)):(document.getElementById("status").innerText="请上传图片文件",document.getElementById("status").className="status-bar error")}
+download.onclick=()=>{
+    if(!blocks)return alert("没有什么可下载的");
+    let l=[],i=[];
+    for(let a=0;a<img_preview.height;a+=parseFloat(yRange.value))for(let e=0;e<img_preview.width;e+=parseFloat(xRange.value))i[Math.floor(e/parseFloat(xRange.value))+","+Math.floor(a/parseFloat(yRange.value))]=[],l.push(Math.floor(e/parseFloat(xRange.value))+","+Math.floor(a/parseFloat(yRange.value)));
+    for(var e in blocks)i[Math.floor(blocks[e][0]/parseFloat(xRange.value))+","+Math.floor(blocks[e][1]/parseFloat(yRange.value))].push([blocks[e][0]%parseFloat(xRange.value),blocks[e][1]%parseFloat(yRange.value),blocks[e][3]]);
+    "BE"==commandPlatform.value&&(zip=new JSZip,functions=zip.folder("functions"));
+    guideFunction.checked&&("JE"==commandPlatform?saveAs(new Blob([`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}
 say 输入/function "${l[0].replace(",","-")}"以启动`],{type:"text/plainText"}),"help.mcfunction"):functions.file("help.mcfunction",`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}
-say 输入/function "${l[0].replace(",","-")}"以启动`));let o=0,g=setInterval(()=>{var e,a=l[o];let t="";for(e in i[a])t+=`setblock ${relativePos.checked?"~"+Math.round(i[a][e][0]-parseFloat(xRange.value)/2)+" ~ ~"+Math.round(i[a][e][1]-parseFloat(yRange.value)/2):Math.round(parseFloat(a.split(",")[0])*parseFloat(xRange.value)+i[a][e][0])+" ~ "+Math.round(parseFloat(a.split(",")[1])*parseFloat(yRange.value)+i[a][e][1])} ${i[a][e][2]}
-`;guideCommand.checked&&(t+=l[o+1]?`tp @s ${(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[0])-parseFloat(l[o].split(",")[0]))*parseFloat(xRange.value):0)+" ~ "+(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[1])-parseFloat(l[o].split(",")[1]))*parseFloat(yRange.value):0)}
-say 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function "${l[parseFloat(o)+1].replace(",","-")}"继续生成`:"say 生成完成！"),"JE"==commandPlatform.value?saveAs(new Blob([t],{type:"text/plainText"}),a.replace(",","-")+".mcfunction"):functions.file(a.replace(",","-")+".mcfunction",t),++o>=l.length&&(manifestBE.header.name=fileName,manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),zip.file("manifest.json",JSON.stringify(manifestBE)),zip.generateAsync({type:"blob"}).then(function(e){saveAs(e,fileName+".mcpack")}),clearInterval(g))},"JE"==commandPlatform.value?500:0)},imgConvert=()=>{convert_preview.width=img_preview.width,convert_preview.height=img_preview.height,fileName=upload.files[0].name,blocks=[],imageData=img_preview.getContext("2d").getImageData(0,0,img_preview.width,img_preview.height);for(let a=0;a<img_preview.height;a++)for(let e=0;e<img_preview.width;e++){var t=getBlock(imageData.data[4*(a*img_preview.width+e)]*(parseFloat(rScale.value)/100),imageData.data[4*(a*img_preview.width+e)+1]*(parseFloat(gScale.value)/100),imageData.data[4*(a*img_preview.width+e)+2]*(parseFloat(bScale.value)/100),"BE"==commandPlatform.value?paletteBE:paletteJE,"stdSqr"==fitMode.value,parseFloat(rWeight.value),parseFloat(gWeight.value),parseFloat(bWeight.value),parseFloat(caWeight.value));blocks.push([e,a,imageData.data[4*(a*img_preview.width+e)+3],t.name]),imageData.data[4*(a*img_preview.width+e)]=t.R,imageData.data[4*(a*img_preview.width+e)+2]=t.G,imageData.data[4*(a*img_preview.width+e)+2]=t.B}convert_preview.getContext("2d").putImageData(imageData,0,0),convert_preview.style="display: block;",document.getElementById("status").innerText="转换完成！",download.style="display: block;"},img_preview.onmousemove=e=>{var a=getMousePos(e.target,e),t=img_preview.getContext("2d").getImageData(a[0],a[1],1,1).data;e.target.title=`Pos: ${a[0]},${a[1]}  R:${t[0]} G:${t[1]} B:`+t[2]},convert_preview.onmousemove=e=>{var a=getMousePos(e.target,e),t=convert_preview.getContext("2d").getImageData(a[0],a[1],1,1).data,l=getBlock(t[0],t[1],t[2],"BE"==commandPlatform.value?paletteBE:paletteJE).name;e.target.title=`Pos: ${a[0]},${a[1]}  R:${t[0]} G:${t[1]} B:${t[2]}  Block:`+l}</script></body>
+say 输入/function "${l[0].replace(",","-")}"以启动`));
+    let o=0,g=setInterval(()=>{
+        var e,a=l[o];let t="";
+        for(e in i[a])t+=`setblock ${relativePos.checked?"~"+Math.round(i[a][e][0]-parseFloat(xRange.value)/2)+" ~ ~"+Math.round(i[a][e][1]-parseFloat(yRange.value)/2):Math.round(parseFloat(a.split(",")[0])*parseFloat(xRange.value)+i[a][e][0])+" ~ "+Math.round(parseFloat(a.split(",")[1])*parseFloat(yRange.value)+i[a][e][1])} ${i[a][e][2]}
+`;
+        guideCommand.checked&&(t+=l[o+1]?`tp @s ${(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[0])-parseFloat(l[o].split(",")[0]))*parseFloat(xRange.value):0)+" ~ "+(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[1])-parseFloat(l[o].split(",")[1]))*parseFloat(yRange.value):0)}
+say 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function "${l[parseFloat(o)+1].replace(",","-")}"继续生成`:"say 生成完成！");
+        "JE"==commandPlatform.value?saveAs(new Blob([t],{type:"text/plainText"}),a.replace(",","-")+".mcfunction"):functions.file(a.replace(",","-")+".mcfunction",t);
+        ++o>=l.length&&(manifestBE.header.name=fileName,manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),zip.file("manifest.json",JSON.stringify(manifestBE)),zip.generateAsync({type:"blob"}).then(function(e){saveAs(e,fileName+".mcpack")}),clearInterval(g))
+    },"JE"==commandPlatform.value?500:0)
+}
+imgConvert=()=>{
+    convert_preview.width=img_preview.width;convert_preview.height=img_preview.height;
+    fileName=upload.files[0].name;blocks=[];imageData=img_preview.getContext("2d").getImageData(0,0,img_preview.width,img_preview.height);
+    for(let a=0;a<img_preview.height;a++)for(let e=0;e<img_preview.width;e++){
+        var t=getBlock(imageData.data[4*(a*img_preview.width+e)]*(parseFloat(rScale.value)/100),imageData.data[4*(a*img_preview.width+e)+1]*(parseFloat(gScale.value)/100),imageData.data[4*(a*img_preview.width+e)+2]*(parseFloat(bScale.value)/100),"BE"==commandPlatform.value?paletteBE:paletteJE,"stdSqr"==fitMode.value,parseFloat(rWeight.value),parseFloat(gWeight.value),parseFloat(bWeight.value),parseFloat(caWeight.value));
+        blocks.push([e,a,imageData.data[4*(a*img_preview.width+e)+3],t.name]);
+        imageData.data[4*(a*img_preview.width+e)]=t.R;imageData.data[4*(a*img_preview.width+e)+1]=t.G;imageData.data[4*(a*img_preview.width+e)+2]=t.B
+    }
+    convert_preview.getContext("2d").putImageData(imageData,0,0);
+    convert_preview.style="display: block;";
+    document.getElementById("status").innerText="转换完成！";document.getElementById("status").className="status-bar info";
+    download.style="display: inline-block;"
+}
+img_preview.onmousemove=e=>{var a=getMousePos(e.target,e),t=img_preview.getContext("2d").getImageData(a[0],a[1],1,1).data;e.target.title=`Pos: ${a[0]},${a[1]}  R:${t[0]} G:${t[1]} B:${t[2]}`}
+convert_preview.onmousemove=e=>{var a=getMousePos(e.target,e),t=convert_preview.getContext("2d").getImageData(a[0],a[1],1,1).data,l=getBlock(t[0],t[1],t[2],"BE"==commandPlatform.value?paletteBE:paletteJE).name;e.target.title=`Pos: ${a[0]},${a[1]}  R:${t[0]} G:${t[1]} B:${t[2]}  Block: ${l}`}
+</script>
+</body>
+</html>

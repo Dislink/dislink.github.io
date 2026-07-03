@@ -1,81 +1,120 @@
 <!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
-	<title>进度条生成mcfunction | By Dislink</title>
-	<script src="/javascript/jszip.min.js" type="text/javascript"></script>
-	<script src="/javascript/FileSaver.js" type="text/javascript"></script>
-	<script src="/javascript/Math.uuid.js" type="text/javascript"></script>
-	<script>
-		manifestBE={"format_version":1,"header":{"description":"url:https://dislink.github.io/img2mcfunction","name":"","uuid":"","min_engine_version":[1,12,0],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
-	</script>
-	<style>
-		label{
-			width: 8rem;
-			display: inline-table;
-		}
-	</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>进度条生成mcfunction | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HJVLPQTQE6');</script>
+    <script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s);})();</script>
+    <script src="/javascript/jszip.min.js" type="text/javascript"></script>
+    <script src="/javascript/FileSaver.js" type="text/javascript"></script>
+    <script src="/javascript/Math.uuid.js" type="text/javascript"></script>
+    <script>
+        manifestBE={"format_version":1,"header":{"description":"url:https://dislink.github.io/img2mcfunction","name":"","uuid":"","min_engine_version":[1,12,0],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
+    </script>
+    <script src="/javascript/error-handler.js"></script>
 </head>
 <body>
-	<form id="arguments">
-		<fieldset id="convert_args">
-		<legend>参数</legend>
-			<label for="scoreboard">进度计分板名</label>
-			<input type="text" id="scoreboard" value="time"/>
-			<br/>
-			<label for="bar">进度棒</label>
-			<input type="text" id="bar" value="┃" />
-			<br/>
-			<label for="pst">已过进度样式</label>
-			<input type="text" id="pst" value="§a" />
-			<label for="clr">未过进度样式</label>
-			<input type="text" id="clr" value="§r" />
-			<br/>
-			<label for="tag">样式实体标签</label>
-			<input type="text" id="tag" value="progress" />
-			<br/>
-			<label for="full">满分</label>
-			<input type="number" id="full" step="1" value="100" />
-			<br/>
-			<label style="width:3rem;" for="sectionsScroll">等分数</label>
-			<input type="range" id="sectionsScroll" min="1" max="256" value="100" step="1"/>
-			<input type="number" style="width:7rem;" id="sections" step="1" value="100" />
-			<label for="sections">节</label>
-			<br/>
-			<label for="textStyle">显示样式</label>
-			<input type="text" id="textStyle" value="[%{progress}%]" />
-			<br/>
-			<label for="selector">展示玩家选择器</label>
-			<input type="text" id="selector" value="@a" />
-			<br/>
-		</fieldset>
-	</form>
-	<div id="status"></div>
-	<button id="download" style="display: block;">下载文件</button>
-	<br/>
-	<script>
-		sectionsScroll.onchange=(e)=>{
-			sections.value=e.target.value;
-		}
-		sections.onchange=(e)=>{
-			sectionsScroll.value=e.target.value;
-		}
-		download.onclick=(()=>{
-			let zip=new JSZip();
-			let functions=zip.folder("functions");
-			manifestBE.header.name=`Progress-${full.value}${bar.value}${sections.value}`;
-			manifestBE.header.uuid=Math.uuid();
-			manifestBE.modules[0].uuid=Math.uuid();
-			zip.file("manifest.json", JSON.stringify(manifestBE));
-			functions.file("Pinit.mcfunction",`scoreboard objectives add ${scoreboard.value} dummy\nscoreboard objectives setdisplay sidebar ${scoreboard.value}\nsummon armor_stand ${pst.value}\ntag @e[type=armor_stand,name=${pst.value},c=1] add ${tag.value}\nscoreboard players set @e[tag=${tag.value}] ${scoreboard.value} 0`)
-			rawJSON={"rawtext":[{"translate":textStyle.value.replace('%{progress}%',`${('%%s'+bar.value).repeat(parseInt(sections.value))}§r`),"with":{"rawtext":[]}}]}
-			for(let i=0;i<parseInt(sections.value);i++){
-				rawJSON.rawtext[0].with.rawtext.push({"selector":`@e[tag=${tag.value},scores={${scoreboard.value}=${Math.round(parseInt(full.value)*i/parseInt(sections.value))|1}..}]`})
-			}
-			rawJSON.rawtext[0].with.rawtext.push({"text":clr.value})
-			functions.file("main.mcfunction",`titleraw ${selector.value} actionbar ${JSON.stringify(rawJSON)}`)
-			zip.generateAsync({type:"blob"}).then(function(content) {
-				saveAs(content, `Progress-${full.value}${bar.value}${sections.value}.mcpack`);
-			});
-		})
-	</script>
+<div class="tool-container">
+    <div class="page-header">
+        <h1>进度条生成 mcfunction</h1>
+        <div class="subtitle">Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <form id="arguments">
+        <div class="card">
+            <div class="card-header">参数</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="scoreboard">进度计分板名</label>
+                    <input type="text" id="scoreboard" value="time">
+                </div>
+                <div class="form-group">
+                    <label for="bar">进度棒</label>
+                    <input type="text" id="bar" value="|">
+                </div>
+                <div class="form-group">
+                    <label for="pst">已过进度样式</label>
+                    <input type="text" id="pst" value="§a">
+                    <label for="clr" class="label-auto">未过进度样式</label>
+                    <input type="text" id="clr" value="§r">
+                </div>
+                <div class="form-group">
+                    <label for="tag">样式实体标签</label>
+                    <input type="text" id="tag" value="progress">
+                </div>
+                <div class="form-group">
+                    <label for="full">满分</label>
+                    <input type="number" id="full" step="1" value="100">
+                </div>
+                <div class="form-group">
+                    <label for="sectionsScroll">等分数</label>
+                    <input type="range" id="sectionsScroll" min="1" max="256" value="100" step="1">
+                    <input type="number" id="sections" step="1" value="100" style="width:5rem;">
+                    <span class="unit-label">节</span>
+                </div>
+                <div class="form-group">
+                    <label for="textStyle">显示样式</label>
+                    <input type="text" id="textStyle" value="[%{progress}%]">
+                </div>
+                <div class="form-group">
+                    <label for="selector">展示玩家选择器</label>
+                    <input type="text" id="selector" value="@a">
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div style="text-align:center;margin-bottom:1rem;">
+        <button id="download" class="btn btn-success">下载文件</button>
+    </div>
+
+    <div class="status-bar" id="status"></div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+sectionsScroll.onchange=(e)=>{ sections.value=e.target.value; }
+sections.onchange=(e)=>{ sectionsScroll.value=e.target.value; }
+download.onclick=(()=>{
+    let zip=new JSZip();
+    let functions=zip.folder("functions");
+    manifestBE.header.name=`Progress-${full.value}${bar.value}${sections.value}`;
+    manifestBE.header.uuid=Math.uuid();
+    manifestBE.modules[0].uuid=Math.uuid();
+    zip.file("manifest.json", JSON.stringify(manifestBE));
+    functions.file("Pinit.mcfunction",`scoreboard objectives add ${scoreboard.value} dummy
+scoreboard objectives setdisplay sidebar ${scoreboard.value}
+summon armor_stand ${pst.value}
+tag @e[type=armor_stand,name=${pst.value},c=1] add ${tag.value}
+scoreboard players set @e[tag=${tag.value}] ${scoreboard.value} 0`)
+    rawJSON={"rawtext":[{"translate":textStyle.value.replace('%{progress}%',`${('%%s'+bar.value).repeat(parseInt(sections.value))}§r`),"with":{"rawtext":[]}}]}
+    for(let i=0;i<parseInt(sections.value);i++){
+        rawJSON.rawtext[0].with.rawtext.push({"selector":`@e[tag=${tag.value},scores={${scoreboard.value}=${Math.round(parseInt(full.value)*i/parseInt(sections.value))|1}..}]`})
+    }
+    rawJSON.rawtext[0].with.rawtext.push({"text":clr.value})
+    functions.file("main.mcfunction",`titleraw ${selector.value} actionbar ${JSON.stringify(rawJSON)}`)
+    zip.generateAsync({type:"blob"}).then(function(content) {
+        saveAs(content, `Progress-${full.value}${bar.value}${sections.value}.mcpack`);
+    });
+})
+</script>
 </body>
+</html>

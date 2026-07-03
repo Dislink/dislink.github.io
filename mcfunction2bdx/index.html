@@ -1,153 +1,167 @@
 <!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-	<script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
-	<script>
-	  window.dataLayer = window.dataLayer || [];
-	  function gtag(){dataLayer.push(arguments);}
-	  gtag('js', new Date());
-	
-	  gtag('config', 'G-HJVLPQTQE6');
-	</script>
-	<script>
-		var _hmt = _hmt || [];
-		(function() {
-		  var hm = document.createElement("script");
-		  hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
-		  var s = document.getElementsByTagName("script")[0]; 
-		  s.parentNode.insertBefore(hm, s);
-		})();
-	</script>
-	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
-	<title>mcfunction转BDX | By Dislink</title>
-	<script src="/javascript/brotli-js.js" type="text/javascript"></script>
-	<script src="/javascript/FileSaver.js" type="text/javascript"></script>
-	<script>
-		BDXFileHdr=[66,68,64]
-		BDXDataP1=[66,68,88,0,68,105,115,108,105,110,107,95,83,102,111,114,122,97,0]
-		BDXDataEnd=[88,69];//XE
-		function pointerMove(x, y, z){
-			let result='';
-			//if(x) result+="\x15"+String.fromCharCode((x&0xff000000)>>>24, (x&0xff0000)>>>16, (x&0xff00)>>>8, (x&0xff));
-			//if(y) result+="\x17"+String.fromCharCode((y&0xff000000)>>>24, (y&0xff0000)>>>16, (y&0xff00)>>>8, (y&0xff));
-			//if(z) result+="\x19"+String.fromCharCode((z&0xff000000)>>>24, (z&0xff0000)>>>16, (z&0xff00)>>>8, (z&0xff));
-			if(x==1){
-				result+="\x0E";
-			}else if(x==-1){
-				result+="\x0F";
-			}
-			if(y==1){
-				result+="\x10";
-			}else if(y==-1){
-				result+="\x11";
-			}
-			if(z==1){
-				result+="\x12";
-			}else if(z==-1){
-				result+="\x13";
-			}
-			return result;
-		}
-		function placeCommandBlockWithCommandBlockData(data, mode, command, hoverText, ticksDelay, conditionalMode, needsRedstone){
-			return String.fromCharCode(0x24, (data&0xff00)>>>8, data&0xff, (mode&0xff000000)>>>24, (mode&0xff0000)>>>16, (mode&0xff00)>>>8, (mode&0xff))+command+'\x00'+hoverText+'\x00\x00'+String.fromCharCode((ticksDelay&0xff000000)>>>24, (ticksDelay&0xff0000)>>>16, (ticksDelay&0xff00)>>>8, ticksDelay&0xff)+"\x01"+"\x01"+String.fromCharCode(conditionalMode,needsRedstone);
-		}
-	</script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mcfunction转BDX | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-HJVLPQTQE6');
+    </script>
+    <script>
+        var _hmt = _hmt || [];
+        (function() {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <script src="/javascript/brotli-js.js" type="text/javascript"></script>
+    <script src="/javascript/FileSaver.js" type="text/javascript"></script>
+    <script>
+        BDXFileHdr=[66,68,64]
+        BDXDataP1=[66,68,88,0,68,105,115,108,105,110,107,95,83,102,111,114,122,97,0]
+        BDXDataEnd=[88,69];
+        function pointerMove(x, y, z){
+            let result='';
+            if(x==1){ result+="\x0E"; }else if(x==-1){ result+="\x0F"; }
+            if(y==1){ result+="\x10"; }else if(y==-1){ result+="\x11"; }
+            if(z==1){ result+="\x12"; }else if(z==-1){ result+="\x13"; }
+            return result;
+        }
+        function placeCommandBlockWithCommandBlockData(data, mode, command, hoverText, ticksDelay, conditionalMode, needsRedstone){
+            return String.fromCharCode(0x24, (data&0xff00)>>>8, data&0xff, (mode&0xff000000)>>>24, (mode&0xff0000)>>>16, (mode&0xff00)>>>8, (mode&0xff))+command+'\x00'+hoverText+'\x00\x00'+String.fromCharCode((ticksDelay&0xff000000)>>>24, (ticksDelay&0xff0000)>>>16, (ticksDelay&0xff00)>>>8, ticksDelay&0xff)+"\x01"+"\x01"+String.fromCharCode(conditionalMode,needsRedstone);
+        }
+    </script>
+    <script src="/javascript/error-handler.js"></script>
 </head>
 <body>
-	<form id="arguments">
-		<input type="file" id="upload" accept=".mcfunction">
-		 <label for="upload">上传mcfunction文件</label>
-		<br/>
-		<fieldset id="fileInfo" style="display: none;">
-		<legend>文件信息</legend>
-			<h3 id="fileName"></h3>
-			<h3 id="linesTotal"><h3>
-			<h3 id="commandsTotal"><h3>
-		</fieldset>
-		<fieldset id="command_args">
-		<legend>bdx、命令参数</legend>
-			<label for="pattern">命令储存方式	</label>
-			<input type="text" id="pattern" value="%{command}%" />
-			<br/>
-			<input type="range" id="xLengthScroll" min="1" max="256" value="8" />
-			<label for="xLengthScroll">x轴延伸长度</label>
-			<input type="number" id="xLength" step="1" value="8" />
-			<label for="xLength">block(s)</label>
-			<br/>
-			<input type="range" id="zLengthScroll" min="1" max="256" value="8" />
-			<label for="zLengthScroll">z轴延伸长度</label>
-			<input type="number" id="zLength" step="1" value="8" />
-			<label for="zLength">block(s)</label>
-			<br/>
-			<div id="heightEstimate"></div>
-			<br/>
-		</fieldset>
-		<br/>
-	</form>
-	<br/>
-	<button id="download" style="display: none;">下载文件</button>
-	<br/>
-	<div id="status"></div>
-	<script>
-		xLengthScroll.onchange=(e)=>{
-			xLength.value=e.target.value;
-			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
-		}
-		xLength.onchange=(e)=>{
-			xLengthScroll.value=e.target.value;
-			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
-		}
-		zLengthScroll.onchange=(e)=>{
-			zLength.value=e.target.value;
-			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
-		}
-		zLength.onchange=(e)=>{
-			zLengthScroll.value=e.target.value;
-			heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
-		}
-		upload.onchange=(()=>{
-			if(!upload.files[0]) return;
-			var fr=new FileReader();
-			fr.onload=()=>{
-				document.getElementById("fileInfo").style="display: block;";
-				document.getElementById("download").style="display: block;";
-				document.getElementById("fileName").innerText=`文件名：${upload.files[0].name}`;
-				let decoder = new TextDecoder()
-				contentRaw=decoder.decode(fr.result);
-				contents=contentRaw.split("\n");
-				commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
-				document.getElementById("linesTotal").innerText=`文件大小：${contentRaw.lenth}字符`;
-				document.getElementById("linesTotal").innerText=`文件行数：${contents.length}`;
-				document.getElementById("commandsTotal").innerText=`命令数：${commands.length}`;
-				heightEstimate.innerText=commands.length?`预计高度：${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
-			}
-			fr.readAsArrayBuffer(upload.files[0]);
-		})
-		download.onclick=(()=>{
-			data=''
-			let seq=0,x=0,y=0,z=0;
-			let xBackward=false,zBackward=false;
-			while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length){
-				for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;x++){
-					for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;z++){
-						let command=commands[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)];
-						if(!command.match(/^[^#]*/)[0]){
-							z--;
-							seq++;
-							continue;
-						}
-						data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), pattern.value.replaceAll("%{command}%", command.replace(/^\-/,"")), '', Number(/^\-/.test(command)), ((x==0&&y==0&&z==0)?true:false));
-						data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
-					}
-					data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
-					zBackward=!zBackward;
-					z=0;
-				}
-				xBackward=!xBackward;
-				x=0;
-				y++;
-			}
-			compressed=new Brotli().compressArray(Uint8Array.from(BDXDataP1.concat(Array.from(new TextEncoder().encode(data)).concat(BDXDataEnd))), 6);
-			saveAs(new Blob([Uint8Array.from(BDXFileHdr.concat(Array.from(compressed)))]),`${fileName.innerText.slice(4).replace(/\.mcfunction$/, '')}.bdx`)
-		})
-	</script>
+<div class="tool-container">
+    <div class="page-header">
+        <h1>mcfunction 转 BDX</h1>
+        <div class="subtitle">Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <form id="arguments">
+        <!-- File Upload -->
+        <div class="card">
+            <div class="card-body">
+                <div class="file-upload-wrapper">
+                    <div class="file-upload-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <span class="file-upload-text">点击上传 mcfunction 文件</span>
+                    <input type="file" id="upload" accept=".mcfunction">
+                </div>
+            </div>
+        </div>
+
+        <!-- File Info -->
+        <div class="card" id="fileInfo" style="display:none;">
+            <div class="card-header">文件信息</div>
+            <div class="card-body">
+                <div class="info-display" id="fileName"></div>
+                <div class="info-display" id="linesTotal"></div>
+                <div class="info-display" id="commandsTotal"></div>
+            </div>
+        </div>
+
+        <!-- Command Args -->
+        <div class="card">
+            <div class="card-header">BDX、命令参数</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="pattern">命令储存方式</label>
+                    <input type="text" id="pattern" value="%{command}%" />
+                </div>
+                <div class="form-group">
+                    <label for="xLengthScroll">x轴延伸长度</label>
+                    <input type="range" id="xLengthScroll" min="1" max="256" value="8" />
+                    <input type="number" id="xLength" step="1" value="8" />
+                    <span class="unit-label">block(s)</span>
+                </div>
+                <div class="form-group">
+                    <label for="zLengthScroll">z轴延伸长度</label>
+                    <input type="range" id="zLengthScroll" min="1" max="256" value="8" />
+                    <input type="number" id="zLength" step="1" value="8" />
+                    <span class="unit-label">block(s)</span>
+                </div>
+                <div class="info-display" id="heightEstimate"></div>
+            </div>
+        </div>
+    </form>
+
+    <div style="text-align:center;margin-bottom:1rem;">
+        <button id="download" class="btn btn-success" style="display:none;">下载文件</button>
+    </div>
+
+    <div class="status-bar" id="status"></div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    xLengthScroll.onchange=(e)=>{ xLength.value=e.target.value; heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:''; }
+    xLength.onchange=(e)=>{ xLengthScroll.value=e.target.value; heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:''; }
+    zLengthScroll.onchange=(e)=>{ zLength.value=e.target.value; heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:''; }
+    zLength.onchange=(e)=>{ zLengthScroll.value=e.target.value; heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:''; }
+    upload.onchange=(()=>{
+        if(!upload.files[0]) return;
+        var fr=new FileReader();
+        fr.onload=()=>{
+            document.getElementById("fileInfo").style="display: block;";
+            document.getElementById("download").style="display: block;";
+            document.getElementById("fileName").innerText=upload.files[0].name;
+            let decoder = new TextDecoder()
+            contentRaw=decoder.decode(fr.result);
+            contents=contentRaw.split("
+");
+            commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
+            document.getElementById("linesTotal").innerText=`文件行数: ${contents.length}`;
+            document.getElementById("commandsTotal").innerText=`命令数: ${commands.length}`;
+            heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+        }
+        fr.readAsArrayBuffer(upload.files[0]);
+    })
+    download.onclick=(()=>{
+        data=''
+        let seq=0,x=0,y=0,z=0;
+        let xBackward=false,zBackward=false;
+        while((y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length){
+            for(x=0;x<parseInt(xLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;x++){
+                for(z=0;z<parseInt(zLength.value)&&(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z+seq)<commands.length;z++){
+                    let command=commands[(y*parseInt(xLength.value)*parseInt(zLength.value)+x*parseInt(zLength.value)+z)];
+                    if(!command.match(/^[^#]*/)[0]){ z--; seq++; continue; }
+                    data+=placeCommandBlockWithCommandBlockData((z==parseInt(zLength.value)-1?(x==parseInt(xLength.value)-1?1:(xBackward?4:5)):(zBackward?2:3)), ((x==0&&y==0&&z==0)?0:2), pattern.value.replaceAll("%{command}%", command.replace(/^\-/,"")), '', Number(/^\-/.test(command)), ((x==0&&y==0&&z==0)?true:false));
+                    data+=(z==parseInt(zLength.value)-1)?'':pointerMove(0,0,(zBackward==false?1:-1));
+                }
+                data+=(x==parseInt(xLength.value)-1?pointerMove(0,1,0):pointerMove((xBackward==false?1:-1),0,0));
+                zBackward=!zBackward; z=0;
+            }
+            xBackward=!xBackward; x=0; y++;
+        }
+        compressed=new Brotli().compressArray(Uint8Array.from(BDXDataP1.concat(Array.from(new TextEncoder().encode(data)).concat(BDXDataEnd))), 6);
+        saveAs(new Blob([Uint8Array.from(BDXFileHdr.concat(Array.from(compressed)))]),`${fileName.innerText.replace(/\.mcfunction$/, '')}.bdx`)
+    })
+</script>
 </body>
+</html>

@@ -1,25 +1,253 @@
-<html>
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
-	<script>
-	  window.dataLayer = window.dataLayer || [];
-	  function gtag(){dataLayer.push(arguments);}
-	  gtag('js', new Date());
-	
-	  gtag('config', 'G-HJVLPQTQE6');
-	</script>
-	<script>
-		var _hmt = _hmt || [];
-		(function() {
-		  var hm = document.createElement("script");
-		  hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
-		  var s = document.getElementsByTagName("script")[0]; 
-		  s.parentNode.insertBefore(hm, s);
-		})();
-	</script>
-  <title>U R RickRolled</title>
-  <script>
-    window.location="https://vdse.bdstatic.com//192d9a98d782d9c74c96f09db9378d93.mp4?authorization=bce-auth-v1/40f207e648424f47b2e3dfbb1014b1a5/2021-07-12T02:14:24Z/-1/host/530146520a1c89fb727fbbdb8a0e0c98ec69955459aed4b1c8e00839187536c9";
-  </script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dislink 工具集 | 我的世界 转换工具</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HJVLPQTQE6');</script>
+    <script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s);})();</script>
+    <style>
+        .hero {
+            text-align: center;
+            padding: 3rem 1rem 2rem;
+        }
+        .hero h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: var(--color-text);
+            letter-spacing: -0.03em;
+            margin-bottom: 0.5rem;
+        }
+        .hero p {
+            color: var(--color-text-secondary);
+            font-size: 1.05rem;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .hero .badge {
+            display: inline-block;
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.2rem 0.65rem;
+            border-radius: 99px;
+            margin-bottom: 1rem;
+        }
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--color-text);
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-title .section-icon {
+            width: 1.5rem;
+            height: 1.5rem;
+            color: var(--color-primary);
+            flex-shrink: 0;
+        }
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 0.875rem;
+        }
+        .tool-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 1.125rem 1.25rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+        }
+        .tool-card:hover {
+            border-color: var(--color-primary);
+            box-shadow: 0 4px 12px rgba(59,130,246,0.1);
+            transform: translateY(-2px);
+        }
+        .tool-card:active {
+            transform: translateY(0);
+        }
+        .tool-card .card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: 0.25rem;
+        }
+        .tool-card .card-desc {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+            line-height: 1.4;
+        }
+        .tool-card .card-tag {
+            align-self: flex-start;
+            margin-top: 0.5rem;
+            font-size: 0.65rem;
+            font-weight: 500;
+            padding: 0.15rem 0.5rem;
+            border-radius: 99px;
+            background: var(--color-surface-alt);
+            color: var(--color-text-muted);
+            border: 1px solid var(--color-border);
+        }
+        .tool-card:hover .card-tag {
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+            border-color: transparent;
+        }
+        .footer-links-index {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 0.75rem;
+        }
+        .footer-links-index a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .footer-links-index a:hover {
+            text-decoration: underline;
+        }
+        .footer-links-index img {
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 2px;
+        }
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 1.6rem; }
+            .tool-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+    <script src="/javascript/error-handler.js"></script>
 </head>
+<body>
+<div class="tool-container">
+    <!-- Hero -->
+    <div class="hero">
+        <div class="badge">Minecraft 工具集合</div>
+        <h1>Dislink 工具集</h1>
+        <p>Minecraft 基岩版 / Java 版转换工具，支持 MIDI 音乐转换、图片/文本转 mcfunction、命令方块结构生成等</p>
+    </div>
+
+    <!-- MIDI 转换 -->
+    <div class="section-title">
+        <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        MIDI 音乐转换
+    </div>
+    <div class="tool-grid">
+        <a class="tool-card" href="/midi2mcfunction/">
+            <div class="card-title">MIDI 转 mcfunction</div>
+            <div class="card-desc">将 MIDI 文件转换为基岩版 mcfunction 音乐包，支持音色映射、多音轨合并</div>
+            <span class="card-tag">BE mcpack</span>
+        </a>
+        <a class="tool-card" href="/midiconvertor/">
+            <div class="card-title">MIDI 转换器</div>
+            <div class="card-desc">MIDI 转 BDX / mcstructure / mcpack，支持命令方块结构生成</div>
+            <span class="card-tag">BDX mcstructure</span>
+        </a>
+        <a class="tool-card" href="/midi2tiles/">
+            <div class="card-title">MIDI 转 tiles mcfunction</div>
+            <div class="card-desc">将 MIDI 音符映射为方块 (concrete) 阵列，可视化音乐</div>
+            <span class="card-tag">BE mcpack</span>
+        </a>
+    </div>
+
+    <!-- 图片/文本转换 -->
+    <div class="section-title">
+        <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        图片 / 文本转换
+    </div>
+    <div class="tool-grid">
+        <a class="tool-card" href="/img2mcfunction/">
+            <div class="card-title">图片转 mcfunction</div>
+            <div class="card-desc">将任意图片转换为 setblock 命令阵列，支持 BE / JE 双版本</div>
+            <span class="card-tag">BE / JE mcpack</span>
+        </a>
+        <a class="tool-card" href="/text2mcfunction/">
+            <div class="card-title">文本转粒子 mcfunction</div>
+            <div class="card-desc">将文本渲染为粒子效果 mcfunction，支持自定义字体</div>
+            <span class="card-tag">BE mcpack</span>
+        </a>
+        <a class="tool-card" href="/null.html">
+            <div class="card-title">字符画生成器</div>
+            <div class="card-desc">图片/视频转 ASCII 字符画，生成 titleraw 命令</div>
+            <span class="card-tag">BE mcfunction</span>
+        </a>
+    </div>
+
+    <!-- mcfunction 转换 -->
+    <div class="section-title">
+        <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+        mcfunction 转换工具
+    </div>
+    <div class="tool-grid">
+        <a class="tool-card" href="/mcfunctionconvertor/">
+            <div class="card-title">mcfunction 转换器</div>
+            <div class="card-desc">mcfunction 转 BDX / mcstructure 结构文件，支持 CBD 扩展</div>
+            <span class="card-tag">BDX mcstructure</span>
+        </a>
+        <a class="tool-card" href="/mcfunction2bdx/">
+            <div class="card-title">mcfunction 转 BDX</div>
+            <div class="card-desc">将 mcfunction 命令文件转换为 BDX 建筑格式</div>
+            <span class="card-tag">BDX</span>
+        </a>
+        <a class="tool-card" href="/mcfunction2mcstructure/">
+            <div class="card-title">mcfunction 转 mcstructure</div>
+            <div class="card-desc">将 mcfunction 转换为 mcstructure 结构文件</div>
+            <span class="card-tag">mcstructure</span>
+        </a>
+    </div>
+
+    <!-- 其他工具 -->
+    <div class="section-title">
+        <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        其他工具
+    </div>
+    <div class="tool-grid">
+        <a class="tool-card" href="/progressbar/">
+            <div class="card-title">进度条生成 mcfunction</div>
+            <div class="card-desc">生成计分板进度条 titleraw 命令，可自定义样式和分段</div>
+            <span class="card-tag">BE mcpack</span>
+        </a>
+        <a class="tool-card" href="/rawJSONEditor/">
+            <div class="card-title">原始 JSON 文本编辑器</div>
+            <div class="card-desc">可视化编辑 Minecraft 原始 JSON 文本，支持 rawtext 模板和实时预览</div>
+            <span class="card-tag">编辑器</span>
+        </a>
+    </div>
+
+    <!-- Footer -->
+    <div class="page-footer" style="margin-top:2.5rem;">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links-index">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+</body>
 </html>
