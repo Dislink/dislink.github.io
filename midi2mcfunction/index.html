@@ -425,18 +425,13 @@
             }
             timeMin=Infinity; timeMax=0;
         }
-        let easyPlay='scoreboard players add @a ' + document.getElementById('scoreboard').value + ' 1
-'
+        let easyPlay='scoreboard players add @a ' + document.getElementById('scoreboard').value + ' 1'
         for(let i in contents){
             functions.file(`N${i}.mcfunction`, contents[i].trim().split('\n').map((c)=>commandVersion.value=="execute-playsound"?`execute as ${c.match(/(@a\[.+\])/)[1]} at @s run ${c.replace(/@a\[.+\]/g, '@s')}`:c).join('\n'));
-            if (commandVersion.value=="execute-function") easyPlay+=`execute at @a[scores={${document.getElementById('scoreboard').value}=${timerange[i][0]}..${timerange[i][1]}}] run function N${i}
-`
+            if (commandVersion.value=="execute-function") easyPlay+=`execute at @a[scores={${document.getElementById('scoreboard').value}=${timerange[i][0]}..${timerange[i][1]}}] run function N${i}`
         }
         if (commandVersion.value=="execute-function") functions.file("play.mcfunction", easyPlay);
-        functions.file("init.mcfunction", "scoreboard objectives add " + document.getElementById('scoreboard').value + " dummy
-scoreboard objectives setdisplay sidebar " + document.getElementById('scoreboard').value + "
-scoreboard players set @s " + document.getElementById('scoreboard').value + " -1
-");
+        functions.file("init.mcfunction", `scoreboard objectives add ${document.getElementById('scoreboard').value} dummy\nscoreboard objectives setdisplay sidebar ${document.getElementById('scoreboard').value}\nscoreboard players set @s ${document.getElementById('scoreboard').value} -1`);
         manifestBE.format_version=2;
         manifestBE.header.name=fileName;
         manifestBE.header.uuid=Math.uuid();
