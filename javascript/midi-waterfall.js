@@ -1,13 +1,16 @@
 /**
- * midi-waterfall.js — MIDI 瀑布流可视化播放器 (带音效)
+ * midi-waterfall.js — MIDI 瀑布流可视化播放器
  *
  * 依赖: MIDIFile.js (全局 MIDIFile / MIDIEvents)
- *       页面需定义 getSoundString(program, percussion) 函数 (midi2mcfunction/midiconvertor 已有)
  *
  * 用法:
- *   initWaterfall('container-id', midiFileInstance, { speed: 1.0 });
+ *   // 合成音瀑布流 (默认)
+ *   initWaterfall('container-id', midiFile, { speed: 1.0 });
  *
- * 在页面中需要有以下元素 (由 initWaterfall 自动绑定):
+ *   // Minecraft 音效瀑布流 (模拟命令方块播放效果)
+ *   initMCSoundWaterfall('container-id', midiFile, { speed: 1.0 });
+ *
+ * 在页面中需要有以下元素:
  *   #container-id — 画布容器 div
  *   #wf-play — 播放/暂停按钮
  *   #wf-stop — 停止按钮
@@ -15,10 +18,11 @@
  *   #wf-progress — 进度条
  *   #wf-current-time — 当前时间显示
  *   #wf-total-time — 总时长显示
+ *   (如果同一页面有多个瀑布流, 每个瀑布流的控件 ID 需要不同)
  */
+
 (function() {
 
-    // --- Channel colors ---
     var CHANNEL_COLORS = [
         '#3b82f6', '#22c55e', '#ef4444', '#f59e0b',
         '#a855f7', '#ec4899', '#14b8a6', '#f97316',
@@ -26,10 +30,8 @@
         '#0ea5e9', '#10b981', '#eab308', '#78716c'
     ];
 
-    // --- Note names for labels ---
     var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-    // --- Utility ---
     function formatTime(ms) {
         var totalSec = Math.round(ms / 1000);
         var min = Math.floor(totalSec / 60);
@@ -37,40 +39,37 @@
         return min + ':' + (sec < 10 ? '0' : '') + sec;
     }
 
-    // --- MIDI note to frequency ---
     function midiToFreq(midiNote) {
         return 440 * Math.pow(2, (midiNote - 69) / 12);
     }
 
-    // --- Audio engine ---
+    function midiToMCPlaybackRate(midiNote) {
+        return Math.pow(2, (midiNote - 66) / 12);
+    }
+
+    // ---- Audio ----
     var audioContext = null;
+    var soundBuffers = {};
 
     function getAudioContext() {
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
         return audioContext;
     }
 
-    function playNote(midiNote, vol) {
+    // Synthesized note (for MIDI waterfall)
+    function playSynthNote(midiNote, vol) {
         var ctx = getAudioContext();
         if (ctx.state === 'suspended') ctx.resume();
-
         var freq = midiToFreq(midiNote);
         var now = ctx.currentTime;
-
         var gain = ctx.createGain();
         gain.gain.setValueAtTime(vol * 0.4, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
         gain.connect(ctx.destination);
-
-        // 基频 (三角波, 音色更温暖)
         var osc1 = ctx.createOscillator();
         osc1.type = 'triangle';
         osc1.frequency.setValueAtTime(freq, now);
         osc1.connect(gain);
-
-        // 高八度泛音
         var osc2 = ctx.createOscillator();
         osc2.type = 'sine';
         osc2.frequency.setValueAtTime(freq * 2, now);
@@ -79,113 +78,187 @@
         gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         osc2.connect(gain2);
         gain2.connect(gain);
-
-        osc1.start(now);
-        osc2.start(now);
-        osc1.stop(now + 0.8);
-        osc2.stop(now + 0.8);
+        osc1.start(now); osc2.start(now);
+        osc1.stop(now + 0.8); osc2.stop(now + 0.8);
     }
 
-    // --- State per instance ---
+    // Load WAV from /sounds/note.{name}.wav
+    function loadSound(name, callback) {
+        if (soundBuffers[name]) { if (callback) callback(soundBuffers[name]); return; }
+        var ctx = getAudioContext();
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/sounds/note.' + name + '.wav', true);
+        xhr.responseType = 'arraybuffer';
+        xhr.onload = function() {
+            ctx.decodeAudioData(xhr.response, function(buf) {
+                soundBuffers[name] = buf;
+                if (callback) callback(buf);
+            }, function() { if (callback) callback(null); });
+        };
+        xhr.onerror = function() { if (callback) callback(null); };
+        xhr.send();
+    }
+
+    // Preload common MC sounds
+    var MC_SOUNDS = ['harp','bell','bass','banjo','bd','snare','hat','bit','pling','flute','guitar','cow_bell','didgeridoo','iron_xylophone','icechime','xylophone','bassattack'];
+    function preloadMCSounds() {
+        for (var i = 0; i < MC_SOUNDS.length; i++) loadSound(MC_SOUNDS[i]);
+    }
+
+    // Play Minecraft WAV note with pitch shifting
+    function playMCSound(name, midiNote, vol) {
+        var ctx = getAudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+        var now = ctx.currentTime;
+        var buf = soundBuffers[name];
+        if (!buf) {
+            loadSound(name, function(b) { if (b) doPlayMC(b, midiNote, vol); });
+            return;
+        }
+        doPlayMC(buf, midiNote, vol);
+    }
+
+    function doPlayMC(buf, midiNote, vol) {
+        var ctx = getAudioContext();
+        var now = ctx.currentTime;
+        var source = ctx.createBufferSource();
+        source.buffer = buf;
+        source.playbackRate.value = midiToMCPlaybackRate(midiNote);
+        var gain = ctx.createGain();
+        gain.gain.setValueAtTime(Math.min(1, vol * 0.5), now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        source.start(now);
+        source.stop(now + 0.5);
+    }
+
+    // ---- Notes parsing ----
+    function parseNotes(midiFile) {
+        var allEvents = midiFile.getEvents([MIDIEvents.EVENT_MIDI], [], [], true)[0];
+        var noteOns = [], noteOffs = [];
+        for (var i = 0; i < allEvents.length; i++) {
+            var ev = allEvents[i];
+            if (ev.subtype === 0x9 && ev.param2 > 0) noteOns.push(ev);
+            else if (ev.subtype === 0x8 || (ev.subtype === 0x9 && ev.param2 === 0)) noteOffs.push(ev);
+        }
+        var used = {};
+        var notes = [];
+        for (var j = 0; j < noteOns.length; j++) {
+            var on = noteOns[j];
+            var key = on.channel + ':' + on.param1;
+            var dur = 250;
+            for (var k = 0; k < noteOffs.length; k++) {
+                if (used[k]) continue;
+                var off = noteOffs[k];
+                if ((off.channel + ':' + off.param1) === key && off.playTime > on.playTime) {
+                    dur = off.playTime - on.playTime; used[k] = true; break;
+                }
+            }
+            if (dur > 5000) dur = 5000;
+            notes.push({ pitch: on.param1, channel: on.channel, playTime: on.playTime, duration: dur, velocity: on.param2 });
+        }
+        return notes;
+    }
+
+    // ---- Instance state ----
     var instances = {};
 
-    /**
-     * 主入口: 初始化瀑布流可视化
-     * @param {string} containerId — 容器元素 ID
-     * @param {object} midiFile — MIDIFile 实例
-     * @param {object} options — { speed: number }
-     */
-    window.initWaterfall = function(containerId, midiFile, options) {
-        options = options || {};
+    // ---- Core waterfall engine (used by both types) ----
+    function createWaterfall(containerId, midiFile, opts) {
+        opts = opts || {};
         var container = document.getElementById(containerId);
-        if (!container) return;
+        if (!container) return null;
 
-        // 清除旧实例
         var old = instances[containerId];
-        if (old) {
-            if (old.animId) cancelAnimationFrame(old.animId);
-            old.destroyed = true;
-            // 把旧实例的播放按钮文字恢复
-            var oldPlayBtn = document.getElementById('wf-play');
-            if (oldPlayBtn) oldPlayBtn.textContent = '播放';
+        if (old) { if (old.animId) cancelAnimationFrame(old.animId); old.destroyed = true; }
+
+        var notes = parseNotes(midiFile);
+        var notesCmd = [];
+        // For command preview, use fixed short duration
+        if (opts.fixedDuration) {
+            for (var i = 0; i < notes.length; i++) {
+                notesCmd.push({ pitch: notes[i].pitch, channel: notes[i].channel, playTime: notes[i].playTime, duration: 80, velocity: notes[i].velocity });
+            }
         }
 
-        // 解析事件, 计算音符持续时间
-        var notes = parseNotes(midiFile);
         var timeTotal = midiFile.timeTotal || 1000;
+        var pps = Math.max(60, Math.min(300, container.clientHeight ? (container.clientHeight * 3) / (timeTotal / 1000) : 100));
 
-        // 确定垂直缩放: 让整曲能在一个视窗高度 (3 次翻屏) 显示,
-        // 但保证播放时每屏约 3 秒窗宽
-        var pixelsPerSecond = Math.max(60, Math.min(300, container.clientHeight ? (container.clientHeight * 3) / (timeTotal / 1000) : 100));
-
-        // 新建 canvas
         var canvas = document.createElement('canvas');
-        canvas.style.display = 'block';
-        canvas.style.width = '100%';
-        container.innerHTML = '';
-        container.appendChild(canvas);
+        canvas.style.display = 'block'; canvas.style.width = '100%';
+        container.innerHTML = ''; container.appendChild(canvas);
         var ctx = canvas.getContext('2d');
 
-        // 状态
         var state = {
             containerId: containerId,
-            notes: notes,
+            notes: opts.fixedDuration ? notesCmd : notes,
             timeTotal: timeTotal,
             currentTime: 0,
-            speed: options.speed || 1.0,
-            isPlaying: false,
-            lastFrameTime: 0,
-            animId: null,
-            canvas: canvas,
-            ctx: ctx,
-            pixelsPerSecond: pixelsPerSecond,
-            leftMargin: 36,
-            rightMargin: 44,
-            topMargin: 8,
-            playheadY: 0.82,
-            seekPending: false,
-            destroyed: false,
-            lastPlayedIndex: -1,  // 用于音效触发
-            soundPlayCheck: true   // 音效开
+            speed: opts.speed || 1.0,
+            isPlaying: false, lastFrameTime: 0, animId: null,
+            canvas: canvas, ctx: ctx, pixelsPerSecond: pps,
+            leftMargin: 36, rightMargin: 44, topMargin: 8, playheadY: 0.18,
+            seekPending: false, destroyed: false, lastPlayedIndex: -1,
+            mode: opts.mode || 'synth' // 'synth' or 'mcsound'
         };
         instances[containerId] = state;
 
-        // 同步尺寸
         resizeCanvas(state);
         window.addEventListener('resize', function() { if (!state.destroyed) resizeCanvas(state); });
 
-        // 绑定控件
-        var playBtn = document.getElementById('wf-play');
-        var stopBtn = document.getElementById('wf-stop');
-        var speedSelect = document.getElementById('wf-speed');
-        var progressSlider = document.getElementById('wf-progress');
-        var currentTimeEl = document.getElementById('wf-current-time');
-        var totalTimeEl = document.getElementById('wf-total-time');
+        renderFrame(state);
+        return state;
+    }
 
-        if (totalTimeEl) totalTimeEl.textContent = formatTime(timeTotal);
+    function buildStateKey(containerId) {
+        return containerId;
+    }
 
-        // 播放/暂停
+    // ---- Initializers ----
+    window.initWaterfall = function(containerId, midiFile, opts) {
+        opts = opts || {};
+        opts.mode = 'synth';
+        var state = createWaterfall(containerId, midiFile, opts);
+        if (!state) return;
+        bindControls(state, containerId);
+        preloadMCSounds();
+    };
+
+    window.initMCSoundWaterfall = function(containerId, midiFile, opts) {
+        opts = opts || {};
+        opts.mode = 'mcsound';
+        opts.fixedDuration = true;
+        var state = createWaterfall(containerId, midiFile, opts);
+        if (!state) return;
+        bindControls(state, containerId);
+        preloadMCSounds();
+    };
+
+    // ---- Bind controls with unique IDs ----
+    function bindControls(state, containerId) {
+        var prefix = containerId.replace(/[^a-zA-Z0-9]/g, '_');
+
+        var playBtn = document.getElementById(prefix + '_play');
+        var stopBtn = document.getElementById(prefix + '_stop');
+        var speedSelect = document.getElementById(prefix + '_speed');
+        var progressSlider = document.getElementById(prefix + '_progress');
+        var currentTimeEl = document.getElementById(prefix + '_current');
+        var totalTimeEl = document.getElementById(prefix + '_total');
+
+        if (totalTimeEl) totalTimeEl.textContent = formatTime(state.timeTotal);
+
         if (playBtn) {
             playBtn.onclick = function() {
-                if (state.currentTime >= state.timeTotal) {
-                    state.currentTime = 0;
-                    state.lastPlayedIndex = -1;
-                }
+                if (state.currentTime >= state.timeTotal) { state.currentTime = 0; state.lastPlayedIndex = -1; }
                 state.isPlaying = !state.isPlaying;
                 playBtn.textContent = state.isPlaying ? '暂停' : '播放';
-                if (state.isPlaying) {
-                    state.lastFrameTime = performance.now();
-                    if (!state.animId) loop(state);
-                }
+                if (state.isPlaying) { state.lastFrameTime = performance.now(); if (!state.animId) loop(state); }
             };
         }
-
-        // 停止
         if (stopBtn) {
             stopBtn.onclick = function() {
-                state.isPlaying = false;
-                state.currentTime = 0;
-                state.lastPlayedIndex = -1;
+                state.isPlaying = false; state.currentTime = 0; state.lastPlayedIndex = -1;
                 if (playBtn) playBtn.textContent = '播放';
                 if (progressSlider) progressSlider.value = 0;
                 if (currentTimeEl) currentTimeEl.textContent = '0:00';
@@ -193,105 +266,39 @@
                 renderFrame(state);
             };
         }
-
-        // 速度
         if (speedSelect) {
-            speedSelect.onchange = function() {
-                state.speed = parseFloat(speedSelect.value);
-            };
+            speedSelect.onchange = function() { state.speed = parseFloat(speedSelect.value); };
         }
-
-        // 进度条
         if (progressSlider) {
             progressSlider.oninput = function() {
                 state.currentTime = (progressSlider.value / 1000) * state.timeTotal;
-                state.seekPending = true;
-                state.lastPlayedIndex = -1;
+                state.seekPending = true; state.lastPlayedIndex = -1;
                 if (currentTimeEl) currentTimeEl.textContent = formatTime(state.currentTime);
                 if (!state.isPlaying) renderFrame(state);
             };
         }
-
-        // 启动第一帧
-        renderFrame(state);
-    };
-
-    // --- 解析 MIDI 事件, 计算音符持续时间 ---
-    function parseNotes(midiFile) {
-        var allEvents = midiFile.getEvents(
-            [MIDIEvents.EVENT_MIDI],
-            [],
-            [],
-            true
-        )[0];  // 合并所有音轨, 按时间排列
-
-        // 分离 note-on 和 note-off
-        var noteOns = [];
-        var noteOffEvents = [];
-
-        for (var i = 0; i < allEvents.length; i++) {
-            var ev = allEvents[i];
-            if (ev.subtype === 0x9 && ev.param2 > 0) {
-                // Note On with velocity > 0
-                noteOns.push(ev);
-            } else if (ev.subtype === 0x8 || (ev.subtype === 0x9 && ev.param2 === 0)) {
-                // Note Off
-                noteOffEvents.push(ev);
-            }
-        }
-
-        // 配对 note-on / note-off 计算持续时间
-        // 每颗 note-on 按顺序找第一个未被消费的同音高 note-off
-        var offUsed = {};
-        var renderNotes = [];
-        for (var j = 0; j < noteOns.length; j++) {
-            var on = noteOns[j];
-            var key = on.channel + ':' + on.param1;
-            var duration = 250;
-            for (var k = 0; k < noteOffEvents.length; k++) {
-                if (offUsed[k]) continue;
-                var off = noteOffEvents[k];
-                var offKey = off.channel + ':' + off.param1;
-                if (offKey === key && off.playTime > on.playTime) {
-                    duration = off.playTime - on.playTime;
-                    offUsed[k] = true;
-                    break;
-                }
-            }
-            if (duration > 5000) duration = 5000;
-
-            renderNotes.push({
-                pitch: on.param1,
-                channel: on.channel,
-                playTime: on.playTime,
-                duration: duration,
-                velocity: on.param2
-            });
-        }
-        return renderNotes;
     }
 
-    // --- Canvas 尺寸调整 ---
+    // ---- Canvas resize ----
     function resizeCanvas(state) {
         var container = state.canvas.parentElement;
         if (!container) return;
-        var rect = container.getBoundingClientRect();
-        var w = rect.width || 600;
+        var w = container.getBoundingClientRect().width || 600;
         var h = Math.max(200, Math.min(500, window.innerHeight * 0.4));
-        state.canvas.width = w * (window.devicePixelRatio || 1);
-        state.canvas.height = h * (window.devicePixelRatio || 1);
+        var dpr = window.devicePixelRatio || 1;
+        state.canvas.width = w * dpr;
+        state.canvas.height = h * dpr;
         state.canvas.style.width = w + 'px';
         state.canvas.style.height = h + 'px';
         state.width = state.canvas.width;
         state.height = state.canvas.height;
-        state.dpr = window.devicePixelRatio || 1;
-        state.columnWidth = (state.width - state.leftMargin * state.dpr - state.rightMargin * state.dpr) / 128;
-        state.pixelsPerMs = state.pixelsPerSecond / 1000 * state.dpr;
-
+        state.dpr = dpr;
+        state.columnWidth = (state.width - state.leftMargin * dpr - state.rightMargin * dpr) / 128;
+        state.pixelsPerMs = state.pixelsPerSecond / 1000 * dpr;
         if (!state.isPlaying) renderFrame(state);
     }
 
-    // --- 主循环 ---
+    // ---- Main loop ----
     function loop(state) {
         if (state.destroyed) return;
         var now = performance.now();
@@ -299,28 +306,45 @@
             var delta = now - state.lastFrameTime;
             state.currentTime += delta * state.speed;
             if (state.currentTime >= state.timeTotal) {
-                state.currentTime = state.timeTotal;
-                state.isPlaying = false;
-                var playBtn = document.getElementById('wf-play');
+                state.currentTime = state.timeTotal; state.isPlaying = false;
+                var prefix = state.containerId.replace(/[^a-zA-Z0-9]/g, '_');
+                var playBtn = document.getElementById(prefix + '_play');
                 if (playBtn) playBtn.textContent = '播放';
             }
 
-            // 更新进度条
             var progress = Math.min(1, state.currentTime / state.timeTotal);
-            var slider = document.getElementById('wf-progress');
+            var prefix = state.containerId.replace(/[^a-zA-Z0-9]/g, '_');
+            var slider = document.getElementById(prefix + '_progress');
             if (slider && !state.seekPending) slider.value = Math.round(progress * 1000);
-            var timeEl = document.getElementById('wf-current-time');
+            var timeEl = document.getElementById(prefix + '_current');
             if (timeEl) timeEl.textContent = formatTime(state.currentTime);
 
-            // 触发音效: 在播放头时间附近找需要播放的音符
+            // Trigger sounds
             var prevTime = state.currentTime - (now - state.lastFrameTime) * state.speed * 1.5;
             if (prevTime < 0) prevTime = 0;
-            var nextPlayIdx = state.lastPlayedIndex + 1;
-            var noteIdx = nextPlayIdx < 0 ? 0 : nextPlayIdx;
+            var noteIdx = state.lastPlayedIndex + 1;
+            if (noteIdx < 0) noteIdx = 0;
             while (noteIdx < state.notes.length && state.notes[noteIdx].playTime <= state.currentTime) {
                 var n = state.notes[noteIdx];
                 if (n.playTime >= prevTime) {
-                    triggerSound(n);
+                    if (state.mode === 'synth') {
+                        var vol = 0.1 + Math.pow(n.velocity / 127, 0.6) * 0.55;
+                        playSynthNote(n.pitch, vol);
+                    } else if (state.mode === 'mcsound') {
+                        // Try to find the sound name from the global soundStrings
+                        var soundName = 'harp';
+                        if (n.channel === 9) {
+                            soundName = 'bd';
+                        } else if (typeof soundStrings !== 'undefined' && soundStrings && soundStrings[n.channel]) {
+                            var chArr = soundStrings[n.channel];
+                            if (chArr && chArr.length > 0) {
+                                var last = chArr[chArr.length - 1];
+                                if (last && last[0]) soundName = last[0].replace('note.', '');
+                            }
+                        }
+                        var vol = 0.1 + Math.pow(n.velocity / 127, 0.6) * 0.55;
+                        playMCSound(soundName, n.pitch, vol);
+                    }
                 }
                 noteIdx++;
             }
@@ -333,27 +357,16 @@
         state.animId = requestAnimationFrame(function() { loop(state); });
     }
 
-    // --- 渲染一帧 ---
+    // ---- Render ----
     function renderFrame(state) {
-        var ctx = state.ctx;
-        var w = state.width;
-        var h = state.height;
-        var dpr = state.dpr;
-        var colW = state.columnWidth;
-        var lm = state.leftMargin * dpr;
-        var rm = state.rightMargin * dpr;
-        var tm = state.topMargin * dpr;
+        var ctx = state.ctx, w = state.width, h = state.height, dpr = state.dpr;
+        var colW = state.columnWidth, lm = state.leftMargin * dpr, rm = state.rightMargin * dpr, tm = state.topMargin * dpr;
         var playheadY = h * state.playheadY;
 
         ctx.clearRect(0, 0, w, h);
-
-        // 背景
         ctx.fillStyle = '#f8fafc';
         ctx.fillRect(0, 0, w, h);
 
-        // ----- 网格线和音高标签 -----
-        ctx.strokeStyle = '#e2e8f0';
-        ctx.lineWidth = 1;
         ctx.font = (10 * dpr) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'right';
@@ -361,127 +374,69 @@
         for (var p = 0; p < 128; p++) {
             var x = lm + p * colW + colW / 2;
             if (p % 12 === 0) {
-                // 八度线 (C)
-                ctx.strokeStyle = '#cbd5e1';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(x, tm);
-                ctx.lineTo(x, h);
-                ctx.stroke();
-
-                // 标签
-                var octave = Math.floor(p / 12) - 1;
+                ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x, tm); ctx.lineTo(x, h); ctx.stroke();
                 ctx.fillStyle = '#94a3b8';
-                ctx.fillText('C' + octave, x - 2, h - 12 * dpr);
-
-                // 小刻度线
-                ctx.strokeStyle = '#e2e8f0';
-                ctx.lineWidth = 0.5;
+                ctx.fillText('C' + (Math.floor(p / 12) - 1), x - 2, h - 12 * dpr);
             } else if (p % 2 === 0) {
-                // 半数网格线
-                ctx.strokeStyle = '#f1f5f9';
-                ctx.lineWidth = 0.5;
-                ctx.beginPath();
-                ctx.moveTo(x, tm);
-                ctx.lineTo(x, h);
-                ctx.stroke();
+                ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 0.5;
+                ctx.beginPath(); ctx.moveTo(x, tm); ctx.lineTo(x, h); ctx.stroke();
             }
         }
 
-        // 回正描边色
-        ctx.strokeStyle = '#e2e8f0';
-
-        // ----- 时间刻度 (右侧) -----
         ctx.textAlign = 'left';
         ctx.fillStyle = '#94a3b8';
-        var timeInterval = 2000; // 2 秒间隔
-        if (state.timeTotal > 60000) timeInterval = 10000;
-        else if (state.timeTotal > 15000) timeInterval = 5000;
-
+        var timeInterval = state.timeTotal > 60000 ? 10000 : (state.timeTotal > 15000 ? 5000 : 2000);
         for (var t = 0; t <= state.timeTotal; t += timeInterval) {
             var y = t * state.pixelsPerMs - getScrollOffset(state);
-            if (y >= tm && y <= h) {
-                ctx.fillText(formatTime(t), w - rm + 4 * dpr, y);
-            }
+            if (y >= tm && y <= h) ctx.fillText(formatTime(t), w - rm + 4 * dpr, y);
         }
 
-        // ----- 绘制音符 -----
         var scrollOff = getScrollOffset(state);
-        var visibleTop = tm - 50 * dpr;
-        var visibleBottom = h + 50 * dpr;
-
+        var visibleTop = tm - 50 * dpr, visibleBottom = h + 50 * dpr;
         for (var i = 0; i < state.notes.length; i++) {
             var note = state.notes[i];
             var noteY = note.playTime * state.pixelsPerMs - scrollOff;
             var noteH = Math.max(2 * dpr, note.duration * state.pixelsPerMs);
-
-            // 视口裁剪
             if (noteY + noteH < visibleTop || noteY > visibleBottom) continue;
 
             var noteX = lm + note.pitch * colW + 1;
             var noteW = Math.max(2 * dpr, colW - 2);
-
-            // 按通道染色
             var color = CHANNEL_COLORS[note.channel % CHANNEL_COLORS.length];
-            // 速度影响透明度
             var alpha = 0.4 + (note.velocity / 127) * 0.6;
-
             ctx.globalAlpha = alpha;
             ctx.fillStyle = color;
 
-            // 圆角矩形
             var r = Math.max(1, 2 * dpr);
-            var nw = noteW;
-            var nh = noteH;
-            var nx = noteX;
-            var ny = noteY;
             ctx.beginPath();
-            ctx.moveTo(nx + r, ny);
-            ctx.lineTo(nx + nw - r, ny);
-            ctx.quadraticCurveTo(nx + nw, ny, nx + nw, ny + r);
-            ctx.lineTo(nx + nw, ny + nh - r);
-            ctx.quadraticCurveTo(nx + nw, ny + nh, nx + nw - r, ny + nh);
-            ctx.lineTo(nx + r, ny + nh);
-            ctx.quadraticCurveTo(nx, ny + nh, nx, ny + nh - r);
-            ctx.lineTo(nx, ny + r);
-            ctx.quadraticCurveTo(nx, ny, nx + r, ny);
+            ctx.moveTo(noteX + r, noteY);
+            ctx.lineTo(noteX + noteW - r, noteY);
+            ctx.quadraticCurveTo(noteX + noteW, noteY, noteX + noteW, noteY + r);
+            ctx.lineTo(noteX + noteW, noteY + noteH - r);
+            ctx.quadraticCurveTo(noteX + noteW, noteY + noteH, noteX + noteW - r, noteY + noteH);
+            ctx.lineTo(noteX + r, noteY + noteH);
+            ctx.quadraticCurveTo(noteX, noteY + noteH, noteX, noteY + noteH - r);
+            ctx.lineTo(noteX, noteY + r);
+            ctx.quadraticCurveTo(noteX, noteY, noteX + r, noteY);
             ctx.closePath();
             ctx.fill();
         }
         ctx.globalAlpha = 1;
 
-        // ----- 播放头线 -----
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = Math.max(1, 2 * dpr);
+        ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = Math.max(1, 2 * dpr);
         ctx.setLineDash([6 * dpr, 4 * dpr]);
-        ctx.beginPath();
-        ctx.moveTo(lm, playheadY);
-        ctx.lineTo(w - rm + 12 * dpr, playheadY);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(lm, playheadY); ctx.lineTo(w - rm + 12 * dpr, playheadY); ctx.stroke();
         ctx.setLineDash([]);
-
-        // 播放头小三角
         ctx.fillStyle = '#3b82f6';
-        ctx.beginPath();
-        ctx.moveTo(lm - 6 * dpr, playheadY);
-        ctx.lineTo(lm, playheadY - 4 * dpr);
-        ctx.lineTo(lm, playheadY + 4 * dpr);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(lm - 6 * dpr, playheadY);
+        ctx.lineTo(lm, playheadY - 4 * dpr); ctx.lineTo(lm, playheadY + 4 * dpr);
+        ctx.closePath(); ctx.fill();
     }
 
-    // --- 计算滚动偏移 ---
     function getScrollOffset(state) {
-        var playheadY = state.height * state.playheadY;
-        return state.currentTime * state.pixelsPerMs - playheadY;
-    }
-
-    // --- 触发音效 ---
-    function triggerSound(note) {
-        // velocity 范围 1-127, 映射到 0.2 - 0.65 音量范围
-        // 用对数映射让轻音和强音的听感差异更合理
-        var vol = 0.1 + Math.pow(note.velocity / 127, 0.6) * 0.55;
-        playNote(note.pitch, vol);
+        // 蓝线固定在 82% 高度处, 已播放的音符往上滚出视野
+        // 未播放的音符从下方出现, 向蓝线移动
+        return state.currentTime * state.pixelsPerMs - state.height * state.playheadY;
     }
 
 })();

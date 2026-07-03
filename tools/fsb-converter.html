@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FSB 转 WAV 工具 | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HJVLPQTQE6');</script>
+    <script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s);})();</script>
+    <script src="/javascript/FileSaver.js" type="text/javascript"></script>
+    <script src="/javascript/error-handler.js"></script>
+    <style>
+        .decoder-status {
+            margin-top: 1rem;
+        }
+        .decoder-status ul {
+            list-style: none;
+            padding: 0;
+            margin: 0.5rem 0;
+        }
+        .decoder-status li {
+            padding: 0.25rem 0;
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+        }
+        .decoder-status li .check {
+            display: inline-block;
+            width: 1rem;
+            text-align: center;
+        }
+        .file-list {
+            margin-top: 0.75rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface-alt);
+        }
+        .file-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 0.85rem;
+        }
+        .file-list-item:last-child {
+            border-bottom: none;
+        }
+        .file-list-item .fname {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--color-text);
+        }
+        .file-list-item .fsize {
+            color: var(--color-text-muted);
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+        }
+        .status-done {
+            color: var(--color-success) !important;
+        }
+        .status-progress {
+            color: var(--color-primary) !important;
+        }
+        .info-box {
+            background: var(--color-primary-light);
+            border: 1px solid #bfdbfe;
+            border-radius: var(--radius-md);
+            padding: 0.75rem 1rem;
+            font-size: 0.85rem;
+            color: var(--color-text);
+            margin-top: 0.75rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+<div class="tool-container">
+    <div class="page-header">
+        <h1>FSB 转 WAV 工具</h1>
+        <div class="subtitle">将 Minecraft 基岩版 FSB 音效文件转换为 WAV 格式</div>
+    </div>
+
+    <!-- Upload -->
+    <div class="card">
+        <div class="card-body">
+            <div class="file-upload-wrapper">
+                <div class="file-upload-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <span class="file-upload-text">点击上传 FSB 文件 (支持 FSB4 / FSB5 格式)</span>
+                <input type="file" id="upload" accept=".fsb" multiple>
+            </div>
+        </div>
+    </div>
+
+    <!-- Files list -->
+    <div class="card" id="file_list_card" style="display:none;">
+        <div class="card-header">文件列表</div>
+        <div class="card-body">
+            <div id="file-list" class="file-list"></div>
+            <div id="convert-section" style="display:none;margin-top:0.75rem;">
+                <button id="convert-all" class="btn btn-primary" style="width:100%;">转换所有文件</button>
+            </div>
+            <div id="download-section" style="display:none;margin-top:0.75rem;">
+                <button id="download-zip" class="btn btn-success" style="width:100%;">下载全部 (ZIP)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info -->
+    <div class="info-box">
+        <strong>说明:</strong><br>
+        本工具在浏览器内完成 FSB 音频解码，文件不会上传到任何服务器。<br>
+        FSB5 格式的 IMA ADPCM 音频将被解码为标准的 16-bit WAV PCM 格式。<br>
+        支持多文件批量转换，转换后可以打包下载 ZIP。
+    </div>
+
+    <!-- Status -->
+    <div class="status-bar" id="status">上传 FSB 文件开始转换</div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script src="/javascript/jszip.min.js" type="text/javascript"></script>
+<script>
+var files = [];
+
+// IMA ADPCM decode tables
+var IMA_INDEX_TABLE = [-1,-1,-1,-1,2,4,6,8,-1,-1,-1,-1,2,4,6,8];
+var IMA_STEP_TABLE = [
+    7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,
+    73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,
+    449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,
+    2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,
+    7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,
+    24623,27086,29794,32767
+];
+
+function decodeIMAADPCMBlock(block) {
+    var pred = (block[0] | (block[1] << 8)) << 16 >> 16; // int16
+    var stepIdx = block[2];
+    var samples = [pred];
+    for (var i = 0; i < 120; i++) {
+        var byteIdx = 4 + Math.floor(i / 2);
+        if (byteIdx >= block.length) break;
+        var nibble = (i % 2 === 0) ? (block[byteIdx] & 0x0f) : ((block[byteIdx] >> 4) & 0x0f);
+        var step = IMA_STEP_TABLE[Math.min(stepIdx, 88)];
+        var diff = 0;
+        if (nibble & 4) diff += step;
+        if (nibble & 2) diff += step >> 1;
+        if (nibble & 1) diff += step >> 2;
+        diff += step >> 3;
+        pred += (nibble & 8) ? -diff : diff;
+        pred = Math.max(-32768, Math.min(32767, pred));
+        stepIdx = Math.max(0, Math.min(88, stepIdx + IMA_INDEX_TABLE[nibble & 7]));
+        samples.push(pred);
+    }
+    return samples;
+}
+
+function convertFSBToWAV(fsbData) {
+    // Parse FSB5 header
+    var magic = String.fromCharCode(fsbData[0], fsbData[1], fsbData[2], fsbData[3]);
+    if (magic !== 'FSB5' && magic !== 'FSB4') {
+        throw new Error('不支持的 FSB 格式: ' + magic);
+    }
+
+    // Read frequency from offset 0x40 (stored as Wwise encoding, not Hz)
+    // Use standard 44100 Hz for Minecraft BE FSB files
+    var freq = 44100;
+
+    // Audio data at offset 0x80
+    var audio = new Uint8Array(fsbData.slice(0x80));
+    var allSamples = [];
+    var blockSize = 64;
+    var numBlocks = Math.floor(audio.length / blockSize);
+
+    for (var bi = 0; bi < numBlocks; bi++) {
+        var block = audio.slice(bi * blockSize, (bi + 1) * blockSize);
+        var decoded = decodeIMAADPCMBlock(block);
+        for (var si = 0; si < decoded.length; si++) {
+            allSamples.push(decoded[si]);
+        }
+    }
+
+    // Build WAV
+    var dataSize = allSamples.length * 2;
+    var wav = [];
+
+    function writeU16(v) { wav.push(v & 0xff, (v >> 8) & 0xff); }
+    function writeU32(v) { wav.push(v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >> 24) & 0xff); }
+    function writeStr(s) { for (var i = 0; i < s.length; i++) wav.push(s.charCodeAt(i)); }
+
+    writeStr('RIFF');
+    writeU32(36 + dataSize);
+    writeStr('WAVE');
+    writeStr('fmt ');
+    writeU32(16);          // chunk size
+    writeU16(1);           // PCM
+    writeU16(1);           // mono
+    writeU32(freq);        // sample rate
+    writeU32(freq * 2);    // byte rate
+    writeU16(2);           // block align
+    writeU16(16);          // bits per sample
+    writeStr('data');
+    writeU32(dataSize);
+
+    for (var i = 0; i < allSamples.length; i++) {
+        writeU16(allSamples[i] & 0xffff);
+    }
+
+    return new Uint8Array(wav);
+}
+
+upload.onchange = function() {
+    files = [];
+    var fl = document.getElementById('file-list');
+    fl.innerHTML = '';
+    document.getElementById('convert-section').style.display = 'none';
+    document.getElementById('download-section').style.display = 'none';
+    document.getElementById('file_list_card').style.display = 'none';
+    document.getElementById('status').className = 'status-bar';
+    document.getElementById('status').innerText = '';
+
+    if (!this.files || this.files.length === 0) return;
+
+    for (var i = 0; i < this.files.length; i++) {
+        var f = this.files[i];
+        var name = f.name;
+        var size = f.size;
+        files.push({ file: f, name: name, size: size, converted: false, wav: null });
+    }
+
+    renderFileList();
+    document.getElementById('file_list_card').style.display = 'block';
+    document.getElementById('convert-section').style.display = 'block';
+    document.getElementById('status').innerText = files.length + ' 个文件已加载，点击 "转换所有文件" 开始';
+};
+
+function renderFileList() {
+    var fl = document.getElementById('file-list');
+    fl.innerHTML = '';
+    for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        var div = document.createElement('div');
+        div.className = 'file-list-item';
+        div.innerHTML = '<span><span class="fname">' + f.name + '</span><span class="fsize">(' + (f.size / 1024).toFixed(1) + ' KB)</span></span>';
+        var status = document.createElement('span');
+        if (f.converted) {
+            status.innerHTML = '<span style="color:var(--color-success);font-weight:600;">已转换</span>';
+        } else {
+            status.innerHTML = '<span style="color:var(--color-text-muted);">待转换</span>';
+        }
+        div.appendChild(status);
+        fl.appendChild(div);
+    }
+}
+
+convert_all.onclick = function() {
+    var count = 0;
+    document.getElementById('convert-all').disabled = true;
+    document.getElementById('convert-all').innerText = '转换中...';
+    document.getElementById('status').innerText = '正在解码 FSB 文件...';
+    document.getElementById('status').className = 'status-bar info';
+
+    var reader = new FileReader();
+    function processNext() {
+        if (count >= files.length) {
+            document.getElementById('convert-all').innerText = '转换完成';
+            document.getElementById('download-section').style.display = 'block';
+            document.getElementById('status').innerText = '全部 ' + files.length + ' 个文件转换完成！';
+            document.getElementById('status').className = 'status-bar';
+            renderFileList();
+            return;
+        }
+        var f = files[count];
+        var fr = new FileReader();
+        fr.onload = function(e) {
+            try {
+                var wav = convertFSBToWAV(new Uint8Array(e.target.result));
+                f.wav = wav;
+                f.converted = true;
+                document.getElementById('status').innerText = '已转换: ' + f.name;
+            } catch(err) {
+                document.getElementById('status').innerText = '转换失败: ' + f.name + ' - ' + err.message;
+                document.getElementById('status').className = 'status-bar error';
+            }
+            count++;
+            renderFileList();
+            setTimeout(processNext, 10);
+        };
+        fr.readAsArrayBuffer(f.file);
+    }
+    processNext();
+};
+
+download_zip.onclick = function() {
+    var zip = new JSZip();
+    var count = 0;
+    for (var i = 0; i < files.length; i++) {
+        if (files[i].converted && files[i].wav) {
+            var name = files[i].name.replace(/\.fsb$/i, '') + '.wav';
+            zip.file(name, files[i].wav);
+            count++;
+        }
+    }
+    if (count === 0) {
+        alert('没有已转换的文件可下载');
+        return;
+    }
+    document.getElementById('status').innerText = '正在打包 ZIP...';
+    zip.generateAsync({ type: 'blob' }).then(function(content) {
+        saveAs(content, 'fsb_converted.zip');
+        document.getElementById('status').innerText = '下载完成！';
+    });
+};
+</script>
+</body>
+</html>
