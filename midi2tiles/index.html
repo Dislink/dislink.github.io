@@ -220,7 +220,7 @@
                 window._rowLookup = {};
                 var rowIdx = 0;
                 let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
-                for(let n in playList){
+                for(let n = 0; n < playList.length; n++){
                     if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
                         if (!window._rowLookup['c'+playList[n].channel]) window._rowLookup['c'+playList[n].channel] = [];
                         window._rowLookup['c'+playList[n].channel].push(rowIdx);

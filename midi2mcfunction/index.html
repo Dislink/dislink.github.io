@@ -315,7 +315,7 @@
                 window._rowLookup = {};
                 let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
                 var rowIdx=0;
-                for(let n in playList){
+                for(let n = 0; n < playList.length; n++){
                     if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
                         if (!soundStrings[playList[n].track]) soundStrings[playList[n].track]=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
                         // Record rowIdx for this (track, channel, counter)
