@@ -153,45 +153,28 @@
 
     // Assign instrument index matching table rowIdx order
     // Uses the rowLookup built by the HTML table (exact match guaranteed)
-    function assignSoundIdx(notes, midiFile, rowLookup) {
+        function assignSoundIdx(notes, midiFile, rowLookup) {
         if (!rowLookup || Object.keys(rowLookup).length === 0) {
-            // No lookup table available (midi2tiles etc.), all notes get -1
             for (var j = 0; j < notes.length; j++) notes[j].soundIdx = -1;
             return 0;
         }
-        // Build playList to get event order with track/channel info
         var playList = midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0];
         playList.sort(function(a,b){return a.playTime-b.playTime});
-
-        // Detect lookup style: channel-based (midiconvertor) or track+channel-based (midi2mcfunction)
-        var useChannelLookup = rowLookup['c0'] !== undefined || rowLookup['c1'] !== undefined;
 
         for (var j = 0; j < notes.length; j++) {
             var n = notes[j];
             if (n.channel === 9) {
-                var pkey = undefined;
-                if (rowLookup[n.track]) pkey = rowLookup[n.track]['p' + n.pitch];
-                if (pkey === undefined && rowLookup['perc']) pkey = rowLookup['perc']['p' + n.pitch];
-                n.soundIdx = pkey !== undefined ? pkey : -1;
+                n.soundIdx = (rowLookup['perc'] && rowLookup['perc']['p'+n.pitch] !== undefined) ? rowLookup['perc']['p'+n.pitch] : -1;
             } else {
                 var rowIdx = -1;
-                var pcList, key;
-                if (useChannelLookup) {
-                    key = 'c' + n.channel;
-                    pcList = rowLookup[key];
-                } else {
-                    pcList = rowLookup[n.track] ? rowLookup[n.track][n.channel] : undefined;
-                }
+                var key = 'c' + n.channel;
+                var pcList = rowLookup[key];
                 if (pcList && pcList.length > 0) {
                     var cnt = 0;
                     for (var i = 0; i < playList.length; i++) {
                         var ev = playList[i];
-                        if (ev.channel !== 9 && ev.subtype === 0xc && ev.playTime <= n.playTime) {
-                            if (useChannelLookup) {
-                                if (ev.channel === n.channel) cnt++;
-                            } else {
-                                if (ev.track === n.track && ev.channel === n.channel) cnt++;
-                            }
+                        if (ev.channel !== 9 && ev.subtype === 0xc && ev.channel === n.channel && ev.playTime <= n.playTime) {
+                            cnt++;
                         }
                     }
                     var idx = cnt > 0 ? cnt - 1 : 0;

@@ -319,9 +319,8 @@
                     if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
                         if (!soundStrings[playList[n].track]) soundStrings[playList[n].track]=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
                         // Record rowIdx for this (track, channel, counter)
-                        if (!window._rowLookup[playList[n].track]) window._rowLookup[playList[n].track] = {};
-                        if (!window._rowLookup[playList[n].track][playList[n].channel]) window._rowLookup[playList[n].track][playList[n].channel] = [];
-                        window._rowLookup[playList[n].track][playList[n].channel].push(rowIdx);
+                        if (!window._rowLookup['c'+playList[n].channel]) window._rowLookup['c'+playList[n].channel] = [];
+                        window._rowLookup['c'+playList[n].channel].push(rowIdx);
                         let row=document.createElement("tr");
                         let colorTd=document.createElement("td");
                         colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
@@ -354,8 +353,8 @@
                         if (!soundStrings[playList[n].track]) soundStrings[playList[n].track]=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
                         if(soundStrings[playList[n].track][playList[n].param1]) continue;
                         // Record percussion row
-                        if (!window._rowLookup[playList[n].track]) window._rowLookup[playList[n].track] = {};
-                        if (!window._rowLookup[playList[n].track]['p' + playList[n].param1]) window._rowLookup[playList[n].track]['p' + playList[n].param1] = rowIdx;
+                        if (!window._rowLookup['perc']) window._rowLookup['perc'] = {};
+                        if (window._rowLookup['perc']['p'+playList[n].param1] === undefined) window._rowLookup['perc']['p'+playList[n].param1] = rowIdx;
                         let row=document.createElement("tr");
                         let colorTd=document.createElement("td");
                         colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
