@@ -220,6 +220,20 @@
                 window._rowLookup = {};
                 var rowIdx = 0;
                 let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
+                window._midiPlayList = playList;
+                window.getSoundForNote = function(track, ch, pitch, time) {
+                    if (ch === 9) {
+                        if (tileStrings[pitch]) return tileStrings[pitch];
+                        return "concrete_powder 0";
+                    }
+                    if (!tileStrings[ch] || tileStrings[ch].length === 0) return "concrete_powder 0";
+                    var cnt = -1;
+                    for (var ei = 0; ei < playList.length; ei++) {
+                        var e = playList[ei];
+                        if (e.channel !== 9 && e.subtype === 0xc && e.channel === ch && e.playTime <= time) cnt++;
+                    }
+                    return cnt >= 0 && tileStrings[ch][cnt] ? tileStrings[ch][cnt] : "concrete 0";
+                };
                 for(let n = 0; n < playList.length; n++){
                     if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
                         if (!window._rowLookup['c'+playList[n].channel]) window._rowLookup['c'+playList[n].channel] = [];

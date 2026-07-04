@@ -164,17 +164,30 @@
         for (var j = 0; j < notes.length; j++) {
             var n = notes[j];
             if (n.channel === 9) {
-                n.soundIdx = (rowLookup['perc'] && rowLookup['perc']['p'+n.pitch] !== undefined) ? rowLookup['perc']['p'+n.pitch] : -1;
+                var pkey = undefined;
+                if (rowLookup[n.track]) pkey = rowLookup[n.track]['p'+n.pitch];
+                if (pkey === undefined && rowLookup['perc']) pkey = rowLookup['perc']['p'+n.pitch];
+                n.soundIdx = pkey !== undefined ? pkey : -1;
             } else {
+                // Detect format: per-(track,channel) or per-channel
+                var useTrackChannel = rowLookup[0] !== undefined;
                 var rowIdx = -1;
-                var key = 'c' + n.channel;
-                var pcList = rowLookup[key];
+                var pcList;
+                if (useTrackChannel) {
+                    pcList = rowLookup[n.track] ? rowLookup[n.track][n.channel] : undefined;
+                } else {
+                    pcList = rowLookup['c' + n.channel];
+                }
                 if (pcList && pcList.length > 0) {
                     var cnt = 0;
                     for (var i = 0; i < playList.length; i++) {
                         var ev = playList[i];
-                        if (ev.channel !== 9 && ev.subtype === 0xc && ev.channel === n.channel && ev.playTime <= n.playTime) {
-                            cnt++;
+                        if (ev.channel !== 9 && ev.subtype === 0xc && ev.playTime <= n.playTime) {
+                            if (useTrackChannel) {
+                                if (ev.track === n.track && ev.channel === n.channel) cnt++;
+                            } else {
+                                if (ev.channel === n.channel) cnt++;
+                            }
                         }
                     }
                     var idx = cnt > 0 ? cnt - 1 : 0;
@@ -389,16 +402,12 @@
                         var vol = 0.1 + Math.pow(n.velocity / 127, 0.6) * 0.55;
                         playSynthNote(n.pitch, vol);
                     } else if (state.mode === 'mcsound') {
-                        // Try to find the sound name from the global soundStrings
+                        // Use per-page sound lookup function
                         var soundName = 'harp';
-                        if (n.channel === 9) {
-                            soundName = 'bd';
-                        } else if (typeof soundStrings !== 'undefined' && soundStrings && soundStrings[n.channel]) {
-                            var chArr = soundStrings[n.channel];
-                            if (chArr && chArr.length > 0) {
-                                var last = chArr[chArr.length - 1];
-                                if (last && last[0]) soundName = last[0].replace('note.', '');
-                            }
+                        if (typeof window.getSoundForNote === 'function') {
+                            soundName = window.getSoundForNote(n.track, n.channel, n.pitch, n.playTime).replace('note.', '');
+                        } else {
+                            if (n.channel === 9) soundName = 'bd';
                         }
                         var vol = 0.1 + Math.pow(n.velocity / 127, 0.6) * 0.55;
                         playMCSound(soundName, n.pitch, vol);

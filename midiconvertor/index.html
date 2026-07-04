@@ -344,10 +344,30 @@
                 soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
                 var rowIdx=0;
                 window._rowLookup = {};
-                for(let i of midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime})){
+                window._midiPlayList = midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
+                window.getSoundForNote = function(track, ch, pitch, time) {
+                    if (ch === 9) {
+                        if (soundStrings[ch] && soundStrings[ch][pitch] && soundStrings[ch][pitch][0]) return soundStrings[ch][pitch][0];
+                        return defaultPercussion.value;
+                    }
+                    var pcMap=window._trackPcMap;
+                    if (!pcMap) return defaultMelodic.value;
+                    var cnt = -1;
+                    for (var ei = 0; ei < window._midiPlayList.length; ei++) {
+                        var e = window._midiPlayList[ei];
+                        if (e.channel !== 9 && e.subtype === 0xc && e.track === track && e.channel === ch && e.playTime <= time) cnt++;
+                    }
+                    var mapKey=track+':'+ch+':'+cnt;
+                    var targetIdx=pcMap[mapKey]!==undefined?pcMap[mapKey]:0;
+                    return (soundStrings[ch]&&soundStrings[ch][targetIdx]&&soundStrings[ch][targetIdx][0])?soundStrings[ch][targetIdx][0]:defaultMelodic.value;
+                };
+                window._trackPcMap = {};
+                var _trackPcIdx = {};
+                for(let i of window._midiPlayList){
                     if(i.channel!=9&&i.subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
-                        if (!window._rowLookup["c"+i.channel]) window._rowLookup["c"+i.channel] = [];
-                        window._rowLookup["c"+i.channel].push(rowIdx);
+                        if (!window._rowLookup[i.track]) window._rowLookup[i.track] = {};
+                        if (!window._rowLookup[i.track][i.channel]) window._rowLookup[i.track][i.channel] = [];
+                        window._rowLookup[i.track][i.channel].push(rowIdx);
                         let row=document.createElement("tr");
                         let colorTd=document.createElement("td");
                         colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
@@ -363,6 +383,10 @@
                         let input3=document.createElement("input"); input3.type="number"; input3.className="num-input";
                         data.innerText=formatSeconds(i.playTime/1000)+" C#"+i.channel+":"+melodicSounds[i.param1];
                         soundStrings[i.channel].push([getSoundString(i.param1, false, [defaultMelodic.value, defaultPercussion.value]),1,0,"C#"+i.channel+":"+melodicSounds[i.param1]]);
+                        if(!_trackPcIdx[i.track]) _trackPcIdx[i.track]={};
+                        if(!_trackPcIdx[i.track][i.channel]) _trackPcIdx[i.track][i.channel]=-1;
+                        _trackPcIdx[i.track][i.channel]++;
+                        window._trackPcMap[i.track+':'+i.channel+':'+_trackPcIdx[i.track][i.channel]]=soundStrings[i.channel].length-1;
                         input1.value=soundStrings[i.channel][soundStrings[i.channel].length-1][0];
                         input1.seq=soundStrings[i.channel].length-1;
                         input1.onchange=((e)=>{soundStrings[i.channel][e.target.seq][0]=e.target.value});
@@ -440,20 +464,26 @@
         fr.readAsArrayBuffer(upload.files[upload.seq]);
     })
     download.onclick=(()=>{
-        let channelsInstrument=[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
+        let channelsInstrument=[];
         let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
         let commandBlocks=[];
         let seq=0,tickAccu=0;
     try{
         for(let i in notes){
             if(notes[i].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
-                channelsInstrument[notes[i].channel]++;
+                if(convertTracks.children[notes[i].track].selected){
+                    if(!channelsInstrument[notes[i].track]) channelsInstrument[notes[i].track]=[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
+                    channelsInstrument[notes[i].track][notes[i].channel]++;
+                }
                 continue;
             }
             if(!convertTracks.children[notes[i].track].selected||!notes[i].param2||(ignorePercussionInstrument.checked&&notes[i].channel==9)){
                 continue;
             }
-            let soundString=soundStrings?.[notes[i].channel]?.[notes[i].channel==9?notes[i].param1:channelsInstrument[notes[i].channel]]||[notes[i].channel==9?defaultPercussion.value:defaultMelodic.value,1,0,"C#"+notes[i].channel+": 默认"+(notes[i].channel==9?"打击":"声学")+"乐器"];
+            var pcMap=window._trackPcMap;
+            var pcKey=notes[i].track+':'+notes[i].channel+':'+(channelsInstrument[notes[i].track]?.[notes[i].channel]??0);
+            var targetIdx=(pcMap&&pcMap[pcKey])||0;
+            let soundString=soundStrings[notes[i].channel][notes[i].channel==9?notes[i].param1:targetIdx]||[notes[i].channel==9?defaultPercussion.value:defaultMelodic.value,1,0,"C#"+notes[i].channel+": 默认"+(notes[i].channel==9?"打击":"声学")+"乐器"];
             if(!(soundString[0]&&soundString[1])) continue;
             let tickDelay=((timeAlignMode.value=="relative")?((seq!=0?Math.round((notes[i].playTime-notes[seq].playTime)/(50*(parseFloat(speed.value)/100))):Math.round((notes[i].playTime)/(50*(parseFloat(speed.value)/100))))):(Math.round((notes[i].playTime)/(50*(parseFloat(speed.value)/100)))-tickAccu));
             commandBlocks.push(new commandBlock(`execute ${commandVersion.value=="new"?'as ':''}${playerSelector.value} ${commandVersion.value=="new"?'at @s run':'~~~'} playsound ${convertToDefault.checked?(notes[i].channel==9?defaultPercussion.value:defaultMelodic.value):(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][0]:soundString[0])} @${commandVersion.value=="no-execute"?"a":"s"} ^^^8 ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)} ${(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][2]:(2**((notes[i].param1+(soundString[2]||0)+parseFloat(pitchOffset.value)-66)/12))).toFixed(5)} ${((notes[i].param2*(notes[i].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[i].channel==9?soundStrings[notes[i].channel][notes[i].param1][1]:(soundString[1]))*0.01).toFixed(5)}`, (seq!=0?'':upload.files[upload.seq].name.replace(/\.midi?$/,''))+((!document.getElementById("hideDebugMsg").checked)?' ['+formatSeconds(notes[i].playTime/1000)+']'+soundString[3]:''), undefined, false, tickDelay));

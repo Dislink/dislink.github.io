@@ -314,13 +314,30 @@
                 // Build lookup: track+':'+channel -> [{rowIdx, time}]  and  track+':'+pitch for percussion
                 window._rowLookup = {};
                 let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
+                window._midiPlayList = playList;
+                window.getSoundForNote = function(track, ch, pitch, time) {
+                    if (ch === 9) {
+                        var trk = soundStrings[track];
+                        if (trk && trk[pitch] && trk[pitch][0]) return trk[pitch][0];
+                        return defaultSound.value;
+                    }
+                    if (!soundStrings[track] || !soundStrings[track][ch]) return defaultSound.value;
+                    var cnt = -1;
+                    for (var ei = 0; ei < playList.length; ei++) {
+                        var e = playList[ei];
+                        if (e.channel !== 9 && e.subtype === 0xc && e.track === track && e.channel === ch && e.playTime <= time) cnt++;
+                    }
+                    var entry = cnt >= 0 ? soundStrings[track][ch][cnt] : null;
+                    return (entry && entry[0]) ? entry[0] : defaultSound.value;
+                };
                 var rowIdx=0;
                 for(let n = 0; n < playList.length; n++){
                     if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
                         if (!soundStrings[playList[n].track]) soundStrings[playList[n].track]=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
-                        // Record rowIdx for this (track, channel, counter)
-                        if (!window._rowLookup['c'+playList[n].channel]) window._rowLookup['c'+playList[n].channel] = [];
-                        window._rowLookup['c'+playList[n].channel].push(rowIdx);
+                        // Record rowIdx for this (track, channel)
+                        if (!window._rowLookup[playList[n].track]) window._rowLookup[playList[n].track] = {};
+                        if (!window._rowLookup[playList[n].track][playList[n].channel]) window._rowLookup[playList[n].track][playList[n].channel] = [];
+                        window._rowLookup[playList[n].track][playList[n].channel].push(rowIdx);
                         let row=document.createElement("tr");
                         let colorTd=document.createElement("td");
                         colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
@@ -352,9 +369,9 @@
                     }else if(playList[n].subtype==MIDIEvents.EVENT_MIDI_NOTE_ON&&playList[n].channel==9){
                         if (!soundStrings[playList[n].track]) soundStrings[playList[n].track]=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
                         if(soundStrings[playList[n].track][playList[n].param1]) continue;
-                        // Record percussion row
-                        if (!window._rowLookup['perc']) window._rowLookup['perc'] = {};
-                        if (window._rowLookup['perc']['p'+playList[n].param1] === undefined) window._rowLookup['perc']['p'+playList[n].param1] = rowIdx;
+                        // Record percussion row (per-track, matching soundStrings[track][param1] dedup)
+                        if (!window._rowLookup[playList[n].track]) window._rowLookup[playList[n].track] = {};
+                        if (window._rowLookup[playList[n].track]['p'+playList[n].param1] === undefined) window._rowLookup[playList[n].track]['p'+playList[n].param1] = rowIdx;
                         let row=document.createElement("tr");
                         let colorTd=document.createElement("td");
                         colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
