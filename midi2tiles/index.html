@@ -217,7 +217,7 @@
                 document.getElementById("noteOnCount").innerText="音符方块数: "+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
                 document.getElementById("convertTiles").innerHTML='<tr><th>数据(以出现时间顺序排列)</th><th>方块数据值</th></tr>';
                 tileStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
-                let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
+                let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
                 for(let n in playList){
                     if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
                         let row=document.createElement("tr");
@@ -262,7 +262,7 @@
                 document.getElementById("waterfall_card").style="display: block;";
                 document.getElementById("cmd_preview_card").style="display: block;";
                 initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
-                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100 });
+                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100, rowLookup: {} });
                 fileName=upload.files[0].name;
             }catch(e){
                 var errMsg=e.toString().split('\n')[0];
@@ -287,7 +287,7 @@
             if(convertTracks.children[i].selected){ tracksSelected.push(parseInt(i)); channelsInstrument[parseInt(i)]=-1; }
         }
         notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, mergeTracks.checked);
-        if(tracksSelected.length>1&&mergeTracks.checked) notes[0]=notes[0].sort((a,b)=>{return a.playTime>b.playTime})
+        if(tracksSelected.length>1&&mergeTracks.checked) notes[0]=notes[0].sort((a,b)=>{return a.playTime-b.playTime})
         let contents=[];
         let timerange=[];
         for(let i in notes){

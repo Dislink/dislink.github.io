@@ -30,6 +30,19 @@
         '#0ea5e9', '#10b981', '#eab308', '#78716c'
     ];
 
+    var INSTRUMENT_COLORS = [
+        '#3b82f6', '#22c55e', '#f59e0b', '#a855f7',
+        '#ef4444', '#14b8a6', '#ec4899', '#f97316',
+        '#06b6d4', '#84cc16', '#0ea5e9', '#d946ef',
+        '#10b981', '#eab308', '#8b5cf6', '#f43f5e',
+        '#0d9488', '#e11d48', '#6366f1', '#0891b2'
+    ];
+    var DEFAULT_INSTR_COLOR = '#94a3b8'; // gray for default instrument (no program change)
+
+    window.getInstrumentColor = function(idx) {
+        return INSTRUMENT_COLORS[idx % INSTRUMENT_COLORS.length];
+    };
+
     var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
     function formatTime(ms) {
@@ -138,6 +151,58 @@
         source.stop(now + 0.5);
     }
 
+    // Assign instrument index matching table rowIdx order
+    // Uses the rowLookup built by the HTML table (exact match guaranteed)
+    function assignSoundIdx(notes, midiFile, rowLookup) {
+        if (!rowLookup || Object.keys(rowLookup).length === 0) {
+            // No lookup table available (midi2tiles etc.), all notes get -1
+            for (var j = 0; j < notes.length; j++) notes[j].soundIdx = -1;
+            return 0;
+        }
+        // Build playList to get event order with track/channel info
+        var playList = midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0];
+        playList.sort(function(a,b){return a.playTime-b.playTime});
+
+        // Detect lookup style: channel-based (midiconvertor) or track+channel-based (midi2mcfunction)
+        var useChannelLookup = rowLookup['c0'] !== undefined || rowLookup['c1'] !== undefined;
+
+        for (var j = 0; j < notes.length; j++) {
+            var n = notes[j];
+            if (n.channel === 9) {
+                var pkey = undefined;
+                if (rowLookup[n.track]) pkey = rowLookup[n.track]['p' + n.pitch];
+                if (pkey === undefined && rowLookup['perc']) pkey = rowLookup['perc']['p' + n.pitch];
+                n.soundIdx = pkey !== undefined ? pkey : -1;
+            } else {
+                var rowIdx = -1;
+                var pcList, key;
+                if (useChannelLookup) {
+                    key = 'c' + n.channel;
+                    pcList = rowLookup[key];
+                } else {
+                    pcList = rowLookup[n.track] ? rowLookup[n.track][n.channel] : undefined;
+                }
+                if (pcList && pcList.length > 0) {
+                    var cnt = 0;
+                    for (var i = 0; i < playList.length; i++) {
+                        var ev = playList[i];
+                        if (ev.channel !== 9 && ev.subtype === 0xc && ev.playTime <= n.playTime) {
+                            if (useChannelLookup) {
+                                if (ev.channel === n.channel) cnt++;
+                            } else {
+                                if (ev.track === n.track && ev.channel === n.channel) cnt++;
+                            }
+                        }
+                    }
+                    var idx = cnt > 0 ? cnt - 1 : 0;
+                    if (idx < pcList.length) rowIdx = pcList[idx];
+                }
+                n.soundIdx = rowIdx;
+            }
+        }
+        return 0;
+    }
+
     // ---- Notes parsing ----
     function parseNotes(midiFile) {
         var allEvents = midiFile.getEvents([MIDIEvents.EVENT_MIDI], [], [], true)[0];
@@ -161,7 +226,7 @@
                 }
             }
             if (dur > 5000) dur = 5000;
-            notes.push({ pitch: on.param1, channel: on.channel, playTime: on.playTime, duration: dur, velocity: on.param2 });
+            notes.push({ pitch: on.param1, channel: on.channel, playTime: on.playTime, duration: dur, velocity: on.param2, track: on.track || 0 });
         }
         return notes;
     }
@@ -180,10 +245,12 @@
 
         var notes = parseNotes(midiFile);
         var notesCmd = [];
+        var instCount = 0;
         // For command preview, use fixed short duration
         if (opts.fixedDuration) {
+            instCount = assignSoundIdx(notes, midiFile, opts.rowLookup);
             for (var i = 0; i < notes.length; i++) {
-                notesCmd.push({ pitch: notes[i].pitch, channel: notes[i].channel, playTime: notes[i].playTime, duration: 80, velocity: notes[i].velocity });
+                notesCmd.push({ pitch: notes[i].pitch, channel: notes[i].channel, playTime: notes[i].playTime, duration: 80, velocity: notes[i].velocity, soundIdx: notes[i].soundIdx, track: notes[i].track });
             }
         }
 
@@ -205,7 +272,8 @@
             canvas: canvas, ctx: ctx, pixelsPerSecond: pps,
             leftMargin: 36, rightMargin: 44, topMargin: 8, playheadY: 0.18,
             seekPending: false, destroyed: false, lastPlayedIndex: -1,
-            mode: opts.mode || 'synth' // 'synth' or 'mcsound'
+            mode: opts.mode || 'synth', // 'synth' or 'mcsound'
+            instCount: instCount
         };
         instances[containerId] = state;
 
@@ -409,7 +477,16 @@
 
             var noteX = lm + note.pitch * colW + 1;
             var noteW = Math.max(2 * dpr, colW - 2);
-            var color = CHANNEL_COLORS[note.channel % CHANNEL_COLORS.length];
+            var color;
+            if (state.mode === 'mcsound' && note.soundIdx !== undefined) {
+                if (note.soundIdx === -1) {
+                    color = DEFAULT_INSTR_COLOR;
+                } else {
+                    color = INSTRUMENT_COLORS[note.soundIdx % INSTRUMENT_COLORS.length];
+                }
+            } else {
+                color = CHANNEL_COLORS[note.channel % CHANNEL_COLORS.length];
+            }
             var alpha = 0.4 + (note.velocity / 127) * 0.6;
             ctx.globalAlpha = alpha;
             ctx.fillStyle = color;

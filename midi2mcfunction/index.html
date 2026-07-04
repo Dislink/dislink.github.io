@@ -303,7 +303,7 @@
                 document.getElementById("timeTotal").innerText="时长: "+formatSeconds(Math.round(midiFile.timeTotal/1000));
                 document.getElementById("tracksCount").innerText="音轨数: "+midiFile.header.getTracksCount();
                 document.getElementById("noteOnCount").innerText="音符数: "+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
-                document.getElementById("convertSounds").innerHTML='<tr><th>数据(以出现时间顺序排列)</th><th>音效值</th><th>音量</th><th>音调偏移</th></tr>';
+                document.getElementById("convertSounds").innerHTML='<tr><th style="width:12px;padding:2px;"></th><th>数据(以出现时间顺序排列)</th><th>音效值</th><th>音量</th><th>音调偏移</th></tr>';
                 // Create datalist for sound names
                 var soundDatalist=document.createElement("datalist");
                 soundDatalist.id="sound-list";
@@ -311,11 +311,21 @@
                 for(var si=0;si<soundOptions.length;si++){var opt=document.createElement("option");opt.value=soundOptions[si];soundDatalist.appendChild(opt)}
                 document.getElementById("convertSounds").parentNode.appendChild(soundDatalist);
                 soundStrings=[];
-                let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
+                // Build lookup: track+':'+channel -> [{rowIdx, time}]  and  track+':'+pitch for percussion
+                window._rowLookup = {};
+                let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
+                var rowIdx=0;
                 for(let n in playList){
                     if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
                         if (!soundStrings[playList[n].track]) soundStrings[playList[n].track]=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
+                        // Record rowIdx for this (track, channel, counter)
+                        if (!window._rowLookup[playList[n].track]) window._rowLookup[playList[n].track] = {};
+                        if (!window._rowLookup[playList[n].track][playList[n].channel]) window._rowLookup[playList[n].track][playList[n].channel] = [];
+                        window._rowLookup[playList[n].track][playList[n].channel].push(rowIdx);
                         let row=document.createElement("tr");
+                        let colorTd=document.createElement("td");
+                        colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
+                        row.appendChild(colorTd);
                         let data=document.createElement("td");
                         let value1=document.createElement("td");
                         let value2=document.createElement("td");
@@ -339,10 +349,17 @@
                         value1.appendChild(input1); value2.appendChild(input2); value3.appendChild(input3);
                         row.appendChild(data); row.appendChild(value1); row.appendChild(value2); row.appendChild(value3);
                         document.getElementById("convertSounds").appendChild(row);
+                        rowIdx++;
                     }else if(playList[n].subtype==MIDIEvents.EVENT_MIDI_NOTE_ON&&playList[n].channel==9){
                         if (!soundStrings[playList[n].track]) soundStrings[playList[n].track]=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
                         if(soundStrings[playList[n].track][playList[n].param1]) continue;
+                        // Record percussion row
+                        if (!window._rowLookup[playList[n].track]) window._rowLookup[playList[n].track] = {};
+                        if (!window._rowLookup[playList[n].track]['p' + playList[n].param1]) window._rowLookup[playList[n].track]['p' + playList[n].param1] = rowIdx;
                         let row=document.createElement("tr");
+                        let colorTd=document.createElement("td");
+                        colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
+                        row.appendChild(colorTd);
                         let data=document.createElement("td");
                         let value1=document.createElement("td");
                         let value2=document.createElement("td");
@@ -363,6 +380,7 @@
                         value1.appendChild(input1); value2.appendChild(input2); value3.appendChild(input3);
                         row.appendChild(data); row.appendChild(value1); row.appendChild(value2); row.appendChild(value3);
                         document.getElementById("convertSounds").appendChild(row);
+                        rowIdx++;
                     }
                 }
                 document.getElementById("convertTracks").innerHTML='';
@@ -380,7 +398,7 @@
                 document.getElementById("waterfall_card").style="display: block;";
                 document.getElementById("cmd_preview_card").style="display: block;";
                 initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
-                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100 });
+                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100, rowLookup: window._rowLookup });
                 fileName=upload.files[0].name;
             }catch(e){
                 var errMsg=e.toString().split('\n')[0];
@@ -409,7 +427,7 @@
         }
         notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], tracksSelected, mergeTracks.checked);
         console.log(notes);
-        if(tracksSelected.length>1&&mergeTracks.checked) notes[0]=notes[0].sort((a,b)=>{return a.playTime>b.playTime})
+        if(tracksSelected.length>1&&mergeTracks.checked) notes[0]=notes[0].sort((a,b)=>{return a.playTime-b.playTime})
         let contents=[];
         let timerange=[];
         for(let i in notes){

@@ -334,7 +334,7 @@
                 document.getElementById("timeTotal").innerText="时长: "+formatSeconds(Math.round(midiFile.timeTotal/1000));
                 document.getElementById("tracksCount").innerText=`音轨数/选中音轨数: ${midiFile.header.getTracksCount()}/${midiFile.header.getTracksCount()}`;
                 document.getElementById("noteOnCount").innerText=`音符数/选中音符数: ${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}/${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}`;
-                document.getElementById("convertSounds").innerHTML='<tr><th>数据(以出现时间顺序排列)</th><th>音效值</th><th>音量乘数</th><th>音调偏移</th></tr>';
+                document.getElementById("convertSounds").innerHTML='<tr><th style="width:12px;padding:2px;"></th><th>数据(以出现时间顺序排列)</th><th>音效值</th><th>音量乘数</th><th>音调偏移</th></tr>';
                 // Create datalist for sound names
                 var soundDatalist=document.createElement("datalist");
                 soundDatalist.id="sound-list";
@@ -342,9 +342,16 @@
                 for(var si=0;si<soundOptions.length;si++){var opt=document.createElement("option");opt.value=soundOptions[si];soundDatalist.appendChild(opt)}
                 document.getElementById("convertSounds").parentNode.appendChild(soundDatalist);
                 soundStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
-                for(let i of midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime})){
+                var rowIdx=0;
+                window._rowLookup = {};
+                for(let i of midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime})){
                     if(i.channel!=9&&i.subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
+                        if (!window._rowLookup["c"+i.channel]) window._rowLookup["c"+i.channel] = [];
+                        window._rowLookup["c"+i.channel].push(rowIdx);
                         let row=document.createElement("tr");
+                        let colorTd=document.createElement("td");
+                        colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
+                        row.appendChild(colorTd);
                         let data=document.createElement("td");
                         let value1=document.createElement("td");
                         let value2=document.createElement("td");
@@ -368,9 +375,16 @@
                         value1.appendChild(input1); value2.appendChild(input2); value3.appendChild(input3);
                         row.appendChild(data); row.appendChild(value1); row.appendChild(value2); row.appendChild(value3);
                         document.getElementById("convertSounds").appendChild(row);
+                        rowIdx++;
                     }else if(i.subtype==MIDIEvents.EVENT_MIDI_NOTE_ON&&i.channel==9){
                         if(soundStrings[i.channel][i.param1]) continue;
+                        // Record percussion row (per pitch, same as soundStrings[9][param1] dedup)
+                        if (!window._rowLookup['perc']) window._rowLookup['perc'] = {};
+                        if (window._rowLookup['perc']['p' + i.param1] === undefined) window._rowLookup['perc']['p' + i.param1] = rowIdx;
                         let row=document.createElement("tr");
+                        let colorTd=document.createElement("td");
+                        colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
+                        row.appendChild(colorTd);
                         let data=document.createElement("td");
                         let value1=document.createElement("td");
                         let value2=document.createElement("td");
@@ -391,6 +405,7 @@
                         value1.appendChild(input1); value2.appendChild(input2); value3.appendChild(input3);
                         row.appendChild(data); row.appendChild(value1); row.appendChild(value2); row.appendChild(value3);
                         document.getElementById("convertSounds").appendChild(row);
+                        rowIdx++;
                     }
                 }
                 document.getElementById("convertTracks").innerHTML='';
@@ -408,7 +423,7 @@
                 document.getElementById("waterfall_card").style="display: block;";
                 document.getElementById("cmd_preview_card").style="display: block;";
                 initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
-                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100 });
+                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100, rowLookup: window._rowLookup });
                 commandBlockLength=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
                 heightEstimate.innerText=commandBlockLength?`预计高度: ${Math.ceil(commandBlockLength/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
             }catch(e){
@@ -426,7 +441,7 @@
     })
     download.onclick=(()=>{
         let channelsInstrument=[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
-        let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime>b.playTime});
+        let notes=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE,MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
         let commandBlocks=[];
         let seq=0,tickAccu=0;
     try{
