@@ -215,12 +215,19 @@
                 document.getElementById("timeTotal").innerText="时长: "+formatSeconds(Math.round(midiFile.timeTotal/1000));
                 document.getElementById("tracksCount").innerText="音轨数: "+midiFile.header.getTracksCount();
                 document.getElementById("noteOnCount").innerText="音符方块数: "+midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
-                document.getElementById("convertTiles").innerHTML='<tr><th>数据(以出现时间顺序排列)</th><th>方块数据值</th></tr>';
+                document.getElementById("convertTiles").innerHTML='<tr><th style="width:12px;padding:2px;"></th><th>数据(以出现时间顺序排列)</th><th>方块数据值</th></tr>';
                 tileStrings=[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]];
+                window._rowLookup = {};
+                var rowIdx = 0;
                 let playList=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE, MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].sort((a,b)=>{return a.playTime-b.playTime});
                 for(let n in playList){
                     if(playList[n].channel!=9&&playList[n].subtype==MIDIEvents.EVENT_MIDI_PROGRAM_CHANGE){
+                        if (!window._rowLookup['c'+playList[n].channel]) window._rowLookup['c'+playList[n].channel] = [];
+                        window._rowLookup['c'+playList[n].channel].push(rowIdx);
                         let row=document.createElement("tr");
+                        let colorTd=document.createElement("td");
+                        colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
+                        row.appendChild(colorTd);
                         let data=document.createElement("td");
                         let value1=document.createElement("td");
                         let input1=document.createElement("input");
@@ -232,9 +239,15 @@
                         input1.onchange=((e)=>{tileStrings[playList[n].channel][e.target.seq]=e.target.value});
                         value1.appendChild(input1); row.appendChild(data); row.appendChild(value1);
                         document.getElementById("convertTiles").appendChild(row);
+                        rowIdx++;
                     }else if(playList[n].subtype==MIDIEvents.EVENT_MIDI_NOTE_ON&&playList[n].channel==9){
                         if(tileStrings[playList[n].param1]) continue;
+                        if (!window._rowLookup['perc']) window._rowLookup['perc'] = {};
+                        if (window._rowLookup['perc']['p'+playList[n].param1]===undefined) window._rowLookup['perc']['p'+playList[n].param1] = rowIdx;
                         let row=document.createElement("tr");
+                        let colorTd=document.createElement("td");
+                        colorTd.style.cssText=`width:12px;padding:2px;background-color:${window.getInstrumentColor(rowIdx)};border-radius:2px;`;
+                        row.appendChild(colorTd);
                         let data=document.createElement("td");
                         let value1=document.createElement("td");
                         let input1=document.createElement("input");
@@ -245,6 +258,7 @@
                         input1.onchange=((e)=>{tileStrings[playList[n].param1]=e.target.value});
                         value1.appendChild(input1); row.appendChild(data); row.appendChild(value1);
                         document.getElementById("convertTiles").appendChild(row);
+                        rowIdx++;
                     }
                 }
                 document.getElementById("convertTracks").innerHTML='';
@@ -262,7 +276,7 @@
                 document.getElementById("waterfall_card").style="display: block;";
                 document.getElementById("cmd_preview_card").style="display: block;";
                 initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
-                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100, rowLookup: {} });
+                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100, rowLookup: window._rowLookup });
                 fileName=upload.files[0].name;
             }catch(e){
                 var errMsg=e.toString().split('\n')[0];
