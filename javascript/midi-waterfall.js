@@ -39,6 +39,11 @@
         return min + ':' + (sec < 10 ? '0' : '') + sec;
     }
 
+    function updateProgressFill(slider, pct) {
+        if (!slider) return;
+        slider.style.setProperty('--progress', (pct * 100) + '%');
+    }
+
     function midiToFreq(midiNote) {
         return 440 * Math.pow(2, (midiNote - 69) / 12);
     }
@@ -247,6 +252,7 @@
         var totalTimeEl = document.getElementById(prefix + '_total');
 
         if (totalTimeEl) totalTimeEl.textContent = formatTime(state.timeTotal);
+        if (progressSlider) updateProgressFill(progressSlider, 0);
 
         if (playBtn) {
             playBtn.onclick = function() {
@@ -260,7 +266,7 @@
             stopBtn.onclick = function() {
                 state.isPlaying = false; state.currentTime = 0; state.lastPlayedIndex = -1;
                 if (playBtn) playBtn.textContent = '播放';
-                if (progressSlider) progressSlider.value = 0;
+                if (progressSlider) { progressSlider.value = 0; updateProgressFill(progressSlider, 0); }
                 if (currentTimeEl) currentTimeEl.textContent = '0:00';
                 if (state.animId) { cancelAnimationFrame(state.animId); state.animId = null; }
                 renderFrame(state);
@@ -274,6 +280,7 @@
                 state.currentTime = (progressSlider.value / 1000) * state.timeTotal;
                 state.seekPending = true; state.lastPlayedIndex = -1;
                 if (currentTimeEl) currentTimeEl.textContent = formatTime(state.currentTime);
+                updateProgressFill(progressSlider, state.currentTime / state.timeTotal);
                 if (!state.isPlaying) renderFrame(state);
             };
         }
@@ -315,7 +322,7 @@
             var progress = Math.min(1, state.currentTime / state.timeTotal);
             var prefix = state.containerId.replace(/[^a-zA-Z0-9]/g, '_');
             var slider = document.getElementById(prefix + '_progress');
-            if (slider && !state.seekPending) slider.value = Math.round(progress * 1000);
+            if (slider && !state.seekPending) { slider.value = Math.round(progress * 1000); updateProgressFill(slider, progress); }
             var timeEl = document.getElementById(prefix + '_current');
             if (timeEl) timeEl.textContent = formatTime(state.currentTime);
 
