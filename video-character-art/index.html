@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彩色视频字符画生成器 | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HJVLPQTQE6');</script>
+    <script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s);})();</script>
+    <script src="/javascript/FileSaver.js" type="text/javascript"></script>
+    <script src="/javascript/CBConstructor.js" type="text/javascript"></script>
+    <script src="/javascript/nbt.js" type="text/javascript"></script>
+    <script src="/javascript/error-handler.js"></script>
+    <style>
+        /* Minecraft color table preview */
+        .mc-colors {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin: 0.5rem 0;
+        }
+        .mc-color-swatch {
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.15);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.5rem;
+            color: #fff;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+            cursor: help;
+        }
+        /* Character art preview */
+        .char-preview {
+            font-size: 10px;
+            line-height: 1.65;
+            letter-spacing: -0.15em;
+            font-family: "Unifont", "Minecraft", var(--font-mono);
+            background: rgba(24, 24, 24, 0.85);
+            border-radius: var(--radius-md);
+            overflow: auto;
+            max-height: 500px;
+            resize: vertical;
+            white-space: pre;
+            user-select: all;
+            padding: 0.75rem 1rem;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .char-preview .text {
+            white-space: pre;
+        }
+        /* Fullscreen overlay for char preview */
+        .chars-fullscreen-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.88);
+            z-index: 2000;
+            padding: 2rem 1rem;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chars-fullscreen-overlay.show {
+            display: flex;
+        }
+        .chars-fullscreen-overlay .chars-fullscreen-header {
+            width: 100%;
+            max-width: 1400px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            flex-shrink: 0;
+        }
+        .chars-fullscreen-overlay .chars-fullscreen-header span {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .chars-fullscreen-close {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #fff;
+            border-radius: var(--radius-sm);
+            padding: 0.4rem 0.9rem;
+            cursor: pointer;
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: background 0.15s;
+        }
+        .chars-fullscreen-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .chars-fullscreen-overlay .chars-fullscreen-body {
+            width: 100%;
+            max-width: 1400px;
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+        }
+        .chars-fullscreen-overlay .chars-fullscreen-body .char-preview {
+            max-height: none;
+            font-size: 13px;
+            letter-spacing: -0.15em;
+            line-height: 1.7;
+            resize: none;
+            width: auto;
+            min-width: 0;
+            align-self: flex-start;
+        }
+        .preview-selector {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .preview-selector .tab-btn {
+            padding: 0.35rem 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            border: 1px solid var(--color-border-strong);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: var(--font-sans);
+        }
+        .preview-selector .tab-btn:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+        .preview-selector .tab-btn.active {
+            background: var(--color-primary);
+            color: #fff;
+            border-color: var(--color-primary);
+        }
+        .progress-bar {
+            width: 100%;
+            height: 0.5rem;
+            background: var(--color-border);
+            border-radius: 99px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+        .progress-bar .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--color-primary), #6366f1);
+            border-radius: 99px;
+            transition: width 0.15s ease;
+        }
+        .progress-text {
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+        .frame-seek-area {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0 0.75rem;
+        }
+        .frame-seek-area input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            background: var(--color-border);
+            cursor: pointer;
+        }
+        .frame-seek-area input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            border: 2px solid #fff;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .frame-seek-area input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+        .frame-seek-area input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+        .frame-seek-label {
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+            white-space: nowrap;
+            min-width: 5rem;
+            text-align: center;
+        }
+        .inline-group-flex {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .btn-warning {
+            background: #f59e0b;
+            color: #fff;
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-warning:hover {
+            background: #d97706;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+        .btn-warning:active {
+            transform: translateY(0);
+        }
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+        .modal-box {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal-box h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: 0.5rem;
+        }
+        .modal-box p {
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+        .modal-actions .btn {
+            flex: 1;
+        }
+        .modal-actions .btn-secondary {
+            background: var(--color-surface-alt);
+            color: var(--color-text);
+            border: 1px solid var(--color-border-strong);
+        }
+        .modal-actions .btn-secondary:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+        .param-hint {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+        }
+        @media (max-width: 600px) {
+            .char-preview { font-size: 5px; line-height: 1.5; letter-spacing: -0.12em; }
+        }
+    </style>
+</head>
+<body>
+<div class="tool-container">
+
+    <div class="page-header">
+        <a class="back-home" href="/">← 返回主页</a>
+        <h1>彩色视频字符画生成器</h1>
+        <div class="subtitle">Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <form id="arguments">
+
+        <!-- Upload -->
+        <div class="card">
+            <div class="card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                上传视频
+            </div>
+            <div class="card-body">
+                <div class="file-upload-wrapper">
+                    <div class="file-upload-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                    </div>
+                    <span class="file-upload-text" id="uploadVidText">点击上传视频</span>
+                    <input type="file" id="uploadv" accept="video/*">
+                </div>
+                <div class="notice">视频会按帧提取并转换为 Minecraft 彩色字符画。建议分辨率不超过 512×256，长视频请耐心等待进度条完成。</div>
+            </div>
+        </div>
+
+        <!-- Hidden video element -->
+        <video id="vplayer" preload="auto" style="display:none;"></video>
+
+        <!-- Color info card -->
+        <div class="card" id="colorInfoCard" style="display:none;">
+            <div class="card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                可用颜色
+            </div>
+            <div class="card-body">
+                <div class="mc-colors" id="mcColors"></div>
+                <div class="notice">共 <span id="colorCount"></span> 种 Minecraft 颜色用于像素匹配</div>
+            </div>
+        </div>
+
+        <!-- Conversion parameters -->
+        <div class="card">
+            <div class="card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                转换参数
+            </div>
+            <div class="card-body">
+
+                <div class="form-group">
+                    <label for="maxWidthScroll" class="label-short">最大宽度</label>
+                    <input type="range" id="maxWidthScroll" value="320" min="32" max="512" step="2">
+                    <input type="number" id="maxWidth" value="320" min="32" max="512" step="2" style="width:3.5rem;">
+                    <span class="unit-label">px</span>
+                </div>
+                <div class="form-group">
+                    <label for="maxHeightScroll" class="label-short">最大高度</label>
+                    <input type="range" id="maxHeightScroll" value="180" min="24" max="512" step="2">
+                    <input type="number" id="maxHeight" value="180" min="24" max="512" step="2" style="width:3.5rem;">
+                    <span class="unit-label">px</span>
+                </div>
+                <div class="separator"></div>
+
+                <div class="inline-group-flex">
+                    <div class="inline-group">
+                        <input type="checkbox" id="dithering" checked>
+                        <label for="dithering">启用 Floyd-Steinberg 抖动 (Dithering)</label>
+                    </div>
+                </div>
+                <div class="param-hint" style="margin-top:-0.25rem;margin-bottom:0.5rem;padding-left:1.6rem;">
+                    抖动算法可在颜色数量有限时模拟更多色彩，但会略微增加噪点感。
+                </div>
+
+                <div class="separator"></div>
+
+                <div class="form-group">
+                    <label for="fpsScroll" class="label-short">视频帧率</label>
+                    <input type="range" id="fpsScroll" value="10" min="1" max="30" step="1">
+                    <input type="number" id="fps" value="10" min="1" max="30" step="1" style="width:3rem;">
+                    <span class="unit-label">fps</span>
+                </div>
+                <div class="form-group">
+                    <label for="tickDelayScroll" class="label-short">命令方块延迟</label>
+                    <input type="range" id="tickDelayScroll" value="2" min="1" max="20" step="1">
+                    <input type="number" id="tickDelay" value="2" min="1" max="20" step="1" style="width:3rem;">
+                    <span class="unit-label">游戏刻</span>
+                    <span class="unit-label" id="tickDelayHint" style="color:var(--color-text-muted);font-size:0.75rem;"></span>
+                    <span class="unit-label param-hint">(不影响 mcfunction)</span>
+                </div>
+                <div class="form-group">
+                    <label for="xLengthScroll" class="label-short">x轴延伸长度</label>
+                    <input type="range" id="xLengthScroll" min="1" max="256" value="16" step="1">
+                    <input type="number" id="xLength" step="1" value="16" min="1" max="256" style="width:3rem;">
+                    <span class="unit-label">格</span>
+                    <span class="unit-label param-hint">(不影响 mcfunction)</span>
+                </div>
+                <div class="form-group">
+                    <label for="zLengthScroll" class="label-short">z轴延伸长度</label>
+                    <input type="range" id="zLengthScroll" min="1" max="256" value="16" step="1">
+                    <input type="number" id="zLength" step="1" value="16" min="1" max="256" style="width:3rem;">
+                    <span class="unit-label">格</span>
+                    <span class="unit-label param-hint">(不影响 mcfunction)</span>
+                </div>
+                <div class="separator"></div>
+                <div class="form-group">
+                    <label for="outputFormat">输出格式</label>
+                    <select id="outputFormat">
+                        <option value="mcstructure" selected>.mcstructure (命令方块结构)</option>
+                        <option value="bdx">.bdx (BDX 建筑文件)</option>
+                        <option value="mcfunction">.mcfunction (命令文本文件)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+    </form>
+
+    <!-- Action buttons -->
+    <div style="text-align:center;margin-bottom:1rem;">
+        <button id="convertBtn" class="btn btn-primary" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            开始转换
+        </button>
+        <button id="downloadBtn" class="btn btn-success" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载
+        </button>
+    </div>
+
+    <!-- Status & Progress -->
+    <div class="status-bar" id="status">上传视频开始转换</div>
+    <div id="progressArea" style="display:none;">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText"></div>
+    </div>
+
+    <!-- Preview -->
+    <div class="card" id="previewCard" style="display:none;">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            预览
+        </div>
+        <div class="card-body">
+            <div class="preview-selector">
+                <button class="tab-btn active" data-tab="source" id="tabSource">源画面</button>
+                <button class="tab-btn" data-tab="char" id="tabChar">字符画</button>
+                <button class="tab-btn" id="fullscreenBtn" style="margin-left:auto;">⛶ 全屏</button>
+            </div>
+            <div class="frame-seek-area" id="frameSeekArea" style="display:none;">
+                <input type="range" id="frameSeek" min="0" max="0" value="0" step="1">
+                <span class="frame-seek-label" id="frameSeekLabel">帧 0 / 0</span>
+            </div>
+            <div id="previewSource">
+                <canvas id="img_preview" style="max-width:100%;border:1px solid var(--color-border);border-radius:var(--radius-sm);display:block;margin:0 auto;"></canvas>
+            </div>
+            <div id="previewChar" style="display:none;">
+                <div class="char-preview" id="convert_preview"></div>
+                <div class="notice" style="margin-top:0.5rem;">上面的字符画可全选复制。如需预览实际游戏效果，请下载 .mcstructure 导入到游戏中。</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File info -->
+    <div class="card" id="infoCard" style="display:none;">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            文件信息
+        </div>
+        <div class="card-body">
+            <div class="info-display" id="img_size"></div>
+        </div>
+    </div>
+
+    <!-- Modal dialog -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-box">
+            <h3>参数已修改</h3>
+            <p id="modalMsg">转换参数已更改，要使用新参数重新转换还是直接下载现有的结果？</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="modalDownloadOld">直接下载现有结果</button>
+                <button class="btn btn-primary" id="modalReconvert">重新转换</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen char preview overlay -->
+    <div class="chars-fullscreen-overlay" id="fullscreenOverlay">
+        <div class="chars-fullscreen-header">
+            <span>字符画预览 (全屏)</span>
+            <button class="chars-fullscreen-close" id="fullscreenCloseBtn">✕ 关闭</button>
+        </div>
+        <div class="chars-fullscreen-body">
+            <div class="char-preview" id="fullscreenPreview"></div>
+        </div>
+    </div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============ Minecraft Color Table ============
+var colors={
+    "§0": [0, 0, 0],
+    "§1": [0, 0, 170],
+    "§2": [0, 170, 0],
+    "§3": [0, 170, 170],
+    "§4": [170, 0, 0],
+    "§5": [170, 0, 170],
+    "§6": [255, 170, 0],
+    "§7": [170, 170, 170],
+    "§8": [85, 85, 85],
+    "§9": [85, 85, 255],
+    "§a": [85, 255, 85],
+    "§b": [85, 255, 255],
+    "§c": [255, 85, 85],
+    "§d": [255, 85, 255],
+    "§e": [255, 255, 85],
+    "§f": [255, 255, 255],
+    "§g": [221, 214, 5],
+    "§h": [227, 212, 209],
+    "§i": [206, 202, 202],
+    "§j": [68, 58, 59],
+    "§m": [151, 22, 7],
+    "§n": [180, 104, 77],
+    "§p": [222, 177, 45],
+    "§q": [17, 160, 54],
+    "§s": [44, 186, 168],
+    "§t": [33, 73, 123],
+    "§u": [154, 92, 198]
+};
+
+// Character table for brightness levels (darker → lighter)
+var charTable='┃┃┃┋┋╏┇';
+
+// ============ DOM refs ============
+var uploadv = document.getElementById('uploadv');
+var vplayer = document.getElementById('vplayer');
+var img_preview = document.getElementById('img_preview');
+var convert_preview = document.getElementById('convert_preview');
+var statusEl = document.getElementById('status');
+var progressArea = document.getElementById('progressArea');
+var progressFill = document.getElementById('progressFill');
+var progressText = document.getElementById('progressText');
+var previewCard = document.getElementById('previewCard');
+var infoCard = document.getElementById('infoCard');
+var colorInfoCard = document.getElementById('colorInfoCard');
+var img_size = document.getElementById('img_size');
+var convertBtn = document.getElementById('convertBtn');
+var downloadBtn = document.getElementById('downloadBtn');
+var previewSource = document.getElementById('previewSource');
+var previewChar = document.getElementById('previewChar');
+var frameSeek = document.getElementById('frameSeek');
+var frameSeekArea = document.getElementById('frameSeekArea');
+var frameSeekLabel = document.getElementById('frameSeekLabel');
+var modalOverlay = document.getElementById('modalOverlay');
+var modalMsg = document.getElementById('modalMsg');
+var modalDownloadOld = document.getElementById('modalDownloadOld');
+var modalReconvert = document.getElementById('modalReconvert');
+var mcColors = document.getElementById('mcColors');
+var colorCount = document.getElementById('colorCount');
+
+// Options
+var ditheringCheck = document.getElementById('dithering');
+var maxWidthInput = document.getElementById('maxWidth');
+var maxWidthScroll = document.getElementById('maxWidthScroll');
+var maxHeightInput = document.getElementById('maxHeight');
+var maxHeightScroll = document.getElementById('maxHeightScroll');
+var fpsInput = document.getElementById('fps');
+var fpsScroll = document.getElementById('fpsScroll');
+var xLengthInput = document.getElementById('xLength');
+var xLengthScroll = document.getElementById('xLengthScroll');
+var zLengthInput = document.getElementById('zLength');
+var zLengthScroll = document.getElementById('zLengthScroll');
+var tickDelayInput = document.getElementById('tickDelay');
+var tickDelayScroll = document.getElementById('tickDelayScroll');
+var tickDelayHint = document.getElementById('tickDelayHint');
+
+// ============ Render color table ============
+(function renderColors() {
+    var count = 0;
+    for (var k in colors) {
+        var c = colors[k];
+        var div = document.createElement('span');
+        div.className = 'mc-color-swatch';
+        div.style.background = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+        div.title = k + ' — RGB(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+        mcColors.appendChild(div);
+        count++;
+    }
+    colorCount.textContent = count;
+})();
+
+// ============ Colored Preview Rendering ============
+// Converts Minecraft § color codes to HTML spans (matching rawJSONEditor's pattern)
+function renderColoredText(text) {
+    // Remove invalid § codes (not in our color map)
+    text = text.replace(/§[^0-9a-uj-mo-r]/g, '');
+    // Count how many valid § codes exist
+    var sectionCount = 0;
+    var match;
+    var re = /§[0-9a-uj-mo-r]/g;
+    while ((match = re.exec(text)) !== null) {
+        sectionCount++;
+    }
+    // At least one closing span for the wrapping <span>
+    sectionCount = Math.max(1, sectionCount);
+
+    var html = '<span class="text">' +
+        text
+        .replaceAll('§0', '</span><span class="text" style="color:#000000">')
+        .replaceAll('§1', '</span><span class="text" style="color:#0000aa">')
+        .replaceAll('§2', '</span><span class="text" style="color:#00aa00">')
+        .replaceAll('§3', '</span><span class="text" style="color:#00aaaa">')
+        .replaceAll('§4', '</span><span class="text" style="color:#aa0000">')
+        .replaceAll('§5', '</span><span class="text" style="color:#aa00aa">')
+        .replaceAll('§6', '</span><span class="text" style="color:#ffaa00">')
+        .replaceAll('§7', '</span><span class="text" style="color:#aaaaaa">')
+        .replaceAll('§8', '</span><span class="text" style="color:#555555">')
+        .replaceAll('§9', '</span><span class="text" style="color:#5555ff">')
+        .replaceAll('§a', '</span><span class="text" style="color:#55ff55">')
+        .replaceAll('§b', '</span><span class="text" style="color:#55ffff">')
+        .replaceAll('§c', '</span><span class="text" style="color:#ff5555">')
+        .replaceAll('§d', '</span><span class="text" style="color:#ff55ff">')
+        .replaceAll('§e', '</span><span class="text" style="color:#ffff55">')
+        .replaceAll('§f', '</span><span class="text" style="color:#ffffff">')
+        .replaceAll('§g', '</span><span class="text" style="color:#ddd605">')
+        .replaceAll('§h', '</span><span class="text" style="color:#e3d4d1">')
+        .replaceAll('§i', '</span><span class="text" style="color:#cecaca">')
+        .replaceAll('§j', '</span><span class="text" style="color:#443a3b">')
+        .replaceAll('§m', '</span><span class="text" style="color:#971607">')
+        .replaceAll('§n', '</span><span class="text" style="color:#b4684d">')
+        .replaceAll('§p', '</span><span class="text" style="color:#deb12d">')
+        .replaceAll('§q', '</span><span class="text" style="color:#11a036">')
+        .replaceAll('§s', '</span><span class="text" style="color:#2cbaa8">')
+        .replaceAll('§t', '</span><span class="text" style="color:#21497b">')
+        .replaceAll('§u', '</span><span class="text" style="color:#9a5cc6">')
+        + '</span>'.repeat(sectionCount);
+
+    return html;
+}
+
+// Update the char preview div with colored HTML
+function setCharPreview(text) {
+    convert_preview.innerHTML = renderColoredText(text);
+}
+
+// ============ State ============
+var frames = [];
+var pw = 0, ph = 0; // working pixel dimensions (ph = charRows * 5)
+var dispW = 0, dispH = 0; // display dimensions for source preview (maintains aspect ratio)
+var videoDuration = 0;
+var totalFrames = 0;
+var currentFrameIdx = 0;
+var paramsDirty = false;
+var lastBrailleText = '';
+var lastXLen = 16;
+var lastZLen = 16;
+var conversionDone = false;
+var videoUrl = null; // blob URL for the loaded video
+
+// ============ Reliable seek utility ============
+// Uses addEventListener + timeout instead of onseeked assignment to avoid lost events
+function seekTo(time, timeoutMs) {
+    return new Promise(function(resolve) {
+        if (time === undefined || isNaN(time)) time = 0;
+        if (timeoutMs === undefined) timeoutMs = 500;
+
+        // Clamp to video duration
+        if (time > vplayer.duration) time = vplayer.duration;
+        if (time < 0) time = 0;
+
+        var settled = false;
+        var seekHandler = function() {
+            if (settled) return;
+            settled = true;
+            vplayer.removeEventListener('seeked', seekHandler);
+            resolve();
+        };
+
+        vplayer.addEventListener('seeked', seekHandler);
+        vplayer.currentTime = time;
+
+        // Safety timeout
+        setTimeout(function() {
+            if (!settled) {
+                settled = true;
+                vplayer.removeEventListener('seeked', seekHandler);
+                // Even if seek event didn't fire, try to continue
+                resolve();
+            }
+        }, timeoutMs);
+    });
+}
+
+// Wait for video to be ready for seeking
+function waitForVideoReady() {
+    return new Promise(function(resolve) {
+        if (vplayer.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+            resolve();
+            return;
+        }
+        // Listen for canplay / loadeddata
+        var handler = function() {
+            vplayer.removeEventListener('canplay', handler);
+            vplayer.removeEventListener('loadeddata', handler);
+            resolve();
+        };
+        vplayer.addEventListener('canplay', handler);
+        vplayer.addEventListener('loadeddata', handler);
+        // Fallback
+        setTimeout(resolve, 3000);
+    });
+}
+
+// ============ Tab switching ============
+document.getElementById('tabSource').onclick = function() {
+    this.classList.add('active');
+    document.getElementById('tabChar').classList.remove('active');
+    previewSource.style.display = 'block';
+    previewChar.style.display = 'none';
+};
+document.getElementById('tabChar').onclick = function() {
+    this.classList.add('active');
+    document.getElementById('tabSource').classList.remove('active');
+    previewSource.style.display = 'none';
+    previewChar.style.display = 'block';
+    // Refresh char preview for current frame (use stored text if available)
+    if (frames.length > 0) {
+        setCharPreview(frames[currentFrameIdx] || frames[0]);
+    }
+};
+
+// ============ Fullscreen char preview ============
+var fullscreenOverlay = document.getElementById('fullscreenOverlay');
+var fullscreenPreview = document.getElementById('fullscreenPreview');
+var fullscreenCloseBtn = document.getElementById('fullscreenCloseBtn');
+var fullscreenBtn = document.getElementById('fullscreenBtn');
+
+fullscreenBtn.onclick = function() {
+    fullscreenPreview.innerHTML = convert_preview.innerHTML;
+    fullscreenOverlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+};
+
+function closeFullscreen() {
+    fullscreenOverlay.classList.remove('show');
+    document.body.style.overflow = '';
+}
+fullscreenCloseBtn.onclick = closeFullscreen;
+fullscreenOverlay.onclick = function(e) {
+    if (e.target === fullscreenOverlay) {
+        closeFullscreen();
+    }
+};
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && fullscreenOverlay.classList.contains('show')) {
+        closeFullscreen();
+    }
+});
+
+// ============ Slider Sync + Param Change ============
+maxWidthScroll.oninput = function(){ maxWidthInput.value = this.value; handleParamChange(); };
+maxWidthInput.oninput = function(){ maxWidthScroll.value = this.value; handleParamChange(); };
+maxHeightScroll.oninput = function(){ maxHeightInput.value = this.value; handleParamChange(); };
+maxHeightInput.oninput = function(){ maxHeightScroll.value = this.value; handleParamChange(); };
+fpsScroll.oninput = function(){ fpsInput.value = this.value; updateTickDelayFromFps(); };
+fpsInput.oninput = function(){ fpsScroll.value = this.value; updateTickDelayFromFps(); };
+xLengthScroll.oninput = function(){ xLengthInput.value = this.value; };
+xLengthInput.oninput = function(){ xLengthScroll.value = this.value; };
+zLengthScroll.oninput = function(){ zLengthInput.value = this.value; };
+zLengthInput.oninput = function(){ zLengthScroll.value = this.value; };
+tickDelayScroll.oninput = function(){ tickDelayInput.value = this.value; updateTickDelayHint(); };
+tickDelayInput.oninput = function(){ tickDelayScroll.value = this.value; updateTickDelayHint(); };
+ditheringCheck.onchange = function(){ handleParamChange(); };
+
+function updateTickDelayFromFps() {
+    var fps = parseInt(fpsInput.value) || 10;
+    var ticks = Math.max(1, Math.round(20 / fps));
+    tickDelayInput.value = ticks;
+    tickDelayScroll.value = ticks;
+    updateTickDelayHint();
+}
+
+function updateTickDelayHint() {
+    var ticks = parseInt(tickDelayInput.value) || 2;
+    var approxFps = (20 / ticks).toFixed(1);
+    tickDelayHint.textContent = '≈ ' + approxFps + ' FPS';
+}
+
+updateTickDelayHint();
+
+// ============ Upload handler ============
+uploadv.onchange = function() {
+    if (!uploadv.files[0]) return;
+    resetState();
+    frames = [];
+
+    // Revoke previous blob URL if any
+    if (videoUrl) {
+        URL.revokeObjectURL(videoUrl);
+        videoUrl = null;
+    }
+
+    // Use object URL instead of data URL — much faster for seeking
+    videoUrl = URL.createObjectURL(uploadv.files[0]);
+    vplayer.src = videoUrl;
+    vplayer.onloadedmetadata = function() {
+        videoDuration = vplayer.duration;
+        colorInfoCard.style.display = '';
+        statusEl.textContent = '视频已加载，时长 ' + videoDuration.toFixed(1) + 's，点击「开始转换」提取帧';
+        statusEl.className = 'status-bar info';
+        convertBtn.style.display = 'inline-flex';
+        downloadBtn.style.display = 'none';
+    };
+    document.getElementById('uploadVidText').textContent = uploadv.files[0].name;
+};
+
+// ============ Helpers ============
+function calcDimensions(srcW, srcH) {
+    var mw = parseInt(maxWidthInput.value) || 320;
+    var mh = parseInt(maxHeightInput.value) || 180;
+    var ratio = srcW / srcH;
+    if (srcW > mw) {
+        pw = mw;
+        ph = Math.round(mw / ratio / 5) * 5;
+    } else if (srcH > mh) {
+        ph = mh;
+        pw = Math.round(mh * ratio);
+    } else {
+        pw = Math.round(srcW / 2) * 2;
+        ph = Math.round(srcH / 5) * 5;
+    }
+    if (pw > mw) { pw = mw; ph = Math.round(mw / ratio / 5) * 5; }
+    if (ph > mh) { ph = mh; pw = Math.round(mh * ratio / 2) * 2; }
+    if (pw < 2) pw = 2;
+    if (ph < 5) ph = 5;
+    pw = Math.round(pw / 2) * 2;
+    calcDisplayDimensions(srcW, srcH);
+}
+
+function calcDisplayDimensions(srcW, srcH) {
+    // Source preview: show video at proper aspect ratio, capped to fit the card
+    var maxPreviewW = Math.min(pw, 512);
+    var maxPreviewH = 400;
+    var ratio = srcW / srcH;
+    if (srcW > maxPreviewW) {
+        dispW = maxPreviewW;
+        dispH = Math.round(maxPreviewW / ratio);
+    } else if (srcH > maxPreviewH) {
+        dispH = maxPreviewH;
+        dispW = Math.round(maxPreviewH * ratio);
+    } else {
+        dispW = srcW;
+        dispH = srcH;
+    }
+    if (dispW > 512) { dispW = 512; dispH = Math.round(512 / ratio); }
+    if (dispH > 400) { dispH = 400; dispW = Math.round(400 * ratio); }
+    if (dispW < 2) dispW = 2;
+    if (dispH < 2) dispH = 2;
+}
+
+function showInfo(srcW, srcH) {
+    var charsW = pw;
+    var charsH = Math.round(ph / 5);
+    infoCard.style.display = '';
+    img_size.innerHTML = '源文件: ' + srcW + ' × ' + srcH + ' px &nbsp;|&nbsp; 转换尺寸: ' + pw + ' × ' + ph + ' px &nbsp;|&nbsp; 每帧字符: ' + charsW + ' × ' + charsH + ' 字符';
+}
+
+function resetState() {
+    convertBtn.style.display = 'none';
+    downloadBtn.style.display = 'none';
+    previewCard.style.display = 'none';
+    infoCard.style.display = 'none';
+    frameSeekArea.style.display = 'none';
+    progressArea.style.display = 'none';
+    conversionDone = false;
+    paramsDirty = false;
+    frames = [];
+    currentFrameIdx = 0;
+    downloadBtn.className = 'btn btn-success';
+    downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+    convertBtn.textContent = '开始转换';
+    convertBtn.disabled = false;
+}
+
+// ============ Frame seek bar ============
+frameSeek.oninput = function() {
+    currentFrameIdx = parseInt(this.value);
+    frameSeekLabel.textContent = '帧 ' + (currentFrameIdx + 1) + ' / ' + totalFrames;
+    showFrame(currentFrameIdx);
+};
+
+function initFrameSeek(count) {
+    totalFrames = count;
+    currentFrameIdx = 0;
+    frameSeekArea.style.display = 'flex';
+    frameSeek.max = count - 1;
+    frameSeek.value = 0;
+    frameSeekLabel.textContent = '帧 1 / ' + count;
+}
+
+function showFrame(idx) {
+    if (frames.length === 0) return;
+
+    var time = idx / parseInt(fpsInput.value);
+    if (time > videoDuration) time = videoDuration;
+
+    seekTo(time, 300).then(function() {
+        var ch = Math.round(ph / 5);
+        // Draw source (at proper aspect ratio)
+        img_preview.width = dispW;
+        img_preview.height = dispH;
+        var ctx = img_preview.getContext('2d');
+        ctx.drawImage(vplayer, 0, 0, dispW, dispH);
+
+        // Show stored char text (always available since frames pre-computed)
+        if (frames[idx]) {
+            setCharPreview(frames[idx]);
+        } else {
+            // Fallback: use offscreen canvas at conversion dimensions
+            var offscreen = document.createElement('canvas');
+            offscreen.width = pw;
+            offscreen.height = ch;
+            var offCtx = offscreen.getContext('2d');
+            offCtx.drawImage(vplayer, 0, 0, pw, ch);
+            var imgData = offCtx.getImageData(0, 0, pw, ch);
+            var enableDither = ditheringCheck.checked;
+            var charText = convertFrame(imgData, pw, ch, enableDither);
+            setCharPreview(charText);
+        }
+    });
+}
+
+function convertSingleFrame(imgData, canvasH) {
+    var enableDither = ditheringCheck.checked;
+    var h = canvasH || Math.round(ph / 5);
+    var charText = convertFrame(imgData, pw, h, enableDither);
+    setCharPreview(charText);
+}
+
+// ============ Param change handler ============
+function handleParamChange() {
+    if (!conversionDone) return;
+    paramsDirty = true;
+
+    downloadBtn.className = 'btn btn-warning';
+    downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> 参数已更改，点击下载';
+
+    if (frames.length > 0) {
+        // Re-convert current frame with new params
+        var time = currentFrameIdx / parseInt(fpsInput.value);
+        if (time > videoDuration) time = videoDuration;
+
+        seekTo(time, 300).then(function() {
+            calcDimensions(vplayer.videoWidth, vplayer.videoHeight);
+            var ch = Math.round(ph / 5);
+            var offscreen = document.createElement('canvas');
+            offscreen.width = pw;
+            offscreen.height = ch;
+            var offCtx = offscreen.getContext('2d');
+            offCtx.drawImage(vplayer, 0, 0, pw, ch);
+            var imgData = offCtx.getImageData(0, 0, pw, ch);
+            convertSingleFrame(imgData, ch);
+
+            // Also re-convert and store ALL frames with new params
+            statusEl.textContent = '已更新当前帧预览 — 参数已更改，下载前需确认';
+            statusEl.className = 'status-bar info';
+        });
+    }
+}
+
+// ============ Core Conversion Algorithm ============
+function convertFrame(imgData, w, h, enableDither) {
+    // Clone the pixel data so dithering doesn't affect the source canvas
+    var chunkd = new Uint8Array(imgData.data);
+    var X = w, Y = h; // h = number of character rows = canvas pixel height
+    var asciiStr = '';
+
+    for (var y = 0; y < Y; y++) {
+        for (var x = 0; x < X; x++) {
+            var r, g, b, diff, diffminItem;
+            var diffmin = Infinity;
+
+            var idx = (x + y * X) * 4;
+            r = chunkd[idx];
+            g = chunkd[idx + 1];
+            b = chunkd[idx + 2];
+
+            // Find nearest Minecraft color
+            for (var i in colors) {
+                diff = (colors[i][0] - r) ** 2 + (colors[i][1] - g) ** 2 + (colors[i][2] - b) ** 2;
+                if (diffmin > diff) {
+                    diffmin = diff;
+                    diffminItem = i;
+                }
+            }
+
+            // Calculate error for character selection
+            var dr = (chunkd[idx] - colors[diffminItem][0]);
+            var dg = (chunkd[idx + 1] - colors[diffminItem][1]);
+            var db = (chunkd[idx + 2] - colors[diffminItem][2]);
+            var naturation = (dr + dg + db) / 3;
+
+            // Map error magnitude to character
+            var charIdx = 3 - Math.round((naturation / 96) * 4);
+            if (charIdx < 0) charIdx = 0;
+            if (charIdx >= charTable.length) charIdx = charTable.length - 1;
+            asciiStr += diffminItem + charTable[charIdx];
+
+            // Floyd-Steinberg dithering (when enabled)
+            if (enableDither) {
+                if (x < X - 2) {
+                    chunkd[(x + 1 + y * X) * 4]     += dr * 4 / 21;
+                    chunkd[(x + 1 + y * X) * 4 + 1] += dg * 4 / 21;
+                    chunkd[(x + 1 + y * X) * 4 + 2] += db * 4 / 21;
+                    chunkd[(x + 2 + y * X) * 4]     += dr * 2 / 21;
+                    chunkd[(x + 2 + y * X) * 4 + 1] += dg * 2 / 21;
+                    chunkd[(x + 2 + y * X) * 4 + 2] += db * 2 / 21;
+                } else if (x < X - 1) {
+                    chunkd[(x + 1 + y * X) * 4]     += dr * 7 / 16;
+                    chunkd[(x + 1 + y * X) * 4 + 1] += dg * 7 / 16;
+                    chunkd[(x + 1 + y * X) * 4 + 2] += db * 7 / 16;
+                }
+
+                if (x > 1 && y < Y - 2) {
+                    chunkd[(x - 2 + y * X + X) * 4]     += dr * 1 / 21;
+                    chunkd[(x - 2 + y * X + X) * 4 + 1] += dg * 1 / 21;
+                    chunkd[(x - 2 + y * X + X) * 4 + 2] += db * 1 / 21;
+                    chunkd[(x - 1 + y * X + X) * 4]     += dr * 2 / 21;
+                    chunkd[(x - 1 + y * X + X) * 4 + 1] += dg * 2 / 21;
+                    chunkd[(x - 1 + y * X + X) * 4 + 2] += db * 2 / 21;
+                    chunkd[(x + y * X + X) * 4]         += dr * 4 / 21;
+                    chunkd[(x + y * X + X) * 4 + 1]     += dg * 4 / 21;
+                    chunkd[(x + y * X + X) * 4 + 2]     += db * 4 / 21;
+                    chunkd[(x + 1 + y * X + X) * 4]     += dr * 2 / 21;
+                    chunkd[(x + 1 + y * X + X) * 4 + 1] += dg * 2 / 21;
+                    chunkd[(x + 1 + y * X + X) * 4 + 2] += db * 2 / 21;
+                    chunkd[(x + 2 + y * X + X) * 4]     += dr * 1 / 21;
+                    chunkd[(x + 2 + y * X + X) * 4 + 1] += dg * 1 / 21;
+                    chunkd[(x + 2 + y * X + X) * 4 + 2] += db * 1 / 21;
+                    chunkd[(x - 2 + y * X + X + X) * 4]     += dr * 1 / 42;
+                    chunkd[(x - 2 + y * X + X + X) * 4 + 1] += dg * 1 / 42;
+                    chunkd[(x - 2 + y * X + X + X) * 4 + 2] += db * 1 / 42;
+                    chunkd[(x - 1 + y * X + X + X) * 4]     += dr * 1 / 21;
+                    chunkd[(x - 1 + y * X + X + X) * 4 + 1] += dg * 1 / 21;
+                    chunkd[(x - 1 + y * X + X + X) * 4 + 2] += db * 1 / 21;
+                    chunkd[(x + y * X + X + X) * 4]         += dr * 2 / 21;
+                    chunkd[(x + y * X + X + X) * 4 + 1]     += dg * 2 / 21;
+                    chunkd[(x + y * X + X + X) * 4 + 2]     += db * 2 / 21;
+                    chunkd[(x + 1 + y * X + X + X) * 4]     += dr * 1 / 21;
+                    chunkd[(x + 1 + y * X + X + X) * 4 + 1] += dg * 1 / 21;
+                    chunkd[(x + 1 + y * X + X + X) * 4 + 2] += db * 1 / 21;
+                    chunkd[(x + 2 + y * X + X + X) * 4]     += dr * 1 / 42;
+                    chunkd[(x + 2 + y * X + X + X) * 4 + 1] += dg * 1 / 42;
+                    chunkd[(x + 2 + y * X + X + X) * 4 + 2] += db * 1 / 42;
+                }
+            }
+        }
+        asciiStr += '\n';
+    }
+    return asciiStr;
+}
+
+// ============ Convert handler ============
+convertBtn.onclick = function() {
+    processVideo();
+};
+
+function processVideo() {
+    if (!vplayer.src) return;
+    var enableDither = ditheringCheck.checked;
+    var fps = parseInt(fpsInput.value);
+    var xLen = parseInt(xLengthInput.value) || 16;
+    var zLen = parseInt(zLengthInput.value) || 16;
+
+    var total = Math.ceil(videoDuration * fps);
+    totalFrames = total;
+    frames = [];
+    convertBtn.disabled = true;
+    convertBtn.textContent = '转换中...';
+    progressArea.style.display = 'block';
+    progressFill.style.width = '0%';
+    paramsDirty = false;
+
+    calcDimensions(vplayer.videoWidth, vplayer.videoHeight);
+
+    var captured = 0;
+
+    async function captureFrame(time) {
+        await seekTo(time, 500);
+        var ch = Math.round(ph / 5);
+        var offscreen = document.createElement('canvas');
+        offscreen.width = pw;
+        offscreen.height = ch;
+        var offCtx = offscreen.getContext('2d');
+        offCtx.drawImage(vplayer, 0, 0, pw, ch);
+        var imgData = offCtx.getImageData(0, 0, pw, ch);
+        var frame = convertFrame(imgData, pw, ch, enableDither);
+        frames.push(frame);
+    }
+
+    async function processAll() {
+        // Wait for video to be ready first
+        await waitForVideoReady();
+        var ch = Math.round(ph / 5);
+
+        // First, show the source preview at frame 0 (proper aspect ratio)
+        await seekTo(0, 500);
+        img_preview.width = dispW;
+        img_preview.height = dispH;
+        var firstCtx = img_preview.getContext('2d');
+        firstCtx.drawImage(vplayer, 0, 0, dispW, dispH);
+        showInfo(vplayer.videoWidth, vplayer.videoHeight);
+        previewCard.style.display = '';
+        infoCard.style.display = '';
+        convertBtn.style.display = 'none';
+
+        for (var f = 0; f < total; f++) {
+            var time = f / fps;
+            if (time > videoDuration) time = videoDuration;
+
+            await captureFrame(time);
+            captured++;
+
+            var pct = Math.min(100, Math.round(captured / total * 100));
+            progressFill.style.width = pct + '%';
+            progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + pct + '%)';
+
+            // Show first frame char preview as soon as it's ready
+            if (captured === 1) {
+                setCharPreview(frames[0]);
+                initFrameSeek(total);
+            }
+
+            // Yield to UI periodically so the progress bar updates
+            if (captured % 3 === 0) {
+                await new Promise(function(r) { setTimeout(r, 0); });
+            }
+        }
+
+        var combined = frames.join('');
+
+        lastBrailleText = combined;
+        lastXLen = xLen;
+        lastZLen = zLen;
+        conversionDone = true;
+        paramsDirty = false;
+
+        downloadBtn.style.display = 'inline-flex';
+        downloadBtn.className = 'btn btn-success';
+        downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+
+        convertBtn.disabled = false;
+        convertBtn.textContent = '开始转换';
+        progressFill.style.width = '100%';
+        progressText.textContent = '完成！共 ' + frames.length + ' 帧';
+
+        statusEl.textContent = '视频转换完成！共 ' + frames.length + ' 帧，可拖动帧滑块预览';
+        statusEl.className = 'status-bar';
+    }
+
+    processAll().catch(function(err) {
+        console.error('Conversion error:', err);
+        statusEl.textContent = '转换出错: ' + (err.message || err || '未知错误');
+        statusEl.className = 'status-bar error';
+        convertBtn.disabled = false;
+        convertBtn.textContent = '开始转换';
+    });
+}
+
+// ============ Download with dirty-param handling ============
+downloadBtn.onclick = function() {
+    if (paramsDirty) {
+        modalOverlay.classList.add('show');
+        modalDownloadOld.onclick = function() {
+            modalOverlay.classList.remove('show');
+            doDownload(lastBrailleText, lastXLen, lastZLen);
+        };
+        modalReconvert.onclick = function() {
+            modalOverlay.classList.remove('show');
+            paramsDirty = false;
+            processVideo();
+        };
+    } else {
+        doDownload(lastBrailleText, lastXLen, lastZLen);
+    }
+};
+
+modalOverlay.onclick = function(e) {
+    if (e.target === modalOverlay) {
+        modalOverlay.classList.remove('show');
+    }
+};
+
+function doDownload(charText, xLen, zLen) {
+    var fmt = document.getElementById('outputFormat').value;
+
+    if (fmt === 'mcfunction') {
+        downloadAsMcfunction(charText);
+    } else if (fmt === 'bdx') {
+        downloadAsBDX(charText, xLen, zLen);
+    } else {
+        downloadAsMCStructure(charText, xLen, zLen);
+    }
+}
+
+function buildCommandBlocks(charText) {
+    var texts = frames.length > 0 ? frames : [charText];
+    var cbs = [];
+    var tick = parseInt(tickDelayInput.value) || 2;
+    for (var i = 0; i < texts.length; i++) {
+        cbs.push(new commandBlock(
+            'titleraw @a actionbar ' + JSON.stringify({ rawtext: [{ text: texts[i] }] }),
+            '', 1, 0, tick, 1
+        ));
+    }
+    if (cbs.length > 0) {
+        cbs[0].auto = 0;
+        cbs[0].mode = 0;
+    }
+    return cbs;
+}
+
+function downloadAsMCStructure(charText, xLen, zLen) {
+    var cbs = buildCommandBlocks(charText);
+    if (cbs.length === 0) return;
+    var cbc = new CBConstructor(cbs);
+    var rand = Math.random().toFixed(5).split('.')[1];
+
+    if (frames.length <= 1) {
+        var strudat = cbc.generateMCStructure(16, 256, 16);
+        saveAs(new Blob([strudat]), 'char_video_' + rand + '.mcstructure');
+    } else {
+        var cbHeight = Math.ceil(cbs.length / (xLen * zLen));
+        var strudat = cbc.generateMCStructure(xLen, cbHeight, zLen);
+        saveAs(new Blob([strudat]), 'char_video_' + rand + '.mcstructure');
+    }
+}
+
+function downloadAsBDX(charText, xLen, zLen) {
+    var cbs = buildCommandBlocks(charText);
+    if (cbs.length === 0) return;
+    var cbc = new CBConstructor(cbs);
+    var rand = Math.random().toFixed(5).split('.')[1];
+
+    if (frames.length <= 1) {
+        var bdxData = cbc.generateBDX(16, 256, 16);
+        saveAs(new Blob([bdxData]), 'char_video_' + rand + '.bdx');
+    } else {
+        var cbHeight = Math.ceil(cbs.length / (xLen * zLen));
+        var bdxData = cbc.generateBDX(xLen, cbHeight, zLen);
+        saveAs(new Blob([bdxData]), 'char_video_' + rand + '.bdx');
+    }
+}
+
+function downloadAsMcfunction(charText) {
+    var rand = Math.random().toFixed(5).split('.')[1];
+    var content = '# Generated by Dislink Color Video Character Art Generator\n# ' + new Date().toISOString() + '\n';
+
+    var texts = frames.length > 0 ? frames : [charText];
+    for (var i = 0; i < texts.length; i++) {
+        content += 'titleraw @a actionbar ' + JSON.stringify({ rawtext: [{ text: texts[i] }] }) + '\n';
+    }
+
+    saveAs(new Blob([content], { type: 'text/plain;charset=utf-8' }), 'char_video_' + rand + '.mcfunction');
+}
+</script>
+</body>
+</html>
