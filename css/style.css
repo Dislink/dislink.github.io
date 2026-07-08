@@ -74,6 +74,22 @@ body {
   letter-spacing: -0.02em;
 }
 
+.page-header .back-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  margin-bottom: 0.5rem;
+  transition: color 0.15s;
+}
+
+.page-header .back-home:hover {
+  color: var(--color-primary);
+}
+
 .page-header .subtitle {
   font-size: 0.875rem;
   color: var(--color-text-secondary);

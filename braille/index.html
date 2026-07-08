@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>盲文字符画生成器 | Dislink 工具集</title>
+    <title>盲文字符画生成器 | By Dislink</title>
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/css/style.css">
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
@@ -92,6 +92,116 @@
             gap: 0.5rem;
             flex-wrap: wrap;
         }
+        .frame-seek-area {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0 0.75rem;
+        }
+        .frame-seek-area input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            background: var(--color-border);
+            cursor: pointer;
+        }
+        .frame-seek-area input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            border: 2px solid #fff;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .frame-seek-area input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+        .frame-seek-area input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+        .frame-seek-label {
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+            white-space: nowrap;
+            min-width: 5rem;
+            text-align: center;
+        }
+        .btn-warning {
+            background: #f59e0b;
+            color: #fff;
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-warning:hover {
+            background: #d97706;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+        .btn-warning:active {
+            transform: translateY(0);
+        }
+        /* Modal overlay */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+        .modal-box {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal-box h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: 0.5rem;
+        }
+        .modal-box p {
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+        .modal-actions .btn {
+            flex: 1;
+        }
+        .modal-actions .btn-secondary {
+            background: var(--color-surface-alt);
+            color: var(--color-text);
+            border: 1px solid var(--color-border-strong);
+        }
+        .modal-actions .btn-secondary:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
         @media (max-width: 600px) {
             .braille-preview { font-size: 7px; }
         }
@@ -101,8 +211,9 @@
 <div class="tool-container">
 
     <div class="page-header">
+        <a class="back-home" href="/">← 返回主页</a>
         <h1>盲文字符画生成器</h1>
-        <div class="subtitle">将图片 / 视频转换为 Braille 盲文字符画，生成 titleraw 命令 — Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+        <div class="subtitle">Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
     </div>
 
     <form id="arguments">
@@ -130,7 +241,7 @@
                         <input type="file" id="uploadv" accept="video/*">
                     </div>
                 </div>
-                <div class="notice">视频会直接按帧提取，无需完整播放。建议分辨率不超过 256x102，长视频请耐心等待进度条完成。</div>
+                <div class="notice">视频会直接按帧提取，建议缩放分辨率不超过 256x102，长视频请耐心等待进度条完成。</div>
             </div>
         </div>
 
@@ -165,7 +276,7 @@
                 <div class="separator"></div>
                 <div class="inline-group-flex">
                     <div class="inline-group">
-                        <input type="checkbox" id="dithering" checked>
+                        <input type="checkbox" id="dithering">
                         <label for="dithering">启用 Floyd-Steinberg 抖动 (Dithering)</label>
                     </div>
                     <div class="inline-group">
@@ -181,10 +292,26 @@
                     <span class="unit-label">fps</span>
                 </div>
                 <div class="form-group">
-                    <label for="blockWidthScroll" class="label-short">命令方块宽度</label>
-                    <input type="range" id="blockWidthScroll" value="16" min="4" max="48" step="1">
-                    <input type="number" id="blockWidth" value="16" min="4" max="48" step="1" style="width:3rem;">
+                    <label for="tickDelayScroll" class="label-short">命令方块延迟</label>
+                    <input type="range" id="tickDelayScroll" value="2" min="1" max="20" step="1">
+                    <input type="number" id="tickDelay" value="2" min="1" max="20" step="1" style="width:3rem;">
+                    <span class="unit-label">游戏刻</span>
+                    <span class="unit-label" id="tickDelayHint" style="color:var(--color-text-muted);font-size:0.75rem;"></span>
+                    <span class="unit-label" style="color:var(--color-text-muted);font-size:0.75rem;">(不影响 mcfunction)</span>
+                </div>
+                <div class="form-group">
+                    <label for="xLengthScroll" class="label-short">x轴延伸长度</label>
+                    <input type="range" id="xLengthScroll" min="1" max="256" value="16" step="1">
+                    <input type="number" id="xLength" step="1" value="16" min="1" max="256" style="width:3rem;">
                     <span class="unit-label">格</span>
+                    <span class="unit-label" style="color:var(--color-text-muted);font-size:0.75rem;">(不影响 mcfunction)</span>
+                </div>
+                <div class="form-group">
+                    <label for="zLengthScroll" class="label-short">z轴延伸长度</label>
+                    <input type="range" id="zLengthScroll" min="1" max="256" value="16" step="1">
+                    <input type="number" id="zLength" step="1" value="16" min="1" max="256" style="width:3rem;">
+                    <span class="unit-label">格</span>
+                    <span class="unit-label" style="color:var(--color-text-muted);font-size:0.75rem;">(不影响 mcfunction)</span>
                 </div>
                 <div class="separator"></div>
                 <div class="form-group">
@@ -230,6 +357,10 @@
                 <button class="tab-btn active" data-tab="source" id="tabSource">源画面</button>
                 <button class="tab-btn" data-tab="braille" id="tabBraille">盲文预览</button>
             </div>
+            <div class="frame-seek-area" id="frameSeekArea" style="display:none;">
+                <input type="range" id="frameSeek" min="0" max="0" value="0" step="1">
+                <span class="frame-seek-label" id="frameSeekLabel">帧 0 / 0</span>
+            </div>
             <div id="previewSource">
                 <canvas id="img_preview" style="max-width:100%;border:1px solid var(--color-border);border-radius:var(--radius-sm);display:block;margin:0 auto;"></canvas>
             </div>
@@ -248,6 +379,18 @@
         </div>
         <div class="card-body">
             <div class="info-display" id="img_size"></div>
+        </div>
+    </div>
+
+    <!-- Modal dialog -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-box">
+            <h3>参数已修改</h3>
+            <p id="modalMsg">转换参数已更改，要使用新参数重新转换还是直接下载现有的结果？</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="modalDownloadOld">直接下载现有结果</button>
+                <button class="btn btn-primary" id="modalReconvert">重新转换</button>
+            </div>
         </div>
     </div>
 
@@ -285,6 +428,13 @@ var convertBtn = document.getElementById('convertBtn');
 var downloadBtn = document.getElementById('downloadBtn');
 var previewSource = document.getElementById('previewSource');
 var previewBraille = document.getElementById('previewBraille');
+var frameSeek = document.getElementById('frameSeek');
+var frameSeekArea = document.getElementById('frameSeekArea');
+var frameSeekLabel = document.getElementById('frameSeekLabel');
+var modalOverlay = document.getElementById('modalOverlay');
+var modalMsg = document.getElementById('modalMsg');
+var modalDownloadOld = document.getElementById('modalDownloadOld');
+var modalReconvert = document.getElementById('modalReconvert');
 
 // options
 var ditheringCheck = document.getElementById('dithering');
@@ -297,8 +447,13 @@ var maxHeightInput = document.getElementById('maxHeight');
 var maxHeightScroll = document.getElementById('maxHeightScroll');
 var fpsInput = document.getElementById('fps');
 var fpsScroll = document.getElementById('fpsScroll');
-var blockWidthInput = document.getElementById('blockWidth');
-var blockWidthScroll = document.getElementById('blockWidthScroll');
+var xLengthInput = document.getElementById('xLength');
+var xLengthScroll = document.getElementById('xLengthScroll');
+var zLengthInput = document.getElementById('zLength');
+var zLengthScroll = document.getElementById('zLengthScroll');
+var tickDelayInput = document.getElementById('tickDelay');
+var tickDelayScroll = document.getElementById('tickDelayScroll');
+var tickDelayHint = document.getElementById('tickDelayHint');
 
 // tab switching
 document.getElementById('tabSource').onclick = function() {
@@ -312,19 +467,68 @@ document.getElementById('tabBraille').onclick = function() {
     document.getElementById('tabSource').classList.remove('active');
     previewSource.style.display = 'none';
     previewBraille.style.display = 'block';
+    // When switching to braille tab, refresh the braille preview for current frame
+    if (isVideo && frames.length > 0) {
+        var time = currentFrameIdx / parseInt(fpsInput.value);
+        if (time > videoDuration) time = videoDuration;
+        vplayer.currentTime = time;
+        vplayer.onseeked = function() {
+            vplayer.onseeked = null;
+            var offscreen = document.createElement('canvas');
+            offscreen.width = pw;
+            offscreen.height = ph;
+            var offCtx = offscreen.getContext('2d');
+            offCtx.drawImage(vplayer, 0, 0, pw, ph);
+            var imgData = offCtx.getImageData(0, 0, pw, ph);
+            convertSingleFrame(imgData);
+        };
+    }
 };
 
-// sync sliders & inputs
-thresholdScroll.oninput = function(){ thresholdInput.value = this.value; };
-thresholdInput.oninput = function(){ thresholdScroll.value = this.value; };
-maxWidthScroll.oninput = function(){ maxWidthInput.value = this.value; };
-maxWidthInput.oninput = function(){ maxWidthScroll.value = this.value; };
-maxHeightScroll.oninput = function(){ maxHeightInput.value = this.value; };
-maxHeightInput.oninput = function(){ maxHeightScroll.value = this.value; };
-fpsScroll.oninput = function(){ fpsInput.value = this.value; };
-fpsInput.oninput = function(){ fpsScroll.value = this.value; };
-blockWidthScroll.oninput = function(){ blockWidthInput.value = this.value; };
-blockWidthInput.oninput = function(){ blockWidthScroll.value = this.value; };
+// sync sliders & inputs — with param-change handler
+function onParamChange() {
+    thresholdScroll.value = thresholdInput.value;
+    maxWidthScroll.value = maxWidthInput.value;
+    maxHeightScroll.value = maxHeightInput.value;
+    fpsScroll.value = fpsInput.value;
+    xLengthScroll.value = xLengthInput.value;
+    zLengthScroll.value = zLengthInput.value;
+    handleParamChange();
+}
+
+thresholdScroll.oninput = function(){ thresholdInput.value = this.value; handleParamChange(); };
+thresholdInput.oninput = function(){ thresholdScroll.value = this.value; handleParamChange(); };
+maxWidthScroll.oninput = function(){ maxWidthInput.value = this.value; handleParamChange(); };
+maxWidthInput.oninput = function(){ maxWidthScroll.value = this.value; handleParamChange(); };
+maxHeightScroll.oninput = function(){ maxHeightInput.value = this.value; handleParamChange(); };
+maxHeightInput.oninput = function(){ maxHeightScroll.value = this.value; handleParamChange(); };
+fpsScroll.oninput = function(){ fpsInput.value = this.value; updateTickDelayFromFps(); };
+fpsInput.oninput = function(){ fpsScroll.value = this.value; updateTickDelayFromFps(); };
+xLengthScroll.oninput = function(){ xLengthInput.value = this.value; };
+xLengthInput.oninput = function(){ xLengthScroll.value = this.value; };
+zLengthScroll.oninput = function(){ zLengthInput.value = this.value; };
+zLengthInput.oninput = function(){ zLengthScroll.value = this.value; };
+tickDelayScroll.oninput = function(){ tickDelayInput.value = this.value; updateTickDelayHint(); };
+tickDelayInput.oninput = function(){ tickDelayScroll.value = this.value; updateTickDelayHint(); };
+ditheringCheck.onchange = function(){ handleParamChange(); };
+invertCheck.onchange = function(){ handleParamChange(); };
+
+function updateTickDelayFromFps() {
+    var fps = parseInt(fpsInput.value) || 10;
+    var ticks = Math.max(1, Math.round(20 / fps));
+    tickDelayInput.value = ticks;
+    tickDelayScroll.value = ticks;
+    updateTickDelayHint();
+}
+
+function updateTickDelayHint() {
+    var ticks = parseInt(tickDelayInput.value) || 2;
+    var approxFps = (20 / ticks).toFixed(1);
+    tickDelayHint.textContent = '≈ ' + approxFps + ' FPS';
+}
+
+// Init
+updateTickDelayHint();
 
 // ============ State ============
 var img = new Image();
@@ -332,14 +536,19 @@ var frames = [];
 var pw = 0, ph = 0; // working width/height
 var isVideo = false;
 var videoDuration = 0;
+var totalFrames = 0;
+var currentFrameIdx = 0;
+var paramsDirty = false;
+var lastBrailleText = ''; // last fully-converted result for download
+var lastIsVideoSrc = false;
+var lastXLen = 16;
+var lastZLen = 16;
+var conversionDone = false; // whether a full conversion was ever completed
 
 // ============ Upload handlers ============
 upload.onchange = function() {
     if (!upload.files[0]) return;
-    convertBtn.style.display = 'none';
-    downloadBtn.style.display = 'none';
-    previewCard.style.display = 'none';
-    infoCard.style.display = 'none';
+    resetState();
     isVideo = false;
     var fr = new FileReader();
     fr.onload = function() {
@@ -351,16 +560,12 @@ upload.onchange = function() {
 
 uploadv.onchange = function() {
     if (!uploadv.files[0]) return;
-    convertBtn.style.display = 'none';
-    downloadBtn.style.display = 'none';
-    previewCard.style.display = 'none';
-    infoCard.style.display = 'none';
+    resetState();
     isVideo = true;
     frames = [];
     var fr = new FileReader();
     fr.onload = function() {
         vplayer.src = fr.result;
-        // wait for metadata to get duration
         vplayer.onloadedmetadata = function() {
             videoDuration = vplayer.duration;
             statusEl.textContent = '视频已加载，时长 ' + videoDuration.toFixed(1) + 's，点击「开始转换」提取帧';
@@ -373,7 +578,6 @@ uploadv.onchange = function() {
     document.getElementById('uploadVidText').textContent = uploadv.files[0].name;
 };
 
-// ============ Image loaded ============
 img.onload = function() {
     calcDimensions(img.width, img.height);
     drawSourcePreview();
@@ -386,8 +590,10 @@ img.onload = function() {
 
 // ============ Helpers ============
 function calcDimensions(srcW, srcH) {
-    var cw = srcW > maxWidthInput.value ? parseInt(maxWidthInput.value) : Math.round(srcW / 2) * 2;
-    var ch = srcH > maxHeightInput.value ? parseInt(maxHeightInput.value) : Math.round(srcH / 6) * 6;
+    var mw = parseInt(maxWidthInput.value) || 256;
+    var mh = parseInt(maxHeightInput.value) || 102;
+    var cw = srcW > mw ? mw : Math.round(srcW / 2) * 2;
+    var ch = srcH > mh ? mh : Math.round(srcH / 6) * 6;
     if (Math.round((cw / srcW) * srcH) > ch) {
         pw = Math.round((ch / srcH) * srcW);
         ph = ch;
@@ -395,7 +601,6 @@ function calcDimensions(srcW, srcH) {
         pw = cw;
         ph = Math.round((cw / srcW) * srcH);
     }
-    // ensure even width, multiple-of-6 height
     pw = Math.round(pw / 2) * 2;
     ph = Math.round(ph / 6) * 6;
     if (pw < 2) pw = 2;
@@ -413,23 +618,121 @@ function showInfo(w, h) {
     img_size.innerHTML = '源文件: ' + w + ' × ' + h + ' px &nbsp;|&nbsp; 转换尺寸: ' + pw + ' × ' + ph + ' px &nbsp;|&nbsp; 盲文: ' + (pw/2) + ' × ' + (ph/6) + ' 字符';
 }
 
+function resetState() {
+    convertBtn.style.display = 'none';
+    downloadBtn.style.display = 'none';
+    previewCard.style.display = 'none';
+    infoCard.style.display = 'none';
+    frameSeekArea.style.display = 'none';
+    progressArea.style.display = 'none';
+    conversionDone = false;
+    paramsDirty = false;
+    frames = [];
+    currentFrameIdx = 0;
+    downloadBtn.className = 'btn btn-success';
+    downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+}
+
+// ============ Frame seek bar ============
+frameSeek.oninput = function() {
+    currentFrameIdx = parseInt(this.value);
+    frameSeekLabel.textContent = '帧 ' + (currentFrameIdx + 1) + ' / ' + totalFrames;
+    showFrame(currentFrameIdx);
+};
+
+function initFrameSeek(count) {
+    totalFrames = count;
+    currentFrameIdx = 0;
+    frameSeekArea.style.display = 'flex';
+    frameSeek.max = count - 1;
+    frameSeek.value = 0;
+    frameSeekLabel.textContent = '帧 1 / ' + count;
+}
+
+function showFrame(idx) {
+    if (!isVideo || frames.length === 0) return;
+
+    // seek video to get source frame pixels
+    var time = idx / parseInt(fpsInput.value);
+    if (time > videoDuration) time = videoDuration;
+    vplayer.currentTime = time;
+    vplayer.onseeked = function() {
+        vplayer.onseeked = null;
+
+        // draw source
+        img_preview.width = pw;
+        img_preview.height = ph;
+        var ctx = img_preview.getContext('2d');
+        ctx.drawImage(vplayer, 0, 0, pw, ph);
+
+        // Always convert braille for this frame, regardless of which tab is visible
+        var imgData = ctx.getImageData(0, 0, pw, ph);
+        var threshold = parseInt(thresholdInput.value);
+        var enableDither = ditheringCheck.checked;
+        var invertColors = invertCheck.checked;
+        var brailleText = convertToBraille(imgData, pw, ph, threshold, enableDither, invertColors);
+
+        // Store and update braille preview (even if hidden — will be correct when tab switches)
+        convert_preview.textContent = brailleText;
+    };
+}
+
+function convertSingleFrame(imgData) {
+    var threshold = parseInt(thresholdInput.value);
+    var enableDither = ditheringCheck.checked;
+    var invertColors = invertCheck.checked;
+    var brailleText = convertToBraille(imgData, pw, ph, threshold, enableDither, invertColors);
+    convert_preview.textContent = brailleText;
+}
+
+// ============ Param change handler ============
+function handleParamChange() {
+    if (!conversionDone) return;
+
+    paramsDirty = true;
+
+    // Change download button to warning style
+    downloadBtn.className = 'btn btn-warning';
+    downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> 参数已更改，点击下载';
+
+    if (isVideo && frames.length > 0) {
+        // Re-convert current frame with new params and update braille preview
+        // Re-seek and convert
+        var time = currentFrameIdx / parseInt(fpsInput.value);
+        if (time > videoDuration) time = videoDuration;
+        vplayer.currentTime = time;
+        vplayer.onseeked = function() {
+            vplayer.onseeked = null;
+            var offscreen = document.createElement('canvas');
+            offscreen.width = pw;
+            offscreen.height = ph;
+            var offCtx = offscreen.getContext('2d');
+            offCtx.drawImage(vplayer, 0, 0, pw, ph);
+            var imgData = offCtx.getImageData(0, 0, pw, ph);
+            convertSingleFrame(imgData);
+
+            statusEl.textContent = '已更新当前帧预览 — 参数已更改，下载前需确认';
+            statusEl.className = 'status-bar info';
+        };
+    } else if (!isVideo && img.src) {
+        // Re-convert image with new params
+        calcDimensions(img.width, img.height);
+        drawSourcePreview();
+        var ctx = img_preview.getContext('2d');
+        var imgData = ctx.getImageData(0, 0, pw, ph);
+        convertSingleFrame(imgData);
+        showInfo(img.width, img.height);
+        statusEl.textContent = '参数已更改 — 下载前需确认';
+        statusEl.className = 'status-bar info';
+    }
+}
+
 // ============ Braille conversion ============
-/**
- * Convert canvas pixel data to Braille ASCII string
- * @param {ImageData} imgData - pixel data from canvas
- * @param {number} w - canvas width
- * @param {number} h - canvas height
- * @param {number} threshold - binarization threshold (0-255)
- * @param {boolean} enableDither - use Floyd-Steinberg dithering
- * @param {boolean} invertColors - invert black/white
- * @returns {string} Braille art text
- */
 function convertToBraille(imgData, w, h, threshold, enableDither, invertColors) {
-    var data = new Uint8Array(imgData.data); // copy
+    var data = new Uint8Array(imgData.data);
     var depth = new Float32Array(w * h);
     var asciiStr = '';
 
-    // compute luminance
     for (var y = 0; y < h; y++) {
         for (var x = 0; x < w; x++) {
             var idx = (x + y * w) * 4;
@@ -441,7 +744,6 @@ function convertToBraille(imgData, w, h, threshold, enableDither, invertColors) 
         }
     }
 
-    // process in 2x6 blocks
     for (var y = 0; y < h / 6; y++) {
         for (var x = 0; x < w / 2; x++) {
             var aBits = [[], []];
@@ -450,40 +752,24 @@ function convertToBraille(imgData, w, h, threshold, enableDither, invertColors) 
                     var px = x * 2 + i;
                     var py = y * 6 + j;
                     var dIdx = px + py * w;
-
-                    // binarize
                     var val = depth[dIdx];
                     if (invertColors) val = 255 - val;
                     var bit = val > threshold ? 1 : 0;
                     aBits[i][j] = bit;
 
-                    // Floyd-Steinberg error diffusion
                     if (enableDither && px < w - 1 && py < h - 1) {
                         var error = val - (bit ? 255 : 0);
-                        // right
                         if (px + 1 < w) depth[px + 1 + py * w] += error * 7 / 16;
-                        // bottom-left
                         if (px > 0 && py + 1 < h) depth[px - 1 + (py + 1) * w] += error * 3 / 16;
-                        // bottom
                         if (py + 1 < h) depth[px + (py + 1) * w] += error * 5 / 16;
-                        // bottom-right
                         if (px + 1 < w && py + 1 < h) depth[px + 1 + (py + 1) * w] += error * 1 / 16;
                     }
                 }
             }
-
-            // Braille Unicode: U+2800 + bit pattern
-            // bit layout: a[0][0]=bit0, a[0][1]=bit1, a[0][2]=bit2, a[1][0]=bit3,
-            //             a[1][1]=bit4, a[1][2]=bit5, a[0][3]=bit6, a[1][3]=bit7
             var code = 0x2800
-                + (aBits[0][0] << 0)
-                + (aBits[0][1] << 1)
-                + (aBits[0][2] << 2)
-                + (aBits[1][0] << 3)
-                + (aBits[1][1] << 4)
-                + (aBits[1][2] << 5)
-                + (aBits[0][3] << 6)
-                + (aBits[1][3] << 7);
+                + (aBits[0][0] << 0) + (aBits[0][1] << 1) + (aBits[0][2] << 2)
+                + (aBits[1][0] << 3) + (aBits[1][1] << 4) + (aBits[1][2] << 5)
+                + (aBits[0][3] << 6) + (aBits[1][3] << 7);
             asciiStr += String.fromCharCode(code);
         }
         asciiStr += '\n';
@@ -505,7 +791,6 @@ function processImage() {
     var enableDither = ditheringCheck.checked;
     var invertColors = invertCheck.checked;
 
-    // Recalculate dimensions based on current slider values
     calcDimensions(img.width, img.height);
     drawSourcePreview();
 
@@ -513,10 +798,16 @@ function processImage() {
     var imgData = ctx.getImageData(0, 0, pw, ph);
     var result = convertToBraille(imgData, pw, ph, threshold, enableDither, invertColors);
 
-    // update info with potentially new dimensions
     showInfo(img.width, img.height);
     showPreview(result);
-    enableDownload(result, false);
+
+    // Store for download
+    lastBrailleText = result;
+    lastIsVideoSrc = false;
+    conversionDone = true;
+    paramsDirty = false;
+
+    enableDownloadClean();
     statusEl.textContent = '转换完成！';
     statusEl.className = 'status-bar';
 }
@@ -527,26 +818,26 @@ function processVideo() {
     var enableDither = ditheringCheck.checked;
     var invertColors = invertCheck.checked;
     var fps = parseInt(fpsInput.value);
-    var blockW = parseInt(blockWidthInput.value);
+    var xLen = parseInt(xLengthInput.value) || 16;
+    var zLen = parseInt(zLengthInput.value) || 16;
 
-    var totalFrames = Math.ceil(videoDuration * fps);
+    var total = Math.ceil(videoDuration * fps);
+    totalFrames = total;
     frames = [];
     convertBtn.disabled = true;
     convertBtn.textContent = '转换中...';
     progressArea.style.display = 'block';
+    paramsDirty = false;
 
-    // Calculate dimensions from first frame
     calcDimensions(vplayer.videoWidth, vplayer.videoHeight);
 
     var captured = 0;
-    var lastProgress = 0;
 
     function captureFrame(time) {
         return new Promise(function(resolve) {
             vplayer.currentTime = time;
             vplayer.onseeked = function() {
                 vplayer.onseeked = null;
-                // draw to offscreen canvas
                 var offscreen = document.createElement('canvas');
                 offscreen.width = pw;
                 offscreen.height = ph;
@@ -560,7 +851,6 @@ function processVideo() {
         });
     }
 
-    // Show first frame preview
     function showFirstFramePreview() {
         return new Promise(function(resolve) {
             img_preview.width = pw;
@@ -579,36 +869,44 @@ function processVideo() {
         });
     }
 
-    // process frames sequentially (seek-based, no playback needed)
     async function processAll() {
         var firstDone = false;
-        for (var f = 0; f < totalFrames; f++) {
+        for (var f = 0; f < total; f++) {
             var time = f / fps;
             if (time > videoDuration) time = videoDuration;
             await captureFrame(time);
             captured++;
 
-            var pct = Math.min(100, Math.round(captured / totalFrames * 100));
+            var pct = Math.min(100, Math.round(captured / total * 100));
             progressFill.style.width = pct + '%';
-            progressText.textContent = '帧 ' + captured + ' / ' + totalFrames + ' (' + pct + '%)';
+            progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + pct + '%)';
 
-            // show first frame preview
             if (!firstDone) {
                 firstDone = true;
                 await showFirstFramePreview();
+                // init frame seek after first frame shown
+                initFrameSeek(total);
             }
         }
 
-        // show combined preview
         var combined = frames.join('');
         showPreview(combined);
-        enableDownload(combined, true, blockW);
+
+        // Store for download
+        lastBrailleText = combined;
+        lastIsVideoSrc = true;
+        lastXLen = xLen;
+        lastZLen = zLen;
+        conversionDone = true;
+        paramsDirty = false;
+
+        enableDownloadClean();
         convertBtn.disabled = false;
         convertBtn.textContent = '开始转换';
         progressFill.style.width = '100%';
         progressText.textContent = '完成！共 ' + frames.length + ' 帧';
 
-        statusEl.textContent = '视频转换完成！共 ' + frames.length + ' 帧，可点击下载按钮保存文件';
+        statusEl.textContent = '视频转换完成！共 ' + frames.length + ' 帧，可拖动帧滑块预览';
         statusEl.className = 'status-bar';
         downloadBtn.style.display = 'inline-flex';
     }
@@ -623,45 +921,73 @@ function processVideo() {
 
 // ============ Preview ============
 function showPreview(brailleText) {
-    // draw source to preview canvas (if not already)
     if (!isVideo) {
         previewCard.style.display = '';
         infoCard.style.display = '';
         convertBtn.style.display = 'none';
     }
-
     convert_preview.textContent = brailleText;
 }
 
-// ============ Download ============
-function enableDownload(brailleText, isVideoSrc, blockW) {
+// ============ Download with dirty-param handling ============
+function enableDownloadClean() {
     downloadBtn.style.display = 'inline-flex';
-    // remove old onclick to prevent stacking
-    downloadBtn.onclick = null;
-    downloadBtn.onclick = function() {
-        doDownload(brailleText, isVideoSrc, blockW || parseInt(blockWidthInput.value) || 16);
-    };
+    downloadBtn.className = 'btn btn-success';
+    downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+    // onclick not set here — the global downloadBtn.onclick handler checks paramsDirty
 }
 
-function doDownload(brailleText, isVideoSrc, blockW) {
+downloadBtn.onclick = function() {
+    if (paramsDirty) {
+        // Show modal
+        modalOverlay.classList.add('show');
+        modalDownloadOld.onclick = function() {
+            modalOverlay.classList.remove('show');
+            doDownload(lastBrailleText, lastIsVideoSrc, lastXLen, lastZLen);
+        };
+        modalReconvert.onclick = function() {
+            modalOverlay.classList.remove('show');
+            // Reset params dirty and re-run full conversion
+            paramsDirty = false;
+            if (isVideo) {
+                processVideo();
+                // Download will be enabled after conversion completes
+            } else {
+                processImage();
+            }
+        };
+    } else {
+        doDownload(lastBrailleText, lastIsVideoSrc, lastXLen, lastZLen);
+    }
+};
+
+// Close modal on overlay click
+modalOverlay.onclick = function(e) {
+    if (e.target === modalOverlay) {
+        modalOverlay.classList.remove('show');
+    }
+};
+
+function doDownload(brailleText, isVideoSrc, xLen, zLen) {
     var fmt = document.getElementById('outputFormat').value;
 
     if (fmt === 'mcfunction') {
         downloadAsMcfunction(brailleText, isVideoSrc);
     } else if (fmt === 'bdx') {
-        downloadAsBDX(brailleText, isVideoSrc, blockW);
+        downloadAsBDX(brailleText, isVideoSrc, xLen, zLen);
     } else {
-        downloadAsMCStructure(brailleText, isVideoSrc, blockW);
+        downloadAsMCStructure(brailleText, isVideoSrc, xLen, zLen);
     }
 }
 
 function buildCommandBlocks(brailleText, isVideoSrc) {
     var cbs = [];
     var texts = isVideoSrc ? frames : [brailleText];
+    var tick = parseInt(tickDelayInput.value) || 2;
     for (var i = 0; i < texts.length; i++) {
         cbs.push(new commandBlock(
             'titleraw @a actionbar ' + JSON.stringify({ rawtext: [{ text: texts[i] }] }),
-            '', 1, 0, 2, 1
+            '', 1, 0, tick, 1
         ));
     }
     if (cbs.length > 0) {
@@ -671,7 +997,7 @@ function buildCommandBlocks(brailleText, isVideoSrc) {
     return cbs;
 }
 
-function downloadAsMCStructure(brailleText, isVideoSrc, blockW) {
+function downloadAsMCStructure(brailleText, isVideoSrc, xLen, zLen) {
     var cbs = buildCommandBlocks(brailleText, isVideoSrc);
     if (cbs.length === 0) return;
     var cbc = new CBConstructor(cbs);
@@ -682,13 +1008,13 @@ function downloadAsMCStructure(brailleText, isVideoSrc, blockW) {
         var strudat = cbc.generateMCStructure(16, 256, 16);
         saveAs(new Blob([strudat]), prefix + rand + '.mcstructure');
     } else {
-        var cbHeight = Math.ceil(cbs.length / blockW);
-        var strudat = cbc.generateMCStructure(blockW, cbHeight, 16);
+        var cbHeight = Math.ceil(cbs.length / (xLen * zLen));
+        var strudat = cbc.generateMCStructure(xLen, cbHeight, zLen);
         saveAs(new Blob([strudat]), prefix + rand + '.mcstructure');
     }
 }
 
-function downloadAsBDX(brailleText, isVideoSrc, blockW) {
+function downloadAsBDX(brailleText, isVideoSrc, xLen, zLen) {
     var cbs = buildCommandBlocks(brailleText, isVideoSrc);
     if (cbs.length === 0) return;
     var cbc = new CBConstructor(cbs);
@@ -699,50 +1025,22 @@ function downloadAsBDX(brailleText, isVideoSrc, blockW) {
         var bdxData = cbc.generateBDX(16, 256, 16);
         saveAs(new Blob([bdxData]), prefix + rand + '.bdx');
     } else {
-        var cbHeight = Math.ceil(cbs.length / blockW);
-        var bdxData = cbc.generateBDX(blockW, cbHeight, 16);
+        var cbHeight = Math.ceil(cbs.length / (xLen * zLen));
+        var bdxData = cbc.generateBDX(xLen, cbHeight, zLen);
         saveAs(new Blob([bdxData]), prefix + rand + '.bdx');
     }
 }
 
 function downloadAsMcfunction(brailleText, isVideoSrc) {
     var rand = Math.random().toFixed(5).split('.')[1];
+    var content = '# Generated by Dislink Braille Art Generator\n# ' + new Date().toISOString() + '\n';
 
-    if (!isVideoSrc) {
-        // Single image → one .mcfunction file
-        var cmd = 'titleraw @a actionbar ' + JSON.stringify({ rawtext: [{ text: brailleText }] });
-        var content = '# Generated by Dislink Braille Art Generator\n# ' + new Date().toISOString() + '\n' + cmd + '\n';
-        saveAs(new Blob([content], { type: 'text/plain;charset=utf-8' }), 'braille_' + rand + '.mcfunction');
-    } else {
-        // Video → bundle all frame .mcfunction files into a ZIP
-        var ns = 'braille_' + rand;
-        var fps = parseInt(fpsInput.value) || 10;
-        var tickInterval = Math.round(20 / fps);
-        var zip = new JSZip();
-
-        for (var i = 0; i < frames.length; i++) {
-            var cmd = 'titleraw @a actionbar ' + JSON.stringify({ rawtext: [{ text: frames[i] }] });
-            var mcContent = '# Frame ' + i + ' / ' + frames.length + '\n';
-            mcContent += '# fps: ' + fps + ', interval: ' + tickInterval + 't\n';
-            mcContent += '# Generated by Dislink Braille Art Generator\n';
-            mcContent += cmd + '\n';
-            if (i < frames.length - 1) {
-                mcContent += 'schedule function ' + ns + '_' + (i + 1) + ' ' + tickInterval + 't\n';
-            }
-            zip.file(ns + '_' + i + '.mcfunction', mcContent);
-        }
-
-        // Also add an index/readme
-        zip.file('README.txt', 'Braille Animation - ' + frames.length + ' frames @ ' + fps + 'fps\n'
-            + 'Generated by Dislink Braille Art Generator\n'
-            + 'Run /function ' + ns + '_0 to start the animation.\n');
-
-        zip.generateAsync({ type: 'blob' }).then(function(content) {
-            saveAs(content, ns + '.zip');
-            statusEl.innerHTML = '已生成 ZIP 包，包含 ' + frames.length + ' 个 .mcfunction 文件（自动下载中）<br>放入行为包后执行 <code>/function ' + ns + '_0</code>';
-            statusEl.className = 'status-bar info';
-        });
+    var texts = isVideoSrc ? frames : [brailleText];
+    for (var i = 0; i < texts.length; i++) {
+        content += 'titleraw @a actionbar ' + JSON.stringify({ rawtext: [{ text: texts[i] }] }) + '\n';
     }
+
+    saveAs(new Blob([content], { type: 'text/plain;charset=utf-8' }), 'braille_' + rand + '.mcfunction');
 }
 </script>
 </body>
