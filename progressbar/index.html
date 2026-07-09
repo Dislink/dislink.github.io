@@ -94,7 +94,7 @@
 <script>
 sectionsScroll.onchange=(e)=>{ sections.value=e.target.value; }
 sections.onchange=(e)=>{ sectionsScroll.value=e.target.value; }
-download.onclick=(()=>{
+download.onclick=(()=>{try{
     let zip=new JSZip();
     let functions=zip.folder("functions");
     manifestBE.header.name=`Progress-${full.value}${bar.value}${sections.value}`;
@@ -115,7 +115,7 @@ scoreboard players set @e[tag=${tag.value}] ${scoreboard.value} 0`)
     zip.generateAsync({type:"blob"}).then(function(content) {
         saveAs(content, `Progress-${full.value}${bar.value}${sections.value}.mcpack`);
     });
-})
+}catch(e){var em=e.toString().split('\n')[0];document.getElementById("status").innerText=em;document.getElementById("status").className="status-bar error";window.reportError(e)}})
 </script>
 </body>
 </html>

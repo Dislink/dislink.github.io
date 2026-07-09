@@ -205,7 +205,7 @@
             if(upload.seq==upload.files.length-1) return;
         }
         upload.onchange();
-    }catch(e){ alert(e); throw e; }
+    }catch(e){ var errMsg=e.toString().split('\n')[0];document.getElementById("status").innerText=errMsg;document.getElementById("status").className="status-bar error";window.reportError(e); }
     })
 </script>
 </body>

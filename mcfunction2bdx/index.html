@@ -124,23 +124,25 @@
     zLengthScroll.onchange=(e)=>{ zLength.value=e.target.value; heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:''; }
     zLength.onchange=(e)=>{ zLengthScroll.value=e.target.value; heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:''; }
     upload.onchange=(()=>{
-        if(!upload.files[0]) return;
-        var fr=new FileReader();
-        fr.onload=()=>{
-            document.getElementById("fileInfo").style="display: block;";
-            document.getElementById("download").style="display: block;";
-            document.getElementById("fileName").innerText=upload.files[0].name;
-            let decoder = new TextDecoder()
-            contentRaw=decoder.decode(fr.result);
-            contents=contentRaw.split("\n");
-            commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
-            document.getElementById("linesTotal").innerText=`文件行数: ${contents.length}`;
-            document.getElementById("commandsTotal").innerText=`命令数: ${commands.length}`;
-            heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
-        }
-        fr.readAsArrayBuffer(upload.files[0]);
+        try{
+            if(!upload.files[0]) return;
+            var fr=new FileReader();
+            fr.onload=()=>{try{
+                document.getElementById("fileInfo").style="display: block;";
+                document.getElementById("download").style="display: block;";
+                document.getElementById("fileName").innerText=upload.files[0].name;
+                let decoder = new TextDecoder()
+                contentRaw=decoder.decode(fr.result);
+                contents=contentRaw.split("\n");
+                commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
+                document.getElementById("linesTotal").innerText=`文件行数: ${contents.length}`;
+                document.getElementById("commandsTotal").innerText=`命令数: ${commands.length}`;
+                heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+            }catch(e){var em=e.toString().split('\n')[0];document.getElementById("status").innerText=em;document.getElementById("status").className="status-bar error";window.reportError(e)}}
+            fr.readAsArrayBuffer(upload.files[0]);
+        }catch(e){var em2=e.toString().split('\n')[0];document.getElementById("status").innerText=em2;document.getElementById("status").className="status-bar error";window.reportError(e)}
     })
-    download.onclick=(()=>{
+    download.onclick=(()=>{try{
         data=''
         let seq=0,x=0,y=0,z=0;
         let xBackward=false,zBackward=false;
@@ -159,7 +161,7 @@
         }
         compressed=new Brotli().compressArray(Uint8Array.from(BDXDataP1.concat(Array.from(new TextEncoder().encode(data)).concat(BDXDataEnd))), 6);
         saveAs(new Blob([Uint8Array.from(BDXFileHdr.concat(Array.from(compressed)))]),`${fileName.innerText.replace(/\.mcfunction$/, '')}.bdx`)
-    })
+    }catch(e){var em=e.toString().split('\n')[0];document.getElementById("status").innerText=em;document.getElementById("status").className="status-bar error";window.reportError(e)}})
 </script>
 </body>
 </html>

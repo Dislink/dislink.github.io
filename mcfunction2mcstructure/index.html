@@ -128,23 +128,25 @@
     zLengthScroll.onchange=(e)=>{ zLength.value=e.target.value; heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:''; }
     zLength.onchange=(e)=>{ zLengthScroll.value=e.target.value; heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:''; }
     upload.onchange=(()=>{
-        if(!upload.files[0]) return;
-        var fr=new FileReader();
-        fr.onload=()=>{
-            document.getElementById("fileInfo").style="display: block;";
-            document.getElementById("download").style="display: block;";
-            document.getElementById("fileName").innerText=upload.files[0].name;
-            let decoder = new TextDecoder()
-            contentRaw=decoder.decode(fr.result);
-            contents=contentRaw.split("\n");
-            commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
-            document.getElementById("linesTotal").innerText=`文件行数: ${contents.length}`;
-            document.getElementById("commandsTotal").innerText=`命令数: ${commands.length}`;
-            heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
-        }
-        fr.readAsArrayBuffer(upload.files[0]);
+        try{
+            if(!upload.files[0]) return;
+            var fr=new FileReader();
+            fr.onload=()=>{try{
+                document.getElementById("fileInfo").style="display: block;";
+                document.getElementById("download").style="display: block;";
+                document.getElementById("fileName").innerText=upload.files[0].name;
+                let decoder = new TextDecoder()
+                contentRaw=decoder.decode(fr.result);
+                contents=contentRaw.split("\n");
+                commands=contents.filter((d)=>{return d.match(/^[^#]*/)[0]});
+                document.getElementById("linesTotal").innerText=`文件行数: ${contents.length}`;
+                document.getElementById("commandsTotal").innerText=`命令数: ${commands.length}`;
+                heightEstimate.innerText=commands.length?`预计高度: ${Math.ceil(commands.length/(parseInt(xLength.value)*(parseInt(zLength.value))))}`:'';
+            }catch(e){var em=e.toString().split('\n')[0];document.getElementById("status").innerText=em;document.getElementById("status").className="status-bar error";window.reportError(e)}}
+            fr.readAsArrayBuffer(upload.files[0]);
+        }catch(e){var em2=e.toString().split('\n')[0];document.getElementById("status").innerText=em2;document.getElementById("status").className="status-bar error";window.reportError(e)}
     })
-    download.onclick=(()=>{
+    download.onclick=(()=>{try{
         let seq=0,x=0,y=0,z=0,X=parseInt(xLength.value),Y=Math.ceil(commands.length/parseInt(xLength.value)*parseInt(zLength.value)),Z=parseInt(zLength.value);
         structureNBT.value.size.value.value=[X, Y, Z];
         structureNBT.value.structure.value.block_indices.value.value[0].value=new Array(structureNBT.value.size.value.value[0]*structureNBT.value.size.value.value[1]*structureNBT.value.size.value.value[2]).fill(-1);
@@ -175,7 +177,7 @@
             if(err) console.log(err)
             saveAs(content, `${fileName.innerText.replace(/\.mcfunction$/, '')}.mcpack`);
         });
-    })
+    }catch(e){var em=e.toString().split('\n')[0];document.getElementById("status").innerText=em;document.getElementById("status").className="status-bar error";window.reportError(e)}})
 </script>
 </body>
 </html>

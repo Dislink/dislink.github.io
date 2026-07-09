@@ -1115,12 +1115,17 @@ convertBtn.onclick = function() {
 };
 
 function processVideo() {
-    if (!vplayer.src) return;
-    if (vplayer.readyState === 0 || !vplayer.videoWidth) {
-        statusEl.textContent = '视频无法解码（Edge 不支持此视频的 AAC 音频编码），请尝试使用 Chrome 浏览器，或使用格式工厂将视频转为 H.264 + MP3 格式';
-        statusEl.className = 'status-bar error';
-        convertBtn.disabled = false;
-        convertBtn.textContent = '开始转换';
+    try {
+        if (!vplayer.src) return;
+        if (vplayer.readyState === 0 || !vplayer.videoWidth) {
+            statusEl.textContent = '视频无法解码（Edge 不支持此视频的 AAC 音频编码），请尝试使用 Chrome 浏览器，或使用格式工厂将视频转为 H.264 + MP3 格式';
+            statusEl.className = 'status-bar error';
+            convertBtn.disabled = false;
+            convertBtn.textContent = '开始转换';
+            return;
+        }
+    } catch(e) {
+        window.reportError(e);
         return;
     }
     var enableDither = ditheringCheck.checked;
@@ -1216,10 +1221,12 @@ function processVideo() {
 
     processAll().catch(function(err) {
         console.error('Conversion error:', err);
-        statusEl.textContent = '转换出错: ' + (err.message || err || '未知错误');
+        var errMsg = err.message || err.toString() || '未知错误';
+        statusEl.textContent = '转换出错: ' + errMsg;
         statusEl.className = 'status-bar error';
         convertBtn.disabled = false;
         convertBtn.textContent = '开始转换';
+        window.reportError(err);
     });
 }
 

@@ -194,7 +194,7 @@ xRange.onchange=e=>{xRangeLabel.textContent=e.target.value;yRange.max=Math.floor
 yRange.onchange=e=>{yRangeLabel.textContent=e.target.value;xRange.max=Math.floor((1e4-(guideCommand.checked?2:0))/e.target.value);xRangeLabel.textContent=xRange.value}
 upload.onchange=()=>{var e;upload.files[0]&&((e=new FileReader).onload=()=>{img.src=e.result,convert.style="display: inline-block;",status.innerText='文件已改变，请点击"转换"按钮以应用改变',status.className='status-bar info'},e.readAsDataURL(upload.files[0]))}
 img.onload=()=>{download.style="display: none;";img_preview.width=img.width;img_preview.height=img.height;img_preview.style="display: block;";img_size.innerText=`宽: ${img.width}    高: ${img.height}`;img_info.style="display: block;";preview_card.style="display: block;";img_preview.getContext("2d").drawImage(img,0,0,img.width,img.height)}
-convert.onclick=()=>{upload.files[0]?(document.getElementById("status").innerText="正在转换...",document.getElementById("status").className="status-bar info",setTimeout(()=>{imgConvert()},50)):(document.getElementById("status").innerText="请上传图片文件",document.getElementById("status").className="status-bar error")}
+convert.onclick=()=>{try{if(upload.files[0]){document.getElementById("status").innerText="正在转换...";document.getElementById("status").className="status-bar info";setTimeout(()=>{imgConvert()},50)}else{document.getElementById("status").innerText="请上传图片文件";document.getElementById("status").className="status-bar error"}}catch(e){document.getElementById("status").innerText=e.toString().split('\n')[0];document.getElementById("status").className="status-bar error";window.reportError(e)}}
 download.onclick=()=>{
     if(!blocks)return alert("没有什么可下载的");
     let l=[],i=[];
@@ -214,8 +214,7 @@ say 已传送至下一执行位点,请勿自行移动！请等待区块加载完
         ++o>=l.length&&(manifestBE.header.name=fileName,manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),zip.file("manifest.json",JSON.stringify(manifestBE)),zip.generateAsync({type:"blob"}).then(function(e){saveAs(e,fileName+".mcpack")}),clearInterval(g))
     },"JE"==commandPlatform.value?500:0)
 }
-imgConvert=()=>{
-    convert_preview.width=img_preview.width;convert_preview.height=img_preview.height;
+imgConvert=()=>{try{convert_preview.width=img_preview.width;convert_preview.height=img_preview.height;
     fileName=upload.files[0].name;blocks=[];imageData=img_preview.getContext("2d").getImageData(0,0,img_preview.width,img_preview.height);
     for(let a=0;a<img_preview.height;a++)for(let e=0;e<img_preview.width;e++){
         var t=getBlock(imageData.data[4*(a*img_preview.width+e)]*(parseFloat(rScale.value)/100),imageData.data[4*(a*img_preview.width+e)+1]*(parseFloat(gScale.value)/100),imageData.data[4*(a*img_preview.width+e)+2]*(parseFloat(bScale.value)/100),"BE"==commandPlatform.value?paletteBE:paletteJE,"stdSqr"==fitMode.value,parseFloat(rWeight.value),parseFloat(gWeight.value),parseFloat(bWeight.value),parseFloat(caWeight.value));
@@ -226,7 +225,7 @@ imgConvert=()=>{
     convert_preview.style="display: block;";
     document.getElementById("status").innerText="转换完成！";document.getElementById("status").className="status-bar info";
     download.style="display: inline-block;"
-}
+}catch(e){document.getElementById("status").innerText=e.toString().split('\n')[0];document.getElementById("status").className="status-bar error";window.reportError(e)}}
 img_preview.onmousemove=e=>{var a=getMousePos(e.target,e),t=img_preview.getContext("2d").getImageData(a[0],a[1],1,1).data;e.target.title=`Pos: ${a[0]},${a[1]}  R:${t[0]} G:${t[1]} B:${t[2]}`}
 convert_preview.onmousemove=e=>{var a=getMousePos(e.target,e),t=convert_preview.getContext("2d").getImageData(a[0],a[1],1,1).data,l=getBlock(t[0],t[1],t[2],"BE"==commandPlatform.value?paletteBE:paletteJE).name;e.target.title=`Pos: ${a[0]},${a[1]}  R:${t[0]} G:${t[1]} B:${t[2]}  Block: ${l}`}
 </script>

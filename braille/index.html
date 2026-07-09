@@ -835,38 +835,50 @@ convertBtn.onclick = function() {
 };
 
 function processImage() {
-    var threshold = parseInt(thresholdInput.value);
-    var enableDither = ditheringCheck.checked;
-    var invertColors = invertCheck.checked;
+    try {
+        var threshold = parseInt(thresholdInput.value);
+        var enableDither = ditheringCheck.checked;
+        var invertColors = invertCheck.checked;
 
-    calcDimensions(img.width, img.height);
-    drawSourcePreview();
+        calcDimensions(img.width, img.height);
+        drawSourcePreview();
 
-    var ctx = img_preview.getContext('2d');
-    var imgData = ctx.getImageData(0, 0, pw, ph);
-    var result = convertToBraille(imgData, pw, ph, threshold, enableDither, invertColors);
+        var ctx = img_preview.getContext('2d');
+        var imgData = ctx.getImageData(0, 0, pw, ph);
+        var result = convertToBraille(imgData, pw, ph, threshold, enableDither, invertColors);
 
-    showInfo(img.width, img.height);
-    showPreview(result);
+        showInfo(img.width, img.height);
+        showPreview(result);
 
-    // Store for download
-    lastBrailleText = result;
-    lastIsVideoSrc = false;
-    conversionDone = true;
-    paramsDirty = false;
+        // Store for download
+        lastBrailleText = result;
+        lastIsVideoSrc = false;
+        conversionDone = true;
+        paramsDirty = false;
 
-    enableDownloadClean();
-    statusEl.textContent = '转换完成！';
-    statusEl.className = 'status-bar';
+        enableDownloadClean();
+        statusEl.textContent = '转换完成！';
+        statusEl.className = 'status-bar';
+    } catch(e) {
+        var errMsg = e.toString().split('\n')[0];
+        statusEl.textContent = errMsg;
+        statusEl.className = 'status-bar error';
+        window.reportError(e);
+    }
 }
 
 function processVideo() {
-    if (!vplayer.src) return;
-    if (vplayer.readyState === 0 || !vplayer.videoWidth) {
-        statusEl.textContent = '视频无法解码（Edge 不支持此视频的 AAC 音频编码），请尝试使用 Chrome 浏览器，或使用格式工厂将视频转为 H.264 + MP3 格式';
-        statusEl.className = 'status-bar error';
-        convertBtn.disabled = false;
-        convertBtn.textContent = '开始转换';
+    try {
+        if (!vplayer.src) return;
+        if (vplayer.readyState === 0 || !vplayer.videoWidth) {
+            statusEl.textContent = '视频无法解码（Edge 不支持此视频的 AAC 音频编码），请尝试使用 Chrome 浏览器，或使用格式工厂将视频转为 H.264 + MP3 格式';
+            statusEl.className = 'status-bar error';
+            convertBtn.disabled = false;
+            convertBtn.textContent = '开始转换';
+            return;
+        }
+    } catch(e) {
+        window.reportError(e);
         return;
     }
     var threshold = parseInt(thresholdInput.value);
@@ -967,10 +979,12 @@ function processVideo() {
     }
 
     processAll().catch(function(err) {
-        statusEl.textContent = '转换出错: ' + err.message;
+        var errMsg = err.message || err.toString() || '未知错误';
+        statusEl.textContent = '转换出错: ' + errMsg;
         statusEl.className = 'status-bar error';
         convertBtn.disabled = false;
         convertBtn.textContent = '开始转换';
+        window.reportError(err);
     });
 }
 
