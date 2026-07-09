@@ -212,6 +212,11 @@
             opacity: 0;
             pointer-events: none;
         }
+        .status-bar.warning {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #b45309;
+        }
         @media (max-width: 600px) {
             .braille-preview { font-size: 7px; }
         }
@@ -592,6 +597,27 @@ uploadv.onchange = function() {
         convertBtn.style.display = 'inline-flex';
         downloadBtn.style.display = 'none';
     });
+    // Handle video errors gracefully — show convert button anyway (e.g. Edge AAC decode issue)
+    vplayer.addEventListener('error', function() {
+        console.error('Video error:', vplayer.error ? (vplayer.error.code + ': ' + vplayer.error.message) : 'unknown');
+        if (convertBtn.style.display === 'none' || convertBtn.style.display === '') {
+            videoDuration = vplayer.duration || 0;
+            statusEl.textContent = '视频加载有警告，仍可尝试转换';
+            statusEl.className = 'status-bar warning';
+            convertBtn.style.display = 'inline-flex';
+            downloadBtn.style.display = 'none';
+        }
+    });
+    // Safety timeout: show convert button after 5s regardless
+    setTimeout(function() {
+        if (convertBtn.style.display === 'none' || convertBtn.style.display === '') {
+            videoDuration = vplayer.duration || 0;
+            statusEl.textContent = '视频已加载（点击「开始转换」提取帧）';
+            statusEl.className = 'status-bar info';
+            convertBtn.style.display = 'inline-flex';
+            downloadBtn.style.display = 'none';
+        }
+    }, 5000);
     document.getElementById('uploadVidText').textContent = uploadv.files[0].name;
 };
 
@@ -836,6 +862,13 @@ function processImage() {
 
 function processVideo() {
     if (!vplayer.src) return;
+    if (vplayer.readyState === 0 || !vplayer.videoWidth) {
+        statusEl.textContent = '视频无法解码（Edge 不支持此视频的 AAC 音频编码），请尝试使用 Chrome 浏览器，或使用格式工厂将视频转为 H.264 + MP3 格式';
+        statusEl.className = 'status-bar error';
+        convertBtn.disabled = false;
+        convertBtn.textContent = '开始转换';
+        return;
+    }
     var threshold = parseInt(thresholdInput.value);
     var enableDither = ditheringCheck.checked;
     var invertColors = invertCheck.checked;
