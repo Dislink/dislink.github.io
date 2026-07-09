@@ -369,7 +369,7 @@
 
                 <div class="inline-group-flex">
                     <div class="inline-group">
-                        <input type="checkbox" id="dithering" checked>
+                        <input type="checkbox" id="dithering">
                         <label for="dithering">启用 Floyd-Steinberg 抖动 (Dithering)</label>
                     </div>
                 </div>
@@ -862,22 +862,14 @@ uploadv.onchange = function() {
 function calcDimensions(srcW, srcH) {
     var mw = parseInt(maxWidthInput.value) || 320;
     var mh = parseInt(maxHeightInput.value) || 180;
-    var ratio = srcW / srcH;
-    if (srcW > mw) {
-        pw = mw;
-        ph = Math.round(mw / ratio / 5) * 5;
-    } else if (srcH > mh) {
-        ph = mh;
-        pw = Math.round(mh * ratio);
-    } else {
-        pw = Math.round(srcW / 2) * 2;
-        ph = Math.round(srcH / 5) * 5;
-    }
-    if (pw > mw) { pw = mw; ph = Math.round(mw / ratio / 5) * 5; }
-    if (ph > mh) { ph = mh; pw = Math.round(mh * ratio / 2) * 2; }
+    // Proportional scale to fit within both max width and max height
+    var scale = Math.min(1, mw / srcW, mh / srcH);
+    pw = Math.round(srcW * scale / 2) * 2;
+    ph = Math.round(srcH * scale / 5) * 5;
+    if (pw > mw) pw = Math.floor(pw / 2) * 2;
+    if (ph > mh) ph = Math.floor(ph / 5) * 5;
     if (pw < 2) pw = 2;
     if (ph < 5) ph = 5;
-    pw = Math.round(pw / 2) * 2;
     calcDisplayDimensions(srcW, srcH);
 }
 

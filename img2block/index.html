@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地图画生成器 | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HJVLPQTQE6');</script>
+    <script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s);})();</script>
+    <script src="/javascript/jszip.min.js" type="text/javascript"></script>
+    <script src="/javascript/zlib.min.js" type="text/javascript"></script>
+    <script src="/javascript/Brotli.decompress.js" type="text/javascript"></script>
+    <script src="/javascript/brotli.min.js" type="text/javascript"></script>
+    <script src="/javascript/nbt.js" type="text/javascript"></script>
+    <script src="/javascript/Math.uuid.js" type="text/javascript"></script>
+    <script src="/javascript/FileSaver.js" type="text/javascript"></script>
+    <script src="/javascript/CBConstructor.js" type="text/javascript"></script>
+    <script src="/javascript/id2blockState.js" type="text/javascript"></script>
+    <script src="/javascript/id2blockNameSpace.js" type="text/javascript"></script>
+    <script src="/javascript/blockNamespace2blockState.js" type="text/javascript"></script>
+    <script src="/javascript/java2bedrock.js" type="text/javascript"></script>
+    <script src="/javascript/bdx.js" type="text/javascript"></script>
+    <script src="/javascript/matrix.js" type="text/javascript"></script>
+    <script src="/javascript/structure.js" type="text/javascript"></script>
+    <script src="/javascript/exectransform.js" type="text/javascript"></script>
+    <script src="/javascript/error-handler.js"></script>
+    <style>
+        .inline-group-flex {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .btn-warning {
+            background: #f59e0b;
+            color: #fff;
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-warning:hover {
+            background: #d97706;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+        .btn-warning:active {
+            transform: translateY(0);
+        }
+        .progress-bar {
+            width: 100%;
+            height: 0.5rem;
+            background: var(--color-border);
+            border-radius: 99px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+        .progress-bar .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--color-primary), #6366f1);
+            border-radius: 99px;
+            transition: width 0.15s ease;
+        }
+        .progress-text {
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+        .preview-selector {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .preview-selector .tab-btn {
+            padding: 0.35rem 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            border: 1px solid var(--color-border-strong);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: var(--font-sans);
+        }
+        .preview-selector .tab-btn:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+        .preview-selector .tab-btn.active {
+            background: var(--color-primary);
+            color: #fff;
+            border-color: var(--color-primary);
+        }
+        /* Modal overlay */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+        .modal-box {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal-box h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: 0.5rem;
+        }
+        .modal-box p {
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+        .modal-actions .btn {
+            flex: 1;
+        }
+        .modal-actions .btn-secondary {
+            background: var(--color-surface-alt);
+            color: var(--color-text);
+            border: 1px solid var(--color-border-strong);
+        }
+        .modal-actions .btn-secondary:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+        /* Comparison view */
+        .comparison-container {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .comparison-container .comparison-item {
+            flex: 1;
+            min-width: 200px;
+            max-width: 400px;
+            text-align: center;
+        }
+        .comparison-container .comparison-item .comparison-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            margin-bottom: 0.35rem;
+        }
+        .comparison-container .comparison-item canvas,
+        .comparison-container .comparison-item img {
+            max-width: 100%;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            display: block;
+            margin: 0 auto;
+        }
+        .status-bar.warning {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #b45309;
+        }
+        .param-hint {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+        }
+        @media (max-width: 600px) {
+            .comparison-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .comparison-container .comparison-item {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="tool-container">
+
+    <div class="page-header">
+        <a class="back-home" href="/">← 返回主页</a>
+        <h1>地图画生成器</h1>
+        <div class="subtitle">Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <form id="arguments">
+
+        <!-- Upload -->
+        <div class="card">
+            <div class="card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                上传图片
+            </div>
+            <div class="card-body">
+                <div class="file-upload-wrapper">
+                    <div class="file-upload-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    </div>
+                    <span class="file-upload-text" id="uploadImgText">点击上传图片</span>
+                    <input type="file" id="upload" accept="image/*">
+                </div>
+                <div class="notice">图片会被转换为 Minecraft 方块结构（地图画）。每个像素对应一个方块，默认按比例缩放到最接近的 128×128 地图整数倍（最多 4 张地图）。</div>
+            </div>
+        </div>
+
+        <!-- Conversion parameters -->
+        <div class="card">
+            <div class="card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                转换参数
+            </div>
+            <div class="card-body">
+
+                <div class="form-group">
+                    <label for="maxWidthScroll" class="label-short">最大宽度</label>
+                    <input type="range" id="maxWidthScroll" value="512" min="128" max="512" step="128">
+                    <input type="number" id="maxWidth" value="512" min="128" max="512" step="128" style="width:3.5rem;">
+                    <span class="unit-label">px（<span id="maxMapsW">4</span> 张地图）</span>
+                </div>
+                <div class="form-group">
+                    <label for="maxHeightScroll" class="label-short">最大高度</label>
+                    <input type="range" id="maxHeightScroll" value="512" min="128" max="512" step="128">
+                    <input type="number" id="maxHeight" value="512" min="128" max="512" step="128" style="width:3.5rem;">
+                    <span class="unit-label">px（<span id="maxMapsH">4</span> 张地图）</span>
+                </div>
+                <div class="separator"></div>
+
+                <div class="inline-group-flex">
+                    <div class="inline-group">
+                        <input type="checkbox" id="dithering">
+                        <label for="dithering">启用 Floyd-Steinberg 抖动 (Dithering)</label>
+                    </div>
+                </div>
+                <div class="param-hint" style="margin-top:-0.25rem;margin-bottom:0.5rem;padding-left:1.6rem;">
+                    抖动算法可在颜色有限时模拟更多色彩，但会略微增加噪点感。
+                </div>
+
+                <div class="inline-group-flex" style="margin:0.25rem 0 0.5rem;">
+                    <div class="inline-group">
+                        <input type="checkbox" id="showGrid" checked>
+                        <label for="showGrid">显示地图网格 (128×128)</label>
+                    </div>
+                </div>
+                <div class="param-hint" style="margin-top:-0.25rem;margin-bottom:0.5rem;padding-left:1.6rem;">
+                    在转换效果上叠加 128×128 像素的网格并标注编号，提示画幅跨越几张 Minecraft 地图。
+                </div>
+
+                <div class="separator"></div>
+
+                <div class="form-group">
+                    <label for="outputFormat">输出格式</label>
+                    <select id="outputFormat">
+                        <option value="mcstructure" selected>.mcstructure（结构文件）</option>
+                        <option value="bdx">.bdx（BDX 建筑文件）</option>
+                        <option value="mcfunction">.mcfunction（命令文本文件）</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+    </form>
+
+    <!-- Action buttons -->
+    <div style="text-align:center;margin-bottom:1rem;">
+        <button id="convertBtn" class="btn btn-primary" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            开始转换
+        </button>
+        <button id="downloadBtn" class="btn btn-success" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载
+        </button>
+    </div>
+
+    <!-- Status & Progress -->
+    <div class="status-bar" id="status">上传图片开始转换</div>
+    <div id="progressArea" style="display:none;">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText"></div>
+    </div>
+
+    <!-- Preview -->
+    <div class="card" id="previewCard" style="display:none;">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            预览
+        </div>
+        <div class="card-body">
+            <div class="preview-selector">
+                <button class="tab-btn active" data-tab="source" id="tabSource">原图</button>
+                <button class="tab-btn" data-tab="converted" id="tabConverted">转换效果</button>
+                <button class="tab-btn" data-tab="compare" id="tabCompare">对比查看</button>
+            </div>
+            <div id="previewSource">
+                <canvas id="img_preview" style="max-width:100%;border:1px solid var(--color-border);border-radius:var(--radius-sm);display:block;margin:0 auto;"></canvas>
+            </div>
+            <div id="previewConverted" style="display:none;">
+                <canvas id="convert_preview" style="max-width:100%;border:1px solid var(--color-border);border-radius:var(--radius-sm);display:block;margin:0 auto;"></canvas>
+            </div>
+            <div id="previewCompare" style="display:none;">
+                <div class="comparison-container">
+                    <div class="comparison-item">
+                        <div class="comparison-label">原图</div>
+                        <canvas id="compare_source" style="max-width:100%;border:1px solid var(--color-border);border-radius:var(--radius-sm);display:block;margin:0 auto;"></canvas>
+                    </div>
+                    <div class="comparison-item">
+                        <div class="comparison-label">转换效果</div>
+                        <canvas id="compare_converted" style="max-width:100%;border:1px solid var(--color-border);border-radius:var(--radius-sm);display:block;margin:0 auto;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File info -->
+    <div class="card" id="infoCard" style="display:none;">
+        <div class="card-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            文件信息
+        </div>
+        <div class="card-body">
+            <div class="info-display" id="img_size"></div>
+        </div>
+    </div>
+
+    <!-- Modal dialog -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-box">
+            <h3>参数已修改</h3>
+            <p id="modalMsg">转换参数已更改，要使用新参数重新转换还是直接下载现有的结果？</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="modalDownloadOld">直接下载现有结果</button>
+                <button class="btn btn-primary" id="modalReconvert">重新转换</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============ Minecraft Color Map (136 color entries) ============
+var MapColors = [
+    [[135,174,81],["grass",1]],[[247,233,163],["glowstone",1]],[[199,199,199],["brown_mushroom_block[\"huge_mushroom_bits\"=15]",1]],[[255,0,0],["redstone_block",1]],[[160,160,255],["blue_ice",1]],[[167,167,167],["iron_block",1]],[[0,124,0],["leaves[\"persistent_bit\"=true]",1]],[[255,255,255],["concrete",1]],[[164,168,184],["clay",1]],[[151,109,77],["dirt",1]],[[112,112,112],["furnace",1]],[[143,119,72],["planks",1]],[[255,252,245],["quartz_block",1]],[[216,127,51],["pumpkin",1]],[[178,76,216],["purpur_block",1]],[[102,153,216],["light_blue_concrete",1]],[[229,229,51],["sponge",1]],[[127,204,25],["melon_block",1]],[[242,127,165],["pink_concrete",1]],[[76,76,76],["tinted_glass",1]],[[153,153,153],["silver_glazed_terracotta",1]],[[76,127,153],["prismarine",1]],[[127,63,178],["amethyst_block",1]],[[51,76,178],["blue_glazed_terracotta",1]],[[102,76,51],["soul_sand",1]],[[102,127,51],["dried_kelp_block",1]],[[153,51,51],["shroomlight",1]],[[25,25,25],["coal_block",1]],[[250,238,77],["gold_block",1]],[[92,219,213],["diamond_block",1]],[[74,128,255],["lapis_block",1]],[[0,217,58],["emerald_block",1]],[[129,86,49],["spruce_planks",1]],[[112,2,0],["netherrack",1]],[[209,177,161],["calcite",1]],[[159,82,36],["orange_terracotta",1]],[[149,87,108],["magenta_terracotta",1]],[[112,108,138],["light_blue_terracotta",1]],[[186,133,36],["yellow_terracotta",1]],[[103,117,53],["lime_terracotta",1]],[[160,77,78],["pink_terracotta",1]],[[57,41,35],["gray_terracotta",1]],[[135,107,98],["light_gray_terracotta",1]],[[87,92,92],["cyan_terracotta",1]],[[122,73,88],["purple_terracotta",1]],[[76,62,92],["blue_terracotta",1]],[[76,50,35],["brown_terracotta",1]],[[76,82,42],["green_terracotta",1]],[[142,60,46],["red_terracotta",1]],[[37,22,16],["black_terracotta",1]],[[189,48,49],["crimson_nylium",1]],[[148,63,97],["crimson_planks",1]],[[92,25,29],["crimson_hyphae",1]],[[22,126,134],["warped_nylium",1]],[[58,142,140],["warped_planks",1]],[[86,44,62],["warped_hyphae",1]],[[20,180,133],["warped_wart_block",1]],[[100,100,100],["deepslate",1]],[[216,175,147],["raw_iron_block",1]],[[127,167,150],["verdant_froglight",1]],[[95,122,57],["grass",-1]],[[115,150,69],["grass",0]],[[174,164,115],["glowstone",-1]],[[213,201,140],["glowstone",0]],[[130,94,66],["brown_mushroom_block",-1]],[[151,109,77],["brown_mushroom_block",0]],[[180,0,0],["redstone_block",-1]],[[220,0,0],["redstone_block",0]],[[112,112,180],["blue_ice",-1]],[[138,138,220],["blue_ice",0]],[[117,117,117],["iron_block",-1]],[[144,144,144],["iron_block",0]],[[0,87,0],["leaves",-1]],[[0,106,0],["leaves",0]],[[180,180,180],["concrete",-1]],[[220,220,220],["concrete",0]],[[115,118,129],["clay",-1]],[[141,144,158],["clay",0]],[[106,76,54],["dirt",-1]],[[130,94,66],["dirt",0]],[[79,79,79],["furnace",-1]],[[96,96,96],["furnace",0]],[[100,84,50],["planks",-1]],[[123,102,62],["planks",0]],[[180,177,172],["quartz_block",-1]],[[220,217,211],["quartz_block",0]],[[152,89,36],["pumpkin",-1]],[[186,109,44],["pumpkin",0]],[[125,53,152],["purpur_block",-1]],[[153,65,186],["purpur_block",0]],[[72,108,152],["light_blue_concrete",-1]],[[88,132,186],["light_blue_concrete",0]],[[161,161,36],["sponge",-1]],[[197,197,44],["sponge",0]],[[89,144,17],["melon_block",-1]],[[109,176,21],["melon_block",0]],[[170,89,116],["pink_concrete",-1]],[[208,109,142],["pink_concrete",0]],[[53,53,53],["tinted_glass",-1]],[[65,65,65],["tinted_glass",0]],[[108,108,108],["silver_glazed_terracotta",-1]],[[132,132,132],["silver_glazed_terracotta",0]],[[53,89,108],["prismarine",-1]],[[65,109,132],["prismarine",0]],[[89,44,125],["amethyst_block",-1]],[[109,54,153],["amethyst_block",0]],[[36,53,125],["blue_glazed_terracotta",-1]],[[44,65,153],["blue_glazed_terracotta",0]],[[72,53,36],["soul_sand",-1]],[[88,65,44],["soul_sand",0]],[[72,89,36],["dried_kelp_block",-1]],[[88,109,44],["dried_kelp_block",0]],[[108,36,36],["shroomlight",-1]],[[132,44,44],["shroomlight",0]],[[17,17,17],["coal_block",-1]],[[21,21,21],["coal_block",0]],[[176,168,54],["gold_block",-1]],[[215,205,66],["gold_block",0]],[[64,154,150],["diamond_block",-1]],[[79,188,183],["diamond_block",0]],[[52,90,180],["lapis_block",-1]],[[63,110,220],["lapis_block",0]],[[0,153,40],["emerald_block",-1]],[[0,187,50],["emerald_block",0]],[[91,60,34],["spruce_planks",-1]],[[111,74,42],["spruce_planks",0]],[[79,1,0],["netherrack",-1]],[[96,1,0],["netherrack",0]],[[147,124,113],["calcite",-1]],[[180,152,138],["calcite",0]],[[112,57,25],["orange_terracotta",-1]],[[137,70,31],["orange_terracotta",0]],[[105,61,76],["magenta_terracotta",-1]],[[128,75,93],["magenta_terracotta",0]],[[79,76,97],["light_blue_terracotta",-1]],[[96,93,119],["light_blue_terracotta",0]],[[131,93,25],["yellow_terracotta",-1]],[[160,114,31],["yellow_terracotta",0]],[[72,82,37],["lime_terracotta",-1]],[[88,100,45],["lime_terracotta",0]],[[112,54,55],["pink_terracotta",-1]],[[138,66,67],["pink_terracotta",0]],[[40,28,24],["gray_terracotta",-1]],[[49,35,30],["gray_terracotta",0]],[[95,75,69],["light_gray_terracotta",-1]],[[116,92,84],["light_gray_terracotta",0]],[[61,64,64],["cyan_terracotta",-1]],[[75,79,79],["cyan_terracotta",0]],[[86,51,62],["purple_terracotta",-1]],[[105,62,75],["purple_terracotta",0]],[[53,43,64],["blue_terracotta",-1]],[[65,53,79],["blue_terracotta",0]],[[53,35,24],["brown_terracotta",-1]],[[65,43,30],["brown_terracotta",0]],[[53,57,29],["green_terracotta",-1]],[[65,70,36],["green_terracotta",0]],[[100,42,32],["red_terracotta",-1]],[[122,51,39],["red_terracotta",0]],[[26,15,11],["black_terracotta",-1]],[[31,18,13],["black_terracotta",0]],[[133,33,34],["crimson_nylium",-1]],[[163,41,42],["crimson_nylium",0]],[[104,44,68],["crimson_planks",-1]],[[127,54,83],["crimson_planks",0]],[[64,17,20],["crimson_hyphae",-1]],[[79,21,25],["crimson_hyphae",0]],[[15,88,94],["warped_nylium",-1]],[[18,108,115],["warped_nylium",0]],[[40,100,98],["warped_planks",-1]],[[50,122,120],["warped_planks",0]],[[60,31,43],["warped_hyphae",-1]],[[74,37,53],["warped_hyphae",0]],[[14,127,93],["warped_wart_block",-1]],[[17,155,114],["warped_wart_block",0]],[[70,70,70],["deepslate",-1]],[[86,86,86],["deepslate",0]],[[152,123,103],["raw_iron_block",-1]],[[186,150,126],["raw_iron_block",0]],[[89,117,105],["verdant_froglight",-1]],[[109,144,129],["verdant_froglight",0]]
+];
+
+// ============ DOM refs ============
+var upload = document.getElementById('upload');
+var img_preview = document.getElementById('img_preview');
+var convert_preview = document.getElementById('convert_preview');
+var compare_source = document.getElementById('compare_source');
+var compare_converted = document.getElementById('compare_converted');
+var statusEl = document.getElementById('status');
+var progressArea = document.getElementById('progressArea');
+var progressFill = document.getElementById('progressFill');
+var progressText = document.getElementById('progressText');
+var previewCard = document.getElementById('previewCard');
+var infoCard = document.getElementById('infoCard');
+var img_size = document.getElementById('img_size');
+var convertBtn = document.getElementById('convertBtn');
+var downloadBtn = document.getElementById('downloadBtn');
+var previewSource = document.getElementById('previewSource');
+var previewConverted = document.getElementById('previewConverted');
+var previewCompare = document.getElementById('previewCompare');
+var modalOverlay = document.getElementById('modalOverlay');
+var modalMsg = document.getElementById('modalMsg');
+var modalDownloadOld = document.getElementById('modalDownloadOld');
+var modalReconvert = document.getElementById('modalReconvert');
+
+// Options
+var ditheringCheck = document.getElementById('dithering');
+var showGridCheck = document.getElementById('showGrid');
+var maxWidthInput = document.getElementById('maxWidth');
+var maxWidthScroll = document.getElementById('maxWidthScroll');
+var maxHeightInput = document.getElementById('maxHeight');
+var maxHeightScroll = document.getElementById('maxHeightScroll');
+var maxMapsW = document.getElementById('maxMapsW');
+var maxMapsH = document.getElementById('maxMapsH');
+
+// ============ Tab switching ============
+document.getElementById('tabSource').onclick = function() {
+    setActiveTab('source');
+};
+document.getElementById('tabConverted').onclick = function() {
+    setActiveTab('converted');
+};
+document.getElementById('tabCompare').onclick = function() {
+    setActiveTab('compare');
+    updateComparison();
+};
+
+function setActiveTab(tab) {
+    document.querySelectorAll('.preview-selector .tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    previewSource.style.display = 'none';
+    previewConverted.style.display = 'none';
+    previewCompare.style.display = 'none';
+
+    if (tab === 'source') {
+        document.getElementById('tabSource').classList.add('active');
+        previewSource.style.display = 'block';
+    } else if (tab === 'converted') {
+        document.getElementById('tabConverted').classList.add('active');
+        previewConverted.style.display = 'block';
+    } else if (tab === 'compare') {
+        document.getElementById('tabCompare').classList.add('active');
+        previewCompare.style.display = 'block';
+        updateComparison();
+    }
+}
+
+function updateComparison() {
+    compare_source.width = img_preview.width;
+    compare_source.height = img_preview.height;
+    var ctxSrc = compare_source.getContext('2d');
+    ctxSrc.drawImage(img_preview, 0, 0);
+
+    compare_converted.width = convert_preview.width;
+    compare_converted.height = convert_preview.height;
+    var ctxConv = compare_converted.getContext('2d');
+    ctxConv.drawImage(convert_preview, 0, 0);
+}
+
+// ============ State ============
+var img = new Image();
+var pw = 0, ph = 0; // working pixel dimensions
+var paramsDirty = false;
+var currentMatrix = null;
+var conversionDone = false;
+var lastPreviewData = null; // { colors, w, h } for grid re-render
+
+// ============ Upload handler ============
+upload.onchange = function() {
+    if (!upload.files[0]) return;
+    resetState();
+    var fr = new FileReader();
+    fr.onload = function() {
+        img.src = fr.result;
+    };
+    fr.readAsDataURL(upload.files[0]);
+    document.getElementById('uploadImgText').textContent = upload.files[0].name;
+};
+
+img.onload = function() {
+    calcDimensions(img.width, img.height);
+    drawSourcePreview();
+    showInfo(img.width, img.height);
+    // Show source preview immediately
+    setActiveTab('source');
+    previewCard.style.display = '';
+    infoCard.style.display = '';
+    convertBtn.style.display = 'inline-flex';
+    downloadBtn.style.display = 'none';
+    statusEl.textContent = '图片已加载，点击「开始转换」生成地图画';
+    statusEl.className = 'status-bar info';
+};
+
+// ============ Dimension helpers (snap to 128-map multiples) ============
+function calcDimensions(srcW, srcH) {
+    var mw = Math.min(parseInt(maxWidthInput.value) || 512, 512);
+    var mh = Math.min(parseInt(maxHeightInput.value) || 512, 512);
+    var ratio = srcW / srcH;
+
+    // Default target: 1 map (128×128).
+    // For extreme aspect ratios (≥2:1 or ≤1:2), grow the long side
+    // from a short-side base of 128, capped at 4 maps (512).
+    if (ratio >= 2) {
+        // Image is ≥2× wider than tall → short side (height) = 128
+        ph = 128;
+        pw = Math.round(128 * ratio);
+    } else if (ratio <= 0.5) {
+        // Image is ≥2× taller than wide → short side (width) = 128
+        pw = 128;
+        ph = Math.round(128 / ratio);
+    } else {
+        // Normal ratio: 1 map
+        pw = 128;
+        ph = 128;
+    }
+
+    // Cap at slider limits (user's max allowance)
+    if (pw > mw) pw = mw;
+    if (ph > mh) ph = mh;
+
+    // Ensure at least 1 map, then snap to 128 multiple
+    pw = Math.min(mw, Math.max(128, Math.round(pw / 128) * 128));
+    ph = Math.min(mh, Math.max(128, Math.round(ph / 128) * 128));
+}
+
+function drawSourcePreview() {
+    img_preview.width = pw;
+    img_preview.height = ph;
+    img_preview.getContext('2d').drawImage(img, 0, 0, pw, ph);
+}
+
+function showInfo(srcW, srcH) {
+    infoCard.style.display = '';
+    var mapW = Math.ceil(pw / 128);
+    var mapH = Math.ceil(ph / 128);
+    var totalMaps = mapW * mapH;
+    img_size.innerHTML = '源文件: ' + srcW + ' × ' + srcH + ' px &nbsp;|&nbsp; 转换尺寸: ' + pw + ' × ' + ph + ' px &nbsp;|&nbsp; 方块: ' + (pw * ph) + ' 个 &nbsp;|&nbsp; 地图: ' + mapW + '×' + mapH + ' = ' + totalMaps + ' 张';
+}
+
+function resetState() {
+    convertBtn.style.display = 'none';
+    downloadBtn.style.display = 'none';
+    previewCard.style.display = 'none';
+    infoCard.style.display = 'none';
+    progressArea.style.display = 'none';
+    conversionDone = false;
+    paramsDirty = false;
+    currentMatrix = null;
+    lastPreviewData = null;
+    convertBtn.disabled = false;
+    convertBtn.textContent = '开始转换';
+    downloadBtn.className = 'btn btn-success';
+    downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+}
+
+// Update "maps" hint on slider labels
+function updateMapCountLabels() {
+    maxMapsW.textContent = Math.round(parseInt(maxWidthInput.value) / 128);
+    maxMapsH.textContent = Math.round(parseInt(maxHeightInput.value) / 128);
+}
+
+// ============ Color matching + Floyd-Steinberg dithering ============
+
+/**
+ * Two-pass Y-axis centering algorithm:
+ * Pass 1: record min/max Y positions to determine natural vertical range.
+ * Pass 2: calculate offset to center within available height.
+ */
+function calculateYOffset(chunkd, X, Y) {
+    var minPos = 192, maxPos = 192;
+
+    for (var y = 0; y < Y; y++) {
+        var basePos = 192;
+        for (var x = X - 1; x >= 0; x--) {
+            if (chunkd[(x + y * X) * 4 + 3] === 0) continue;
+
+            var diffmin = Infinity, diffminItem;
+            for (var k = 0; k < MapColors.length; k++) {
+                var i = MapColors[k];
+                var diff = Math.abs(i[0][0] - chunkd[(x + y * X) * 4]) ** 1.4 +
+                           Math.abs(i[0][1] - chunkd[(x + y * X) * 4 + 1]) ** 1.4 +
+                           Math.abs(i[0][2] - chunkd[(x + y * X) * 4 + 2]) ** 1.4;
+                if (diffmin > diff) { diffmin = diff; diffminItem = i; }
+            }
+
+            var offsetVal = diffminItem[1][1] * 2;
+            if (offsetVal > 0 && basePos < 142) basePos = 192;
+            else if (offsetVal < 0 && basePos > 242) basePos = 192;
+            else basePos += offsetVal;
+
+            if (basePos < minPos) minPos = basePos;
+            if (basePos > maxPos) maxPos = basePos;
+        }
+    }
+
+    var range = maxPos - minPos;
+    var available = 254;
+
+    if (range <= 0 || range >= available) return 0;
+    if (minPos >= 0 && maxPos <= available) return 0;
+
+    var targetMin = Math.round((available - range) / 2);
+    return targetMin - minPos;
+}
+
+/**
+ * Convert image to Matrix with Y-axis centering + dithering.
+ * Processes column-by-column (outer loop x, inner loop y) so that
+ * basePos height walk goes along MC Z (same direction as original),
+ * while image columns (x) map to MC X for correct orientation on the map.
+ * Yields via setTimeout every ~5% of columns so the progress bar updates.
+ */
+function convertImageToMatrixAsync(chunkd, X, Y, enableDither, onProgress) {
+    return new Promise(function(resolve) {
+        // Step 1: Calculate Y offset (synchronous, lightweight)
+        var yOffset = calculateYOffset(chunkd, X, Y);
+        var startPos = 192 + yOffset;
+        var lowThreshold = 142 + yOffset;
+        var highThreshold = 242 + yOffset;
+
+        if (onProgress) onProgress(5, '偏移计算完成，开始构建结构...');
+
+        // Step 2: Build matrix asynchronously in column batches
+        setTimeout(function() {
+            var matrix = new Matrix();
+            var previewColors = [];
+            var batchSize = Math.max(1, Math.ceil(X / 20)); // 5% per batch
+            var currentCol = 0;
+
+            function processBatch() {
+                var endCol = Math.min(currentCol + batchSize, X);
+
+                for (var x = currentCol; x < endCol; x++) {
+                    // Process each pixel in the column (top to bottom)
+                    // x goes left-to-right so image right side → larger MC X (right on map) ✓
+                    var basePos = startPos;
+                    for (var y = 0; y < Y; y++) {
+                        if (chunkd[(x + y * X) * 4 + 3] === 0) continue;
+
+                        var diffmin = Infinity, diffminItem;
+                        for (var k = 0; k < MapColors.length; k++) {
+                            var i = MapColors[k];
+                            var diff = Math.abs(i[0][0] - chunkd[(x + y * X) * 4]) ** 1.4 +
+                                       Math.abs(i[0][1] - chunkd[(x + y * X) * 4 + 1]) ** 1.4 +
+                                       Math.abs(i[0][2] - chunkd[(x + y * X) * 4 + 2]) ** 1.4;
+                            if (diffmin > diff) { diffmin = diff; diffminItem = i; }
+                        }
+
+                        previewColors.push({
+                            x: x, y: y,
+                            r: diffminItem[0][0], g: diffminItem[0][1], b: diffminItem[0][2]
+                        });
+
+                        var dr = chunkd[(x + y * X) * 4] - diffminItem[0][0];
+                        var dg = chunkd[(x + y * X) * 4 + 1] - diffminItem[0][1];
+                        var db = chunkd[(x + y * X) * 4 + 2] - diffminItem[0][2];
+
+                        // Floyd-Steinberg dithering adapted for column-by-column scan.
+                        // Scan goes left-to-right (x) outer, top-to-bottom (y) inner.
+                        // Error from (x,y) diffuses to the next unprocessed pixels:
+                        //   (x,   y+1) — straight down (7/16, next pixel in column)
+                        //   (x+1, y-1) — right-up     (1/16)
+                        //   (x+1, y)   — right        (5/16, next column start)
+                        //   (x+1, y+1) — right-down   (3/16)
+                        if (enableDither) {
+                            if (y < Y - 1) {
+                                chunkd[(x + (y + 1) * X) * 4]     += dr * 7 / 16;
+                                chunkd[(x + (y + 1) * X) * 4 + 1] += dg * 7 / 16;
+                                chunkd[(x + (y + 1) * X) * 4 + 2] += db * 7 / 16;
+                            }
+                            if (x < X - 1) {
+                                chunkd[((x + 1) + y * X) * 4]     += dr * 5 / 16;
+                                chunkd[((x + 1) + y * X) * 4 + 1] += dg * 5 / 16;
+                                chunkd[((x + 1) + y * X) * 4 + 2] += db * 5 / 16;
+                                if (y < Y - 1) {
+                                    chunkd[((x + 1) + (y + 1) * X) * 4]     += dr * 3 / 16;
+                                    chunkd[((x + 1) + (y + 1) * X) * 4 + 1] += dg * 3 / 16;
+                                    chunkd[((x + 1) + (y + 1) * X) * 4 + 2] += db * 3 / 16;
+                                }
+                                if (y > 0) {
+                                    chunkd[((x + 1) + (y - 1) * X) * 4]     += dr * 1 / 16;
+                                    chunkd[((x + 1) + (y - 1) * X) * 4 + 1] += dg * 1 / 16;
+                                    chunkd[((x + 1) + (y - 1) * X) * 4 + 2] += db * 1 / 16;
+                                }
+                            }
+                        }
+
+                        // Y-axis walk: basePos varies along y (inner loop),
+                        // and y maps to MC Z — same direction as original shading
+                        var blockOffset = diffminItem[1][1] * 2;
+                        if (blockOffset > 0 && basePos < lowThreshold) basePos = startPos;
+                        else if (blockOffset < 0 && basePos > highThreshold) basePos = startPos;
+                        else basePos += blockOffset;
+
+                        if (basePos < 0) basePos = 0;
+                        if (basePos > 255) basePos = 255;
+
+                        // x → MC X (right on map), y → MC Z (down on map) — correct orientation ✓
+                        // basePos walks along y → MC Z — preserves original shading direction ✓
+                        matrix.setBlock(x, basePos, y, new Block(diffminItem[1][0]));
+                    }
+                }
+
+                currentCol = endCol;
+                var pct = 5 + Math.round((currentCol / X) * 90);
+                if (onProgress) onProgress(Math.min(pct, 99), '转换中 (' + currentCol + '/' + X + ' 列)...');
+
+                if (currentCol < X) {
+                    setTimeout(processBatch, 0);
+                } else {
+                    if (onProgress) onProgress(100, '完成');
+                    resolve({ matrix: matrix, previewColors: previewColors });
+                }
+            }
+
+            processBatch();
+        }, 0);
+    });
+}
+
+/**
+ * Render the converted preview, optionally with 128×128 map grid overlay.
+ */
+function renderPreviewCanvas(colors, w, h) {
+    lastPreviewData = { colors: colors, w: w, h: h };
+
+    var scale = Math.max(1, Math.min(4, Math.floor(400 / Math.max(w, h))));
+    convert_preview.width = w * scale;
+    convert_preview.height = h * scale;
+    var ctx = convert_preview.getContext('2d');
+
+    for (var i = 0; i < colors.length; i++) {
+        var c = colors[i];
+        ctx.fillStyle = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+        ctx.fillRect(c.x * scale, c.y * scale, scale, scale);
+    }
+
+    // 128×128 map grid
+    if (showGridCheck && showGridCheck.checked) {
+        var gridSize = 128 * scale;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+
+        for (var gx = gridSize; gx < w * scale; gx += gridSize) {
+            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h * scale); ctx.stroke();
+        }
+        for (var gy = gridSize; gy < h * scale; gy += gridSize) {
+            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w * scale, gy); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = Math.max(10, Math.round(11 * scale / 3)) + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        var mapX = 0;
+        for (var cx = 0; cx < w * scale; cx += gridSize) {
+            var mapY = 0;
+            for (var cy = 0; cy < h * scale; cy += gridSize) {
+                var labelX = cx + gridSize / 2;
+                var labelY = cy + gridSize / 2;
+                if (labelX < w * scale && labelY < h * scale) {
+                    ctx.fillText('#' + (mapX + mapY + 1), labelX, labelY);
+                }
+                mapY++;
+            }
+            mapX++;
+        }
+    }
+}
+
+// ============ Param change handler ============
+function handleParamChange() {
+    // Update map count labels on sliders
+    updateMapCountLabels();
+
+    // Always re-dimension and redraw the source preview (lightweight)
+    if (img.src && img.width > 0) {
+        calcDimensions(img.width, img.height);
+        drawSourcePreview();
+        showInfo(img.width, img.height);
+    }
+
+    if (!conversionDone) return;
+    paramsDirty = true;
+
+    // Change download button to warning
+    downloadBtn.className = 'btn btn-warning';
+    downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> 参数已更改，点击下载';
+
+    // Show convert button again so user can re-convert
+    convertBtn.style.display = 'inline-flex';
+    convertBtn.disabled = false;
+    convertBtn.textContent = '重新转换';
+
+    statusEl.textContent = '⚠️ 参数已更改，请点击「重新转换」查看新效果';
+    statusEl.className = 'status-bar warning';
+}
+
+// ============ Slider sync ============
+maxWidthScroll.oninput = function(){ maxWidthInput.value = this.value; updateMapCountLabels(); handleParamChange(); };
+maxWidthInput.oninput = function(){ maxWidthScroll.value = this.value; updateMapCountLabels(); handleParamChange(); };
+maxHeightScroll.oninput = function(){ maxHeightInput.value = this.value; updateMapCountLabels(); handleParamChange(); };
+maxHeightInput.oninput = function(){ maxHeightScroll.value = this.value; updateMapCountLabels(); handleParamChange(); };
+ditheringCheck.onchange = function(){ handleParamChange(); };
+showGridCheck.onchange = function(){
+    if (lastPreviewData) {
+        renderPreviewCanvas(lastPreviewData.colors, lastPreviewData.w, lastPreviewData.h);
+    }
+};
+
+updateMapCountLabels();
+
+// ============ Convert handler ============
+convertBtn.onclick = function() {
+    processImage();
+};
+
+function processImage() {
+    try {
+        var enableDither = ditheringCheck.checked;
+        calcDimensions(img.width, img.height);
+        drawSourcePreview();
+
+        // Show progress
+        convertBtn.disabled = true;
+        convertBtn.textContent = '转换中...';
+        progressArea.style.display = 'block';
+        progressFill.style.width = '0%';
+        progressText.textContent = '准备中...';
+
+        var ctx = img_preview.getContext('2d');
+        var imgData = ctx.getImageData(0, 0, pw, ph);
+        var chunkd = new Uint8Array(imgData.data);
+
+        statusEl.textContent = '正在转换（' + pw + '×' + ph + ' = ' + (pw*ph) + ' 个方块）...';
+        statusEl.className = 'status-bar info';
+
+        convertImageToMatrixAsync(chunkd, pw, ph, enableDither, function(pct, msg) {
+            progressFill.style.width = pct + '%';
+            progressText.textContent = msg + ' (' + pct + '%)';
+        }).then(function(result) {
+            currentMatrix = result.matrix;
+
+            // Draw preview
+            renderPreviewCanvas(result.previewColors, pw, ph);
+
+            // Show preview card
+            showInfo(img.width, img.height);
+            previewCard.style.display = '';
+            infoCard.style.display = '';
+            convertBtn.style.display = 'none';
+            progressArea.style.display = 'none';
+
+            conversionDone = true;
+            paramsDirty = false;
+
+            enableDownloadClean();
+            statusEl.textContent = '转换完成！结构尺寸: ' + currentMatrix.Xmax + '×' + currentMatrix.Ymax + '×' + currentMatrix.Zmax + ' 方块，覆盖 ' + Math.ceil(pw/128) + '×' + Math.ceil(ph/128) + ' 张地图';
+            statusEl.className = 'status-bar';
+        }).catch(function(err) {
+            throw err;
+        });
+    } catch(e) {
+        var errMsg = e.toString().split('\n')[0];
+        statusEl.textContent = errMsg;
+        statusEl.className = 'status-bar error';
+        progressArea.style.display = 'none';
+        convertBtn.disabled = false;
+        convertBtn.textContent = '开始转换';
+        window.reportError(e);
+    }
+}
+
+// ============ Download ============
+function enableDownloadClean() {
+    downloadBtn.style.display = 'inline-flex';
+    downloadBtn.className = 'btn btn-success';
+    downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+}
+
+downloadBtn.onclick = function() {
+    if (paramsDirty) {
+        modalOverlay.classList.add('show');
+        modalDownloadOld.onclick = function() {
+            modalOverlay.classList.remove('show');
+            doDownload();
+        };
+        modalReconvert.onclick = function() {
+            modalOverlay.classList.remove('show');
+            paramsDirty = false;
+            processImage();
+        };
+    } else {
+        doDownload();
+    }
+};
+
+modalOverlay.onclick = function(e) {
+    if (e.target === modalOverlay) {
+        modalOverlay.classList.remove('show');
+    }
+};
+
+function doDownload() {
+    var fmt = document.getElementById('outputFormat').value;
+
+    if (!currentMatrix) {
+        statusEl.textContent = '没有可下载的转换结果';
+        statusEl.className = 'status-bar error';
+        return;
+    }
+
+    var rand = Math.random().toFixed(5).split('.')[1];
+
+    if (fmt === 'mcfunction') {
+        downloadAsMcfunction(currentMatrix, rand);
+    } else if (fmt === 'bdx') {
+        downloadAsBDX(currentMatrix, rand);
+    } else {
+        downloadAsMCStructure(currentMatrix, rand);
+    }
+}
+
+function downloadAsMCStructure(matrix, rand) {
+    try {
+        var structure = new MCStructure();
+        var structData = structure.fromMatrix(matrix);
+        var outData = nbt.writeUncompressed(structData, true);
+        saveAs(new Blob([outData]), 'mapart_' + rand + '.mcstructure');
+        statusEl.textContent = '下载完成: mapart_' + rand + '.mcstructure';
+        statusEl.className = 'status-bar';
+    } catch(e) {
+        statusEl.textContent = '生成 mcstructure 失败: ' + (e.message || e);
+        statusEl.className = 'status-bar error';
+        window.reportError(e);
+    }
+}
+
+function downloadAsBDX(matrix, rand) {
+    try {
+        var writer = new bdx.Writer();
+        var bdxData = writer.fromMatrix(matrix, 'Dislink');
+        saveAs(new Blob([bdxData]), 'mapart_' + rand + '.bdx');
+        statusEl.textContent = '下载完成: mapart_' + rand + '.bdx';
+        statusEl.className = 'status-bar';
+    } catch(e) {
+        statusEl.textContent = '生成 BDX 失败: ' + (e.message || e);
+        statusEl.className = 'status-bar error';
+        window.reportError(e);
+    }
+}
+
+function downloadAsMcfunction(matrix, rand) {
+    try {
+        var content = '# Generated by Dislink Map Art Generator\n# ' + new Date().toISOString() + '\n';
+        var blocks = matrix.getAllBlocks();
+        for (var i = 0; i < blocks.length; i++) {
+            var b = blocks[i];
+            var blockStr = b.block.Index !== undefined ? matrix.palette[b.block.Index] : (b.block.nameSpace ? b.block.nameSpace + ':' : '') + b.block.id;
+            content += 'setblock ' + (b.x + matrix.xOffset) + ' ' + (b.y + matrix.yOffset) + ' ' + (b.z + matrix.zOffset) + ' ' + blockStr + '\n';
+        }
+        saveAs(new Blob([content], { type: 'text/plain;charset=utf-8' }), 'mapart_' + rand + '.mcfunction');
+        statusEl.textContent = '下载完成: mapart_' + rand + '.mcfunction';
+        statusEl.className = 'status-bar';
+    } catch(e) {
+        statusEl.textContent = '生成 mcfunction 失败: ' + (e.message || e);
+        statusEl.className = 'status-bar error';
+        window.reportError(e);
+    }
+}
+</script>
+</body>
+</html>
