@@ -202,15 +202,16 @@
             border-color: var(--color-primary);
             color: var(--color-primary);
         }
-        /* Hide video element off-screen instead of display:none (iOS Safari needs it visible for loadedmetadata) */
+        /* Hide video element off-screen — must keep it in DOM visible to browser for loadedmetadata on all browsers */
         #vplayer {
-            position: absolute;
-            left: -9999px;
-            top: -9999px;
+            position: fixed;
+            bottom: 0;
+            right: 0;
             width: 1px;
             height: 1px;
             opacity: 0;
             pointer-events: none;
+            z-index: -1;
         }
         @media (max-width: 600px) {
             .braille-preview { font-size: 7px; }
@@ -581,17 +582,42 @@ uploadv.onchange = function() {
         videoUrl = null;
     }
 
-    // Use object URL instead of data URL — much faster and memory-friendly on mobile
     videoUrl = URL.createObjectURL(uploadv.files[0]);
-    vplayer.src = videoUrl;
-    vplayer.load(); // explicitly trigger loading (required on iOS Safari when video was hidden)
-    vplayer.addEventListener('loadedmetadata', function() {
+
+    // Register event listener BEFORE setting src — critical for browsers (like Edge)
+    // that may fire loadedmetadata synchronously when src is set
+    var onMetaLoaded = function() {
+        vplayer.removeEventListener('loadedmetadata', onMetaLoaded);
         videoDuration = vplayer.duration;
         statusEl.textContent = '视频已加载，时长 ' + videoDuration.toFixed(1) + 's，点击「开始转换」提取帧';
         statusEl.className = 'status-bar info';
         convertBtn.style.display = 'inline-flex';
         downloadBtn.style.display = 'none';
+    };
+    vplayer.addEventListener('loadedmetadata', onMetaLoaded);
+    vplayer.addEventListener('error', function() {
+        console.error('Video error:', vplayer.error ? (vplayer.error.code + ': ' + vplayer.error.message) : 'unknown');
     });
+
+    vplayer.src = videoUrl;
+    vplayer.load();
+
+    // If metadata already loaded synchronously, handle it now
+    if (vplayer.readyState >= 1) {
+        onMetaLoaded();
+    }
+
+    // Safety timeout: show convert button after 5s even if loadedmetadata never fires
+    setTimeout(function() {
+        if (convertBtn.style.display === 'none' || convertBtn.style.display === '') {
+            videoDuration = vplayer.duration || 0;
+            statusEl.textContent = '视频已加载（点击「开始转换」提取帧）';
+            statusEl.className = 'status-bar info';
+            convertBtn.style.display = 'inline-flex';
+            downloadBtn.style.display = 'none';
+        }
+    }, 5000);
+
     document.getElementById('uploadVidText').textContent = uploadv.files[0].name;
 };
 
