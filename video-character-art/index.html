@@ -281,6 +281,16 @@
             font-size: 0.75rem;
             color: var(--color-text-muted);
         }
+        /* Hide video element off-screen instead of display:none (iOS Safari needs it visible for loadedmetadata) */
+        #vplayer {
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
         @media (max-width: 600px) {
             .char-preview { font-size: 5px; line-height: 1.5; letter-spacing: -0.12em; }
         }
@@ -316,7 +326,7 @@
         </div>
 
         <!-- Hidden video element -->
-        <video id="vplayer" preload="auto" style="display:none;"></video>
+        <video id="vplayer" preload="auto"></video>
 
         <!-- Color info card -->
         <div class="card" id="colorInfoCard" style="display:none;">
@@ -808,14 +818,15 @@ uploadv.onchange = function() {
     // Use object URL instead of data URL — much faster for seeking
     videoUrl = URL.createObjectURL(uploadv.files[0]);
     vplayer.src = videoUrl;
-    vplayer.onloadedmetadata = function() {
+    vplayer.load(); // explicitly trigger loading (required on iOS Safari when video was hidden)
+    vplayer.addEventListener('loadedmetadata', function() {
         videoDuration = vplayer.duration;
         colorInfoCard.style.display = '';
         statusEl.textContent = '视频已加载，时长 ' + videoDuration.toFixed(1) + 's，点击「开始转换」提取帧';
         statusEl.className = 'status-bar info';
         convertBtn.style.display = 'inline-flex';
         downloadBtn.style.display = 'none';
-    };
+    });
     document.getElementById('uploadVidText').textContent = uploadv.files[0].name;
 };
 
@@ -885,6 +896,11 @@ function resetState() {
     downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
     convertBtn.textContent = '开始转换';
     convertBtn.disabled = false;
+    // Revoke blob URL to free memory
+    if (videoUrl) {
+        URL.revokeObjectURL(videoUrl);
+        videoUrl = null;
+    }
 }
 
 // ============ Frame seek bar ============

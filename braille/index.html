@@ -202,6 +202,16 @@
             border-color: var(--color-primary);
             color: var(--color-primary);
         }
+        /* Hide video element off-screen instead of display:none (iOS Safari needs it visible for loadedmetadata) */
+        #vplayer {
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
         @media (max-width: 600px) {
             .braille-preview { font-size: 7px; }
         }
@@ -246,7 +256,7 @@
         </div>
 
         <!-- 视频隐藏播放器 -->
-        <video id="vplayer" preload="auto" style="display:none;"></video>
+        <video id="vplayer" preload="auto"></video>
 
         <!-- 转换参数 -->
         <div class="card">
@@ -544,6 +554,7 @@ var lastIsVideoSrc = false;
 var lastXLen = 16;
 var lastZLen = 16;
 var conversionDone = false; // whether a full conversion was ever completed
+var videoUrl = null; // blob URL for the loaded video
 
 // ============ Upload handlers ============
 upload.onchange = function() {
@@ -563,18 +574,24 @@ uploadv.onchange = function() {
     resetState();
     isVideo = true;
     frames = [];
-    var fr = new FileReader();
-    fr.onload = function() {
-        vplayer.src = fr.result;
-        vplayer.onloadedmetadata = function() {
-            videoDuration = vplayer.duration;
-            statusEl.textContent = '视频已加载，时长 ' + videoDuration.toFixed(1) + 's，点击「开始转换」提取帧';
-            statusEl.className = 'status-bar info';
-            convertBtn.style.display = 'inline-flex';
-            downloadBtn.style.display = 'none';
-        };
-    };
-    fr.readAsDataURL(uploadv.files[0]);
+
+    // Revoke previous blob URL if any
+    if (videoUrl) {
+        URL.revokeObjectURL(videoUrl);
+        videoUrl = null;
+    }
+
+    // Use object URL instead of data URL — much faster and memory-friendly on mobile
+    videoUrl = URL.createObjectURL(uploadv.files[0]);
+    vplayer.src = videoUrl;
+    vplayer.load(); // explicitly trigger loading (required on iOS Safari when video was hidden)
+    vplayer.addEventListener('loadedmetadata', function() {
+        videoDuration = vplayer.duration;
+        statusEl.textContent = '视频已加载，时长 ' + videoDuration.toFixed(1) + 's，点击「开始转换」提取帧';
+        statusEl.className = 'status-bar info';
+        convertBtn.style.display = 'inline-flex';
+        downloadBtn.style.display = 'none';
+    });
     document.getElementById('uploadVidText').textContent = uploadv.files[0].name;
 };
 
@@ -631,6 +648,11 @@ function resetState() {
     currentFrameIdx = 0;
     downloadBtn.className = 'btn btn-success';
     downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+    // Revoke blob URL to free memory
+    if (videoUrl) {
+        URL.revokeObjectURL(videoUrl);
+        videoUrl = null;
+    }
 }
 
 // ============ Frame seek bar ============
