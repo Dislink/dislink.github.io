@@ -551,6 +551,107 @@ var colors={
 // Character table for brightness levels (darker → lighter)
 var charTable='┃┃┃┋┋╏┇';
 
+// ============ Minecraft NBT String Size Limit & Optimization ============
+var MAX_NBT_STR_BYTES = 32767;
+
+/**
+ * Merge consecutive same-color segments in the §-encoded string.
+ * e.g. §0A§0A§0A§1A§1A§1A → §0AAA§1AAA
+ * This is a lossless visual optimization — Minecraft color codes are sticky.
+ */
+function optimizeColorString(text) {
+    var result = '';
+    var i = 0;
+    var len = text.length;
+    while (i < len) {
+        // Check if this is a § color code followed by a display character
+        if (text[i] === '§' && i + 2 < len) {
+            var colorCode = text.substr(i, 2); // § + color letter
+            var displayChar = text[i + 2];
+            result += colorCode + displayChar;
+            i += 3;
+            // Merge subsequent same-color pixels
+            while (i < len && text[i] === '§' && text.substr(i, 2) === colorCode && i + 2 < len) {
+                result += text[i + 2]; // append only the display char, skip §X
+                i += 3;
+            }
+        } else {
+            // Newline or non-color character — pass through
+            result += text[i];
+            i++;
+        }
+    }
+    return result;
+}
+
+/**
+ * Compute the UTF-8 byte length of a JavaScript string.
+ * Correctly counts: ASCII = 1 byte, U+0080-U+07FF = 2 bytes, U+0800+ = 3 bytes.
+ */
+function getUtf8ByteCount(str) {
+    var bytes = 0;
+    for (var i = 0; i < str.length; i++) {
+        var code = str.charCodeAt(i);
+        if (code < 0x80) {
+            bytes += 1;
+        } else if (code < 0x800) {
+            bytes += 2;
+        } else {
+            bytes += 3;
+        }
+    }
+    return bytes;
+}
+
+/**
+ * Compute full command UTF-8 byte count for a single frame text.
+ * Command: titleraw @a actionbar {"rawtext":[{"text":"<TEXT>"}]}
+ */
+function getCommandByteCount(text) {
+    var json = JSON.stringify({rawtext: [{text: text}]});
+    var cmd = 'titleraw @a actionbar ' + json;
+    return getUtf8ByteCount(cmd);
+}
+
+/**
+ * Show the error modal for NBT string size overflow.
+ */
+function showNbtSizeError(bytes) {
+    // Save original modal state
+    var savedMsg = modalMsg.textContent;
+    var savedDL = modalDownloadOld.style.display;
+    var savedRCtext = modalReconvert.textContent;
+    var savedRCdisplay = modalReconvert.style.display;
+    var savedOverlayClick = modalOverlay.onclick;
+
+    modalMsg.textContent = '命令过长 (' + bytes + ' 字节)\n\n即使经过相同颜色合并优化，生成的命令仍有约 ' + bytes + ' 字节，超过 Minecraft 对 NBT 字符串的最大限制（32767 字节）。\n\n生成的 titleraw 命令无法在游戏中正常使用，请减小视频分辨率或降低帧率后重试。';
+    modalDownloadOld.style.display = 'none';
+    modalReconvert.textContent = '知道了';
+    modalReconvert.style.display = 'inline-flex';
+
+    var restoreModal = function() {
+        modalMsg.textContent = savedMsg;
+        modalDownloadOld.style.display = savedDL;
+        modalReconvert.textContent = savedRCtext;
+        modalReconvert.style.display = savedRCdisplay;
+        modalOverlay.onclick = savedOverlayClick;
+    };
+
+    modalReconvert.onclick = function() {
+        modalOverlay.classList.remove('show');
+        restoreModal();
+    };
+
+    modalOverlay.onclick = function(e) {
+        if (e.target === modalOverlay) {
+            modalOverlay.classList.remove('show');
+            restoreModal();
+        }
+    };
+
+    modalOverlay.classList.add('show');
+}
+
 // ============ DOM refs ============
 var uploadv = document.getElementById('uploadv');
 var vplayer = document.getElementById('vplayer');
@@ -966,6 +1067,7 @@ function showFrame(idx) {
             var imgData = offCtx.getImageData(0, 0, pw, ch);
             var enableDither = ditheringCheck.checked;
             var charText = convertFrame(imgData, pw, ch, enableDither);
+            charText = optimizeColorString(charText);
             setCharPreview(charText);
         }
     });
@@ -975,6 +1077,7 @@ function convertSingleFrame(imgData, canvasH) {
     var enableDither = ditheringCheck.checked;
     var h = canvasH || Math.round(ph / 5);
     var charText = convertFrame(imgData, pw, h, enableDither);
+    charText = optimizeColorString(charText);
     setCharPreview(charText);
 }
 
@@ -1148,6 +1251,8 @@ function processVideo() {
         offCtx.drawImage(vplayer, 0, 0, pw, ch);
         var imgData = offCtx.getImageData(0, 0, pw, ch);
         var frame = convertFrame(imgData, pw, ch, enableDither);
+        // Optimize: merge consecutive same-color segments
+        frame = optimizeColorString(frame);
         frames.push(frame);
     }
 
@@ -1195,20 +1300,40 @@ function processVideo() {
         lastBrailleText = combined;
         lastXLen = xLen;
         lastZLen = zLen;
-        conversionDone = true;
-        paramsDirty = false;
 
-        downloadBtn.style.display = 'inline-flex';
-        downloadBtn.className = 'btn btn-success';
-        downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+        // Check each frame's command size against NBT string limit
+        var oversizeFrame = -1;
+        for (var fi = 0; fi < frames.length; fi++) {
+            var cmdBytes = getCommandByteCount(frames[fi]);
+            if (cmdBytes > MAX_NBT_STR_BYTES) {
+                oversizeFrame = fi;
+                break;
+            }
+        }
+
+        if (oversizeFrame >= 0) {
+            var badBytes = getCommandByteCount(frames[oversizeFrame]);
+            statusEl.textContent = '错误：第 ' + (oversizeFrame + 1) + ' 帧命令约 ' + badBytes + ' 字节，即使合并相同颜色仍超过 32767 字节限制！请减小分辨率或帧率。';
+            statusEl.className = 'status-bar error';
+            downloadBtn.style.display = 'none';
+            showNbtSizeError(badBytes);
+            conversionDone = false;
+        } else {
+            conversionDone = true;
+            paramsDirty = false;
+
+            downloadBtn.style.display = 'inline-flex';
+            downloadBtn.className = 'btn btn-success';
+            downloadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载';
+
+            statusEl.textContent = '视频转换完成！共 ' + frames.length + ' 帧，可拖动帧滑块预览';
+            statusEl.className = 'status-bar';
+        }
 
         convertBtn.disabled = false;
         convertBtn.textContent = '开始转换';
         progressFill.style.width = '100%';
         progressText.textContent = '完成！共 ' + frames.length + ' 帧';
-
-        statusEl.textContent = '视频转换完成！共 ' + frames.length + ' 帧，可拖动帧滑块预览';
-        statusEl.className = 'status-bar';
     }
 
     processAll().catch(function(err) {
@@ -1263,6 +1388,14 @@ function buildCommandBlocks(charText) {
     var cbs = [];
     var tick = parseInt(tickDelayInput.value) || 2;
     for (var i = 0; i < texts.length; i++) {
+        // Safety check: verify each frame's command does not exceed NBT string limit
+        var cmdBytes = getCommandByteCount(texts[i]);
+        if (cmdBytes > MAX_NBT_STR_BYTES) {
+            statusEl.textContent = '错误：第 ' + (i + 1) + ' 帧命令约 ' + cmdBytes + ' 字节，超过 Minecraft NBT 字符串 32767 字节限制！';
+            statusEl.className = 'status-bar error';
+            showNbtSizeError(cmdBytes);
+            return [];
+        }
         cbs.push(new commandBlock(
             'titleraw @a actionbar ' + JSON.stringify({ rawtext: [{ text: texts[i] }] }),
             '', 1, 0, tick, 1
@@ -1313,6 +1446,13 @@ function downloadAsMcfunction(charText) {
 
     var texts = frames.length > 0 ? frames : [charText];
     for (var i = 0; i < texts.length; i++) {
+        var cmdBytes = getCommandByteCount(texts[i]);
+        if (cmdBytes > MAX_NBT_STR_BYTES) {
+            statusEl.textContent = '错误：第 ' + (i + 1) + ' 帧命令约 ' + cmdBytes + ' 字节，超过 Minecraft NBT 字符串 32767 字节限制！';
+            statusEl.className = 'status-bar error';
+            showNbtSizeError(cmdBytes);
+            return;
+        }
         content += 'titleraw @a actionbar ' + JSON.stringify({ rawtext: [{ text: texts[i] }] }) + '\n';
     }
 

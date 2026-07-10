@@ -513,10 +513,10 @@ function onParamChange() {
 
 thresholdScroll.oninput = function(){ thresholdInput.value = this.value; handleParamChange(); };
 thresholdInput.oninput = function(){ thresholdScroll.value = this.value; handleParamChange(); };
-maxWidthScroll.oninput = function(){ maxWidthInput.value = this.value; handleParamChange(); };
-maxWidthInput.oninput = function(){ maxWidthScroll.value = this.value; handleParamChange(); };
-maxHeightScroll.oninput = function(){ maxHeightInput.value = this.value; handleParamChange(); };
-maxHeightInput.oninput = function(){ maxHeightScroll.value = this.value; handleParamChange(); };
+maxWidthScroll.oninput = function(){ maxWidthInput.value = this.value; handleParamChange(); checkBrailleSizeLimit(); };
+maxWidthInput.oninput = function(){ maxWidthScroll.value = this.value; handleParamChange(); checkBrailleSizeLimit(); };
+maxHeightScroll.oninput = function(){ maxHeightInput.value = this.value; handleParamChange(); checkBrailleSizeLimit(); };
+maxHeightInput.oninput = function(){ maxHeightScroll.value = this.value; handleParamChange(); checkBrailleSizeLimit(); };
 fpsScroll.oninput = function(){ fpsInput.value = this.value; updateTickDelayFromFps(); };
 fpsInput.oninput = function(){ fpsScroll.value = this.value; updateTickDelayFromFps(); };
 xLengthScroll.oninput = function(){ xLengthInput.value = this.value; };
@@ -540,6 +540,103 @@ function updateTickDelayHint() {
     var ticks = parseInt(tickDelayInput.value) || 2;
     var approxFps = (20 / ticks).toFixed(1);
     tickDelayHint.textContent = '≈ ' + approxFps + ' FPS';
+}
+
+// ============ Minecraft NBT String Size Limit (32767 bytes) ============
+var MAX_NBT_STR_BYTES = 32767;
+
+/**
+ * Compute the UTF-8 byte length of the full command for braille text at given dimensions.
+ * Command: titleraw @a actionbar {"rawtext":[{"text":"<BRAILLE>"}]}
+ * Braille chars are U+2800+ = 3 UTF-8 bytes each.
+ * Newlines become \n in JSON = 2 ASCII bytes each.
+ */
+function getBrailleCommandBytes(workingW, workingH) {
+    var cols = Math.floor(workingW / 2);
+    var rows = Math.floor(workingH / 6);
+    if (cols < 1 || rows < 1) return 0;
+    var brailleChars = cols * rows;
+    // Braille chars in JSON: 3 bytes each (U+2800-U+28FF in UTF-8)
+    // Newlines in JSON: escaped as \n = 2 bytes each
+    var textBytesInJson = brailleChars * 3 + rows * 2;
+    // "titleraw @a actionbar " = 24, {"rawtext":[{"text":" = 20, "}]} = 4  → 48 ASCII bytes
+    return 48 + textBytesInJson;
+}
+
+/**
+ * Estimate max possible command size from slider values and show error if too big.
+ * Returns false if over limit.
+ */
+function checkBrailleSizeLimit() {
+    var mw = parseInt(maxWidthInput.value) || 256;
+    var mh = parseInt(maxHeightInput.value) || 102;
+    // Use slider values as conservative estimate of working dimensions
+    var estPw = Math.round(mw / 2) * 2;
+    var estPh = Math.round(mh / 6) * 6;
+    var cmdBytes = getBrailleCommandBytes(estPw, estPh);
+
+    if (cmdBytes > MAX_NBT_STR_BYTES) {
+        statusEl.textContent = '错误：当前尺寸生成的命令约 ' + cmdBytes + ' 字节，超过 Minecraft NBT 字符串 32767 字节限制！请减小宽度或高度。';
+        statusEl.className = 'status-bar error';
+        convertBtn.style.display = 'none';
+        downloadBtn.style.display = 'none';
+        showNbtSizeError(cmdBytes);
+        return false;
+    }
+
+    // Size is within limits — restore appropriate button state
+    var hasSource = !!(img.src || (isVideo && videoUrl));
+    if (!conversionDone && hasSource) {
+        // Before conversion: re-show convert button if source loaded
+        statusEl.textContent = img.src ? '图片已加载，点击「开始转换」生成盲文字符画' : '视频已加载，点击「开始转换」提取帧';
+        statusEl.className = 'status-bar info';
+        convertBtn.style.display = 'inline-flex';
+    } else if (conversionDone && !paramsDirty) {
+        // After conversion with clean params: restore clean download button
+        statusEl.textContent = '转换完成！';
+        statusEl.className = 'status-bar';
+        enableDownloadClean();
+    }
+    return true;
+}
+
+/**
+ * Show the error modal for NBT string size overflow.
+ */
+function showNbtSizeError(bytes) {
+    // Save original modal state
+    var savedMsg = modalMsg.textContent;
+    var savedDL = modalDownloadOld.style.display;
+    var savedRCtext = modalReconvert.textContent;
+    var savedRCdisplay = modalReconvert.style.display;
+    var savedOverlayClick = modalOverlay.onclick;
+
+    modalMsg.textContent = '命令过长 (' + bytes + ' 字节)\n\n当前尺寸生成的整个命令约 ' + bytes + ' 字节，已超过 Minecraft 对 NBT 字符串的最大限制（32767 字节）。\n\ngenerated titleraw 命令无法在游戏中正常使用，请减小「最大宽度」或「最大高度」后重试。';
+    modalDownloadOld.style.display = 'none';
+    modalReconvert.textContent = '知道了';
+    modalReconvert.style.display = 'inline-flex';
+
+    var restoreModal = function() {
+        modalMsg.textContent = savedMsg;
+        modalDownloadOld.style.display = savedDL;
+        modalReconvert.textContent = savedRCtext;
+        modalReconvert.style.display = savedRCdisplay;
+        modalOverlay.onclick = savedOverlayClick;
+    };
+
+    modalReconvert.onclick = function() {
+        modalOverlay.classList.remove('show');
+        restoreModal();
+    };
+
+    modalOverlay.onclick = function(e) {
+        if (e.target === modalOverlay) {
+            modalOverlay.classList.remove('show');
+            restoreModal();
+        }
+    };
+
+    modalOverlay.classList.add('show');
 }
 
 // Init
@@ -836,6 +933,16 @@ function processImage() {
         var invertColors = invertCheck.checked;
 
         calcDimensions(img.width, img.height);
+
+        // Check actual command size before proceeding
+        var actualBytes = getBrailleCommandBytes(pw, ph);
+        if (actualBytes > MAX_NBT_STR_BYTES) {
+            statusEl.textContent = '错误：当前尺寸生成的命令约 ' + actualBytes + ' 字节，超过 32767 字节限制！';
+            statusEl.className = 'status-bar error';
+            showNbtSizeError(actualBytes);
+            return;
+        }
+
         drawSourcePreview();
 
         var ctx = img_preview.getContext('2d');
@@ -892,6 +999,18 @@ function processVideo() {
     paramsDirty = false;
 
     calcDimensions(vplayer.videoWidth, vplayer.videoHeight);
+
+    // Check actual command size per frame before proceeding
+    var actualBytes = getBrailleCommandBytes(pw, ph);
+    if (actualBytes > MAX_NBT_STR_BYTES) {
+        statusEl.textContent = '错误：当前尺寸每帧命令约 ' + actualBytes + ' 字节，超过 32767 字节限制！';
+        statusEl.className = 'status-bar error';
+        showNbtSizeError(actualBytes);
+        convertBtn.disabled = false;
+        convertBtn.textContent = '开始转换';
+        progressArea.style.display = 'none';
+        return;
+    }
 
     var captured = 0;
 
