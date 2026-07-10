@@ -1241,8 +1241,8 @@ function processVideo() {
 
     var captured = 0;
 
-    async function captureFrame(time) {
-        await seekTo(time, 500);
+    // === Capture a single frame at the video's current position ===
+    function captureCurrentFrame() {
         var ch = Math.round(ph / 5);
         var offscreen = document.createElement('canvas');
         offscreen.width = pw;
@@ -1251,9 +1251,7 @@ function processVideo() {
         offCtx.drawImage(vplayer, 0, 0, pw, ch);
         var imgData = offCtx.getImageData(0, 0, pw, ch);
         var frame = convertFrame(imgData, pw, ch, enableDither);
-        // Optimize: merge consecutive same-color segments
-        frame = optimizeColorString(frame);
-        frames.push(frame);
+        return optimizeColorString(frame);
     }
 
     async function processAll() {
@@ -1261,8 +1259,8 @@ function processVideo() {
         await waitForVideoReady();
         var ch = Math.round(ph / 5);
 
-        // First, show the source preview at frame 0 (proper aspect ratio)
-        await seekTo(0, 500);
+        // First, show the source preview at frame 0
+        await seekTo(0, 800);
         img_preview.width = dispW;
         img_preview.height = dispH;
         var firstCtx = img_preview.getContext('2d');
@@ -1272,29 +1270,87 @@ function processVideo() {
         infoCard.style.display = '';
         convertBtn.style.display = 'none';
 
-        for (var f = 0; f < total; f++) {
-            var time = f / fps;
-            if (time > videoDuration) time = videoDuration;
+        // Capture frame 0
+        var firstFrame = captureCurrentFrame();
+        frames.push(firstFrame);
+        captured = 1;
+        setCharPreview(firstFrame);
+        initFrameSeek(total);
 
-            await captureFrame(time);
-            captured++;
+        var pct = Math.min(100, Math.round(captured / total * 100));
+        progressFill.style.width = pct + '%';
+        progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + pct + '%)';
+        await new Promise(function(r) { setTimeout(r, 0); });
 
-            var pct = Math.min(100, Math.round(captured / total * 100));
-            progressFill.style.width = pct + '%';
-            progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + pct + '%)';
-
-            // Show first frame char preview as soon as it's ready
-            if (captured === 1) {
-                setCharPreview(frames[0]);
-                initFrameSeek(total);
-            }
-
-            // Yield to UI periodically so the progress bar updates
-            if (captured % 3 === 0) {
-                await new Promise(function(r) { setTimeout(r, 0); });
-            }
+        // Single frame → done
+        if (total <= 1) {
+            finishColorConversion();
+            return;
         }
 
+        // === Playback-based capture (much faster on mobile than per-frame seeking) ===
+        var frameIndex = 1;
+        var frameInterval = 1 / fps;
+        var playbackOk = false;
+
+        try {
+            var p = vplayer.play();
+            if (p !== undefined) await p;
+            playbackOk = true;
+        } catch(e) {
+            playbackOk = false;
+        }
+
+        if (playbackOk) {
+            await new Promise(function(resolve) {
+                function captureLoop() {
+                    var cur = vplayer.currentTime;
+                    var batch = 0;
+                    while (frameIndex < total && cur >= frameIndex * frameInterval && batch < 4) {
+                        var frame = captureCurrentFrame();
+                        frames.push(frame);
+                        frameIndex++;
+                        captured = frameIndex;
+                        batch++;
+
+                        var p2 = Math.min(100, Math.round(captured / total * 100));
+                        progressFill.style.width = p2 + '%';
+                        progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + p2 + '%)';
+                    }
+                    if (captured >= total || cur >= videoDuration) {
+                        vplayer.pause();
+                        finishColorConversion();
+                        resolve();
+                        return;
+                    }
+                    requestAnimationFrame(captureLoop);
+                }
+                requestAnimationFrame(captureLoop);
+            });
+        } else {
+            // Fallback: sequential seeking with timeout
+            for (var f = 1; f < total; f++) {
+                var t = f / fps;
+                if (t > videoDuration) t = videoDuration;
+                await seekTo(t, 200);
+
+                var frame = captureCurrentFrame();
+                frames.push(frame);
+                captured++;
+
+                var p3 = Math.min(100, Math.round(captured / total * 100));
+                progressFill.style.width = p3 + '%';
+                progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + p3 + '%)';
+
+                if (captured % 5 === 0) {
+                    await new Promise(function(r) { setTimeout(r, 0); });
+                }
+            }
+            finishColorConversion();
+        }
+    }
+
+    function finishColorConversion() {
         var combined = frames.join('');
 
         lastBrailleText = combined;

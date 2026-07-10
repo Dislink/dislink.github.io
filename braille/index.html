@@ -1014,66 +1014,139 @@ function processVideo() {
 
     var captured = 0;
 
-    function captureFrame(time) {
+    // === Reliable seek with timeout fallback ===
+    function seekTo(time, timeoutMs) {
         return new Promise(function(resolve) {
-            vplayer.currentTime = time;
-            vplayer.onseeked = function() {
-                vplayer.onseeked = null;
-                var offscreen = document.createElement('canvas');
-                offscreen.width = pw;
-                offscreen.height = ph;
-                var offCtx = offscreen.getContext('2d');
-                offCtx.drawImage(vplayer, 0, 0, pw, ph);
-                var imgData = offCtx.getImageData(0, 0, pw, ph);
-                var frame = convertToBraille(imgData, pw, ph, threshold, enableDither, invertColors);
-                frames.push(frame);
+            if (time === undefined || isNaN(time)) time = 0;
+            if (timeoutMs === undefined) timeoutMs = 500;
+            if (time > videoDuration) time = videoDuration;
+            if (time < 0) time = 0;
+            var settled = false;
+            var handler = function() {
+                if (settled) return;
+                settled = true;
+                vplayer.removeEventListener('seeked', handler);
                 resolve();
             };
+            vplayer.addEventListener('seeked', handler);
+            vplayer.currentTime = time;
+            setTimeout(function() {
+                if (!settled) {
+                    settled = true;
+                    vplayer.removeEventListener('seeked', handler);
+                    resolve();
+                }
+            }, timeoutMs);
         });
     }
 
-    function showFirstFramePreview() {
-        return new Promise(function(resolve) {
-            img_preview.width = pw;
-            img_preview.height = ph;
-            var firstCtx = img_preview.getContext('2d');
-            vplayer.currentTime = 0;
-            vplayer.onseeked = function() {
-                vplayer.onseeked = null;
-                firstCtx.drawImage(vplayer, 0, 0, pw, ph);
-                showInfo(vplayer.videoWidth, vplayer.videoHeight);
-                previewCard.style.display = '';
-                infoCard.style.display = '';
-                convertBtn.style.display = 'none';
-                resolve();
-            };
-        });
+    // === Capture a single frame at the video's current position ===
+    function captureCurrentFrame() {
+        var offscreen = document.createElement('canvas');
+        offscreen.width = pw;
+        offscreen.height = ph;
+        var offCtx = offscreen.getContext('2d');
+        offCtx.drawImage(vplayer, 0, 0, pw, ph);
+        var imgData = offCtx.getImageData(0, 0, pw, ph);
+        return convertToBraille(imgData, pw, ph, threshold, enableDither, invertColors);
     }
 
     async function processAll() {
-        var firstDone = false;
-        for (var f = 0; f < total; f++) {
-            var time = f / fps;
-            if (time > videoDuration) time = videoDuration;
-            await captureFrame(time);
-            captured++;
+        // Seek to frame 0 for first frame preview
+        await seekTo(0, 800);
+        img_preview.width = pw;
+        img_preview.height = ph;
+        var firstCtx = img_preview.getContext('2d');
+        firstCtx.drawImage(vplayer, 0, 0, pw, ph);
+        showInfo(vplayer.videoWidth, vplayer.videoHeight);
+        previewCard.style.display = '';
+        infoCard.style.display = '';
+        convertBtn.style.display = 'none';
+        initFrameSeek(total);
 
-            var pct = Math.min(100, Math.round(captured / total * 100));
-            progressFill.style.width = pct + '%';
-            progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + pct + '%)';
+        // Capture frame 0
+        var firstFrame = captureCurrentFrame();
+        frames.push(firstFrame);
+        captured = 1;
+        showPreview(firstFrame);
 
-            if (!firstDone) {
-                firstDone = true;
-                await showFirstFramePreview();
-                // init frame seek after first frame shown
-                initFrameSeek(total);
-            }
+        var pct = Math.min(100, Math.round(captured / total * 100));
+        progressFill.style.width = pct + '%';
+        progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + pct + '%)';
+        await new Promise(function(r) { setTimeout(r, 0); });
+
+        // Single frame → done
+        if (total <= 1) {
+            finishBrailleConversion();
+            return;
         }
 
+        // === Playback-based capture (much faster on mobile than per-frame seeking) ===
+        var frameIndex = 1;
+        var frameInterval = 1 / fps;
+        var playbackOk = false;
+
+        try {
+            var p = vplayer.play();
+            if (p !== undefined) await p;
+            playbackOk = true;
+        } catch(e) {
+            playbackOk = false;
+        }
+
+        if (playbackOk) {
+            await new Promise(function(resolve) {
+                function captureLoop() {
+                    var cur = vplayer.currentTime;
+                    var batch = 0;
+                    while (frameIndex < total && cur >= frameIndex * frameInterval && batch < 4) {
+                        var frame = captureCurrentFrame();
+                        frames.push(frame);
+                        frameIndex++;
+                        captured = frameIndex;
+                        batch++;
+
+                        var p2 = Math.min(100, Math.round(captured / total * 100));
+                        progressFill.style.width = p2 + '%';
+                        progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + p2 + '%)';
+                    }
+                    if (captured >= total || cur >= videoDuration) {
+                        vplayer.pause();
+                        finishBrailleConversion();
+                        resolve();
+                        return;
+                    }
+                    requestAnimationFrame(captureLoop);
+                }
+                requestAnimationFrame(captureLoop);
+            });
+        } else {
+            // Fallback: sequential seeking with timeout (safer than original onseeked)
+            for (var f = 1; f < total; f++) {
+                var t = f / fps;
+                if (t > videoDuration) t = videoDuration;
+                await seekTo(t, 200);
+
+                var frame = captureCurrentFrame();
+                frames.push(frame);
+                captured++;
+
+                var p3 = Math.min(100, Math.round(captured / total * 100));
+                progressFill.style.width = p3 + '%';
+                progressText.textContent = '帧 ' + captured + ' / ' + total + ' (' + p3 + '%)';
+
+                if (captured % 5 === 0) {
+                    await new Promise(function(r) { setTimeout(r, 0); });
+                }
+            }
+            finishBrailleConversion();
+        }
+    }
+
+    function finishBrailleConversion() {
         var combined = frames.join('');
         showPreview(combined);
 
-        // Store for download
         lastBrailleText = combined;
         lastIsVideoSrc = true;
         lastXLen = xLen;
