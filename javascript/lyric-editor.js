@@ -205,8 +205,19 @@
         }
 
         function refreshLyricManager() {
-            // 勾选框只控制「是否生成字幕命令」；编辑区与瀑布流预览始终可用
-            if (optionsEl) optionsEl.style.display = 'block';
+            // 未勾选：隐藏输入区，关闭预览/编辑，清空挂起的预览
+            var enabled = isEnabled();
+            if (optionsEl) optionsEl.style.display = enabled ? 'block' : 'none';
+            if (!enabled) {
+                hideOverlay();
+                state.lyricMgr = null;
+                window._pendingLyricPreview = null;
+                forEachWaterfall(function(wfState) {
+                    if (wfState.setLyricManager) wfState.setLyricManager(null, false);
+                });
+                if (typeof opts.onAfterChange === 'function') opts.onAfterChange();
+                return;
+            }
 
             var mf = getMidiFile();
             var text = (textarea && textarea.value) ? String(textarea.value).trim() : '';
@@ -227,7 +238,7 @@
                 });
             }
 
-            // 有歌词内容就推送到瀑布流预览（与是否勾选生成无关）
+            // 仅在启用时，把歌词推送到目标瀑布流（默认命令预览，不含合成音瀑布流）
             if (lyrics.length && totalMs) {
                 state.lyricMgr = new window.LyricManager(lyrics, totalMs);
                 var songName = getSongName();
@@ -283,7 +294,7 @@
          * 若该时间附近已有歌词 → 进入编辑并回填；否则进入新增模式。
          */
         function onTimeSelected(snappedMs, rawMs) {
-            // 预览/编辑不依赖「启用歌词生成」勾选
+            if (!isEnabled()) return;
             var match = findLyricNearTime(textarea.value, snappedMs, MATCH_TOLERANCE_MS);
             if (!match && rawMs != null) {
                 match = findLyricNearTime(textarea.value, rawMs, MATCH_TOLERANCE_MS);
@@ -305,6 +316,7 @@
 
         /** 点击时间轴上已有歌词标记 → 编辑 */
         function onLyricEdit(idx, text, timeMs) {
+            if (!isEnabled()) return;
             state.editingLyricIdx = idx;
             // 有音节时，编辑框填整句文本（不含时间标签），用户改的是整句内容
             showOverlay(timeMs, text || '', 'edit');
@@ -312,6 +324,7 @@
 
         /** 拖拽歌词时间标记 */
         function onLyricTimeChanged(idx, newTimeMs) {
+            if (!isEnabled()) return;
             var src = (textarea.value || '').trim();
             if (!src) return;
             var currentLyrics = window.LyricParser.parseLRC(src);

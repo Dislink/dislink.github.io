@@ -308,8 +308,10 @@
             }
         };
 
-        // 若页面在瀑布流创建前就准备好了歌词预览，这里自动挂上
-        if (!state.lyricManager && window._pendingLyricPreview && window._pendingLyricPreview.mgr) {
+        // 若页面在瀑布流创建前就准备好了歌词预览，仅挂到命令预览（mcsound）瀑布流
+        // 合成音瀑布流不显示字幕预览
+        if (!state.lyricManager && state.mode === 'mcsound'
+            && window._pendingLyricPreview && window._pendingLyricPreview.mgr) {
             state.lyricManager = window._pendingLyricPreview.mgr;
             state.lyricDisplayEnabled = true;
             state.lyricSongName = window._pendingLyricPreview.songName || '';

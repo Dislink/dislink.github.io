@@ -177,6 +177,29 @@
             </div>
         </div>
 
+        <!-- 歌词/字幕卡片 -->
+        <div class="card" id="lyric_card" style="display:none;">
+            <div class="card-header">歌词/字幕</div>
+            <div class="card-body">
+                <div class="inline-group">
+                    <input type="checkbox" id="enableLyrics" />
+                    <label for="enableLyrics">启用歌词生成</label>
+                </div>
+                <div id="lyric_options" style="display:none;">
+                    <div class="file-upload-wrapper" style="margin:0.5rem 0;">
+                        <span class="file-upload-text">上传 LRC 文件（可选）</span>
+                        <input type="file" id="lrcUpload" accept=".lrc,.txt">
+                    </div>
+                    <textarea id="lyricTextarea" rows="6"
+                        placeholder="或在此粘贴 LRC 格式歌词（兼容网易云等）：&#10;[00:01.00]第一句歌词&#10;[00:05.50]第二句歌词"
+                        style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+                    <div class="info-display" id="lyricInfo">已解析 0 条歌词</div>
+                    <div class="info-display" id="lyricStatus" style="color:#666;font-size:12px;"></div>
+                </div>
+            </div>
+        </div>
+
+
         <div class="card">
             <div class="card-header">转换参数</div>
             <div class="card-body">
@@ -277,28 +300,6 @@
             </div>
         </div>
 
-        <!-- 歌词/字幕卡片 -->
-        <div class="card" id="lyric_card" style="display:none;">
-            <div class="card-header">歌词/字幕</div>
-            <div class="card-body">
-                <div class="inline-group">
-                    <input type="checkbox" id="enableLyrics" />
-                    <label for="enableLyrics">启用歌词生成</label>
-                </div>
-                <div id="lyric_options" style="display:none;">
-                    <div class="file-upload-wrapper" style="margin:0.5rem 0;">
-                        <span class="file-upload-text">上传 LRC 文件（可选）</span>
-                        <input type="file" id="lrcUpload" accept=".lrc,.txt">
-                    </div>
-                    <textarea id="lyricTextarea" rows="6"
-                        placeholder="或在此粘贴 LRC 格式歌词（兼容网易云等）：&#10;[00:01.00]第一句歌词&#10;[00:05.50]第二句歌词"
-                        style="width:100%;font-family:monospace;font-size:12px;"></textarea>
-                    <div class="info-display" id="lyricInfo">已解析 0 条歌词</div>
-                    <div class="info-display" id="lyricStatus" style="color:#666;font-size:12px;"></div>
-                </div>
-            </div>
-        </div>
-
     </form>
 
     <div style="text-align:center;margin-bottom:1rem;">
@@ -369,7 +370,6 @@
     }
     var lyricEditor = window.LyricEditor.init({
         waterfallId: 'cmd-preview-container',
-        previewWaterfallIds: ['waterfall-container'],
         onAfterChange: function() {
             lyricMgr = lyricEditor.getManager();
             refreshCommandBlockLengthEstimate();
@@ -519,24 +519,22 @@
                 document.getElementById("lyric_card").style="display: block;";
                 // 自动从 MIDI 提取歌词并填充文本域
                 lyricEditor.loadFromMidi(midiFile);
-                // 先解析歌词管理器，再初始化瀑布流，确保首帧就能画出字幕预览
+                // 合成音瀑布流不挂歌词；仅命令预览可预览/编辑字幕
+                initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
+                var _lyricOpts = lyricEditor.getWaterfallCallbacks();
+                // 仅在勾选启用时注入预览数据
                 refreshLyricManager();
-                var _lyricOpts = {};
-                if (lyricMgr) {
+                if (lyricMgr && lyricEditor.isEnabled()) {
                     _lyricOpts.lyricManager = lyricMgr;
                     _lyricOpts.lyricDisplayEnabled = true;
                     _lyricOpts.lyricSongName = (upload.files[upload.seq] && upload.files[upload.seq].name || '').replace(/\.midi?$/i, '');
                 }
-                initWaterfall('waterfall-container', midiFile, Object.assign({
-                    speed: parseFloat(speed.value) / 100
-                }, _lyricOpts));
                 initMCSoundWaterfall('cmd-preview-container', midiFile, Object.assign({
                     speed: parseFloat(speed.value) / 100,
                     rowLookup: window._rowLookup
-                }, _lyricOpts, lyricEditor.getWaterfallCallbacks()));
+                }, _lyricOpts));
                 commandBlockLength=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
                 refreshCommandBlockLengthEstimate();
-                // 再刷一次，覆盖 init 后的状态并触发 rAF 重绘
                 refreshLyricManager();
             }catch(e){
                 var errMsg=e.toString().split('\n')[0];
