@@ -287,11 +287,33 @@
         // 动态设置歌词管理器的便捷方法
         state.setLyricManager = function(mgr, enabled, songName) {
             state.lyricManager = mgr || null;
-            state.lyricDisplayEnabled = !!enabled;
+            // 只要传入了管理器就默认开启显示；enabled 显式 false 时关闭
+            if (arguments.length >= 2) {
+                state.lyricDisplayEnabled = !!enabled && !!mgr;
+            } else {
+                state.lyricDisplayEnabled = !!mgr;
+            }
             if (songName !== undefined) state.lyricSongName = songName;
             state._lastLyricIdx = -2; // 强制下次 render 刷新
-            if (!state.isPlaying) renderFrame(state);
+            // 立即重绘；再 rAF 一次，避免容器刚 display:block 时宽高为 0
+            try { renderFrame(state); } catch (e) {}
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(function() {
+                    if (state.destroyed) return;
+                    try {
+                        resizeCanvas(state);
+                        renderFrame(state);
+                    } catch (e2) {}
+                });
+            }
         };
+
+        // 若页面在瀑布流创建前就准备好了歌词预览，这里自动挂上
+        if (!state.lyricManager && window._pendingLyricPreview && window._pendingLyricPreview.mgr) {
+            state.lyricManager = window._pendingLyricPreview.mgr;
+            state.lyricDisplayEnabled = true;
+            state.lyricSongName = window._pendingLyricPreview.songName || '';
+        }
 
         resizeCanvas(state);
 
@@ -844,13 +866,18 @@
     }
 
     /**
-     * 在画布底部绘制歌词覆盖层
-     * @param {object} state - 瀑布流状态
+     * 在画布底部绘制歌词覆盖层（模拟 titleraw actionbar 效果）
+     * 直接按 LyricManager 数据绘制，避免 JSON 往返解析失败导致预览空白
      */
     function drawLyricOverlay(state) {
         if (!state.lyricManager || !state.lyricDisplayEnabled) return;
 
-        var ctx = state.ctx, w = state.width, h = state.height, dpr = state.dpr;
+        var ctx = state.ctx, w = state.width, h = state.height, dpr = state.dpr || 1;
+        if (!ctx || !w || !h) return;
+
+        var mgr = state.lyricManager;
+        var t = state.currentTime || 0;
+        var songName = state.lyricSongName || '';
 
         // 底部区域高度：约 76px（含 padding）
         var overlayHeight = 76 * dpr;
@@ -860,19 +887,51 @@
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
         ctx.fillRect(0, overlayY, w, overlayHeight);
 
-        // 生成 titleraw 命令文本（去掉命令前缀，只取 JSON 内容）
-        var cmd = state.lyricManager.buildTitleCommand(state.currentTime, state.lyricSongName);
-        // 提取 JSON 中的 text 字段
-        var jsonStr = cmd.replace('titleraw @a actionbar ', '');
-        var rawtext;
+        // 取上一句 / 当前 / 下一句
+        var idx = -1;
+        try { idx = mgr.getCurrentIndex(t); } catch (e) { idx = -1; }
+        var prev = '';
+        var next = '';
+        var currText = '';
         try {
-            rawtext = JSON.parse(jsonStr);
-        } catch (e) { return; }
+            prev = idx > 0 ? (mgr.getLyricAt(idx - 1) || '') : '';
+            next = (idx >= 0 && idx < mgr.lyrics.length - 1) ? (mgr.getLyricAt(idx + 1) || '') : '';
+            var currSentence = idx >= 0 ? mgr.lyrics[idx] : null;
+            if (currSentence && currSentence.syllables && typeof mgr.buildSyllableLine === 'function') {
+                currText = mgr.buildSyllableLine(currSentence, t) || '';
+            } else if (currSentence) {
+                currText = '§f' + (currSentence.text || '');
+            } else {
+                currText = '§f';
+            }
+        } catch (e2) {
+            currText = '§f';
+        }
 
-        var textContent = rawtext.rawtext && rawtext.rawtext[0] ? rawtext.rawtext[0].text : '';
+        var progress = mgr.totalMs > 0 ? Math.min(1, t / mgr.totalMs) : 0;
+        var bar = '';
+        var timeStr = '0:00';
+        var remainStr = '0:00';
+        var totalStr = '0:00';
+        try {
+            bar = mgr.buildProgressBar(progress);
+            timeStr = mgr.formatTime(t);
+            remainStr = mgr.formatTime(Math.max(0, mgr.totalMs - t));
+            totalStr = mgr.formatTime(mgr.totalMs);
+        } catch (e3) {
+            var filled = Math.round(progress * 20);
+            bar = '§a' + new Array(filled + 1).join('-') + '§7' + new Array(20 - filled + 1).join('-');
+        }
+
+        // 与 buildTitleCommand 一致的四行文本
+        var esc = function(s) { return String(s || '').replace(/§/g, ''); };
+        var textContent = '§7' + esc(prev)
+            + '\n' + currText
+            + '\n§7' + esc(next)
+            + '\n§7[' + bar + '§7] §f' + timeStr + ' §7/ -' + remainStr + ' §8(' + totalStr + ') §e' + esc(songName);
+
         var fragments = parseColoredText(textContent);
 
-        // 绘制各片段
         var fontSize = 11 * dpr;
         ctx.font = fontSize + 'px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textBaseline = 'top';
@@ -889,7 +948,6 @@
                 lineY += lineHeight;
                 continue;
             }
-            // 进度条特殊处理：检测 §a 后跟多段 - 并合并绘制
             ctx.fillStyle = frag.color;
             ctx.fillText(frag.text, lineX, lineY);
             lineX += ctx.measureText(frag.text).width;

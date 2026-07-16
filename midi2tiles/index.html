@@ -350,11 +350,20 @@
                 document.getElementById("lyric_card").style="display: block;";
                 // 自动从 MIDI 提取歌词
                 lyricEditor.loadFromMidi(midiFile);
-                initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
+                refreshLyricManager();
+                var _lyricOpts = {};
+                if (lyricMgr) {
+                    _lyricOpts.lyricManager = lyricMgr;
+                    _lyricOpts.lyricDisplayEnabled = true;
+                    _lyricOpts.lyricSongName = (upload.files[0] && upload.files[0].name || '').replace(/\.midi?$/i, '');
+                }
+                initWaterfall('waterfall-container', midiFile, Object.assign({
+                    speed: parseFloat(speed.value) / 100
+                }, _lyricOpts));
                 initMCSoundWaterfall('cmd-preview-container', midiFile, Object.assign({
                     speed: parseFloat(speed.value) / 100,
                     rowLookup: window._rowLookup
-                }, lyricEditor.getWaterfallCallbacks()));
+                }, _lyricOpts, lyricEditor.getWaterfallCallbacks()));
                 fileName=upload.files[0].name;
                 refreshLyricManager();
             }catch(e){

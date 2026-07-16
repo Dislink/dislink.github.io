@@ -209,7 +209,7 @@
             if (optionsEl) optionsEl.style.display = 'block';
 
             var mf = getMidiFile();
-            var text = (textarea.value || '').trim();
+            var text = (textarea && textarea.value) ? String(textarea.value).trim() : '';
             var lyrics;
             // 文本仍是 MIDI 提取原样 → 保留音节级渐进高亮数据
             if (window._rawMidiSyllables && text === state.midiExtractedText) {
@@ -218,15 +218,34 @@
                 lyrics = text ? window.LyricParser.parseLRC(text) : [];
             }
 
-            // 有歌词内容就推送到瀑布流预览（与是否勾选生成无关）
-            if (lyrics.length && mf && mf.timeTotal) {
-                state.lyricMgr = new window.LyricManager(lyrics, mf.timeTotal);
-                var songName = getSongName();
+            var totalMs = 0;
+            if (mf && mf.timeTotal) totalMs = mf.timeTotal;
+            // 即使 getMidiFile 暂时拿不到对象，也尽量从已有瀑布流状态取总时长
+            if (!totalMs) {
                 forEachWaterfall(function(wfState) {
-                    if (wfState.setLyricManager) wfState.setLyricManager(state.lyricMgr, true, songName);
+                    if (!totalMs && wfState.timeTotal) totalMs = wfState.timeTotal;
                 });
+            }
+
+            // 有歌词内容就推送到瀑布流预览（与是否勾选生成无关）
+            if (lyrics.length && totalMs) {
+                state.lyricMgr = new window.LyricManager(lyrics, totalMs);
+                var songName = getSongName();
+                var applied = 0;
+                forEachWaterfall(function(wfState) {
+                    if (wfState.setLyricManager) {
+                        wfState.setLyricManager(state.lyricMgr, true, songName);
+                        applied++;
+                    }
+                });
+                // 瀑布流可能尚未初始化：挂到 window，供稍后 init 后再次 refresh
+                window._pendingLyricPreview = applied ? null : {
+                    mgr: state.lyricMgr,
+                    songName: songName
+                };
             } else {
                 state.lyricMgr = null;
+                window._pendingLyricPreview = null;
                 forEachWaterfall(function(wfState) {
                     if (wfState.setLyricManager) wfState.setLyricManager(null, false);
                 });

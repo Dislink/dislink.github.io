@@ -519,14 +519,24 @@
                 document.getElementById("lyric_card").style="display: block;";
                 // 自动从 MIDI 提取歌词并填充文本域
                 lyricEditor.loadFromMidi(midiFile);
-                initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
+                // 先解析歌词管理器，再初始化瀑布流，确保首帧就能画出字幕预览
+                refreshLyricManager();
+                var _lyricOpts = {};
+                if (lyricMgr) {
+                    _lyricOpts.lyricManager = lyricMgr;
+                    _lyricOpts.lyricDisplayEnabled = true;
+                    _lyricOpts.lyricSongName = (upload.files[upload.seq] && upload.files[upload.seq].name || '').replace(/\.midi?$/i, '');
+                }
+                initWaterfall('waterfall-container', midiFile, Object.assign({
+                    speed: parseFloat(speed.value) / 100
+                }, _lyricOpts));
                 initMCSoundWaterfall('cmd-preview-container', midiFile, Object.assign({
                     speed: parseFloat(speed.value) / 100,
                     rowLookup: window._rowLookup
-                }, lyricEditor.getWaterfallCallbacks()));
+                }, _lyricOpts, lyricEditor.getWaterfallCallbacks()));
                 commandBlockLength=midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length;
                 refreshCommandBlockLengthEstimate();
-                // 启用歌词时刷新瀑布流歌词显示
+                // 再刷一次，覆盖 init 后的状态并触发 rAF 重绘
                 refreshLyricManager();
             }catch(e){
                 var errMsg=e.toString().split('\n')[0];
