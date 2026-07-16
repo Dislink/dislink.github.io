@@ -469,11 +469,12 @@
         var bar = this.buildProgressBar(progress);
 
         var timeStr = this.formatTime(currentTime);
+        var remainStr = this.formatTime(Math.max(0, this.totalMs - currentTime));
         var totalStr = this.formatTime(this.totalMs);
 
         var esc = LyricManager._escapeColor;
 
-        // 四行文本：上一句(灰) / 当前(白/灰渐进) / 下一句(灰) / 进度条+时间+歌名
+        // 四行文本：上一句(灰) / 当前(白/灰渐进) / 下一句(灰) / 进度条+当前/剩余/总时长+歌名
         // 注意：当前行已自带 § 颜色代码（syllableLine 或 §f前缀），不再 esc
         var prevLine = '§7' + esc(prev);
         var nextLine = '§7' + esc(next);
@@ -482,7 +483,7 @@
         var text = prevLine
                  + '\n' + currLine
                  + '\n' + nextLine
-                 + '\n§7[' + bar + '§7] §f' + timeStr + ' §7/ ' + totalStr + ' §e' + esc(songName || '');
+                 + '\n§7[' + bar + '§7] §f' + timeStr + ' §7/ -' + remainStr + ' §8(' + totalStr + ') §e' + esc(songName || '');
 
         var rawtext = JSON.stringify({ rawtext: [{ text: text }] });
         return 'titleraw @a actionbar ' + rawtext;
