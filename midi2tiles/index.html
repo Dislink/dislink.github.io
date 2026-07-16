@@ -14,6 +14,8 @@
     <script src="/javascript/jszip.min.js" type="text/javascript"></script>
     <script src="/javascript/FileSaver.js" type="text/javascript"></script>
     <script src="/javascript/Math.uuid.js" type="text/javascript"></script>
+    <script src="/javascript/lyric.js" type="text/javascript"></script>
+    <script src="/javascript/lyric-editor.js" type="text/javascript"></script>
     <script>
         manifestBE={"format_version":0,"header":{"description":"url:https://dislink.github.io/midi2mcfunction","name":"","uuid":"","min_engine_version":[],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
     </script>
@@ -111,8 +113,20 @@
                     </div>
                 </div>
             </div>
-            <div class="card-body" style="padding:0.5rem;">
+            <div class="card-body" style="padding:0.5rem; position:relative;">
                 <div id="cmd-preview-container"></div>
+                <!-- 歌词编辑浮层：遮罩在画布上方，鼠标事件穿透到 canvas -->
+                <div id="lyricEditorOverlay" style="display:none; position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:10;
+                    padding:4px 10px; background:rgba(30,41,59,0.92); border-radius:8px; border:1px solid #475569;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.3); white-space:nowrap; pointer-events:none;">
+                    <span id="editTimeDisplay" style="color:#f59e0b;font-size:13px;font-weight:bold;">00:00.00</span>
+                    <input id="lyricEditInput" type="text" placeholder="输入歌词后回车…"
+                        style="width:200px;padding:3px 6px;font-size:13px;background:#1e293b;color:#f1f5f9;border:1px solid #475569;border-radius:4px;margin:0 6px; pointer-events:auto;" />
+                    <button type="button" id="lyricAddBtn"
+                        style="background:#22c55e;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:13px;cursor:pointer; pointer-events:auto;">添加乐句</button>
+                    <button type="button" id="lyricAppendBtn"
+                        style="background:#475569;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer; pointer-events:auto;margin-left:3px;">添加音节</button>
+                </div>
                 <div class="waterfall-timeline">
                     <input type="range" id="cmd_preview_container_progress" min="0" max="1000" value="0" style="width:100%;">
                 </div>
@@ -173,6 +187,29 @@
                 </div>
             </div>
         </div>
+
+        <!-- 歌词/字幕卡片 -->
+        <div class="card" id="lyric_card" style="display:none;">
+            <div class="card-header">歌词/字幕</div>
+            <div class="card-body">
+                <div class="inline-group">
+                    <input type="checkbox" id="enableLyrics" />
+                    <label for="enableLyrics">启用歌词生成</label>
+                </div>
+                <div id="lyric_options" style="display:none;">
+                    <div class="file-upload-wrapper" style="margin:0.5rem 0;">
+                        <span class="file-upload-text">上传 LRC 文件（可选）</span>
+                        <input type="file" id="lrcUpload" accept=".lrc,.txt">
+                    </div>
+                    <textarea id="lyricTextarea" rows="6"
+                        placeholder="或在此粘贴 LRC 格式歌词（兼容网易云等）：&#10;[00:01.00]第一句歌词&#10;[00:05.50]第二句歌词"
+                        style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+                    <div class="info-display" id="lyricInfo">已解析 0 条歌词</div>
+                    <div class="info-display" id="lyricStatus" style="color:#666;font-size:12px;"></div>
+                </div>
+            </div>
+        </div>
+
     </form>
 
     <div style="text-align:center;margin-bottom:1rem;">
@@ -204,6 +241,26 @@
     functionCommandLimit.onchange=(e)=>{ functionCommandLimitScroll.value=e.target.value; }
     timeSplitLimitScroll.onchange=(e)=>{ timeSplitLimit.value=e.target.value; }
     timeSplitLimit.onchange=(e)=>{ timeSplitLimitScroll.value=e.target.value; }
+
+    // ---- 歌词相关（共享 lyric-editor.js）----
+    var lyricMgr = null;
+    var lyricEditor = window.LyricEditor.init({
+        waterfallId: 'cmd-preview-container',
+        previewWaterfallIds: ['waterfall-container'],
+        onAfterChange: function() { lyricMgr = lyricEditor.getManager(); },
+        getMidiFile: function() { return typeof midiFile !== 'undefined' ? midiFile : null; },
+        getSongName: function() {
+            try {
+                if (typeof upload !== 'undefined' && upload.files && upload.files[0]) {
+                    return upload.files[0].name.replace(/\.midi?$/i, '');
+                }
+            } catch (e) {}
+            return '';
+        }
+    });
+    function refreshLyricManager() { lyricEditor.refresh(); }
+    function updateLyricStatus() { return lyricEditor.updateStatus(); }
+
     upload.onchange=(()=>{
         if(!upload.files[0]) return;
         var fr=new FileReader();
@@ -290,9 +347,16 @@
                 document.getElementById("download").style="display: block;";
                 document.getElementById("waterfall_card").style="display: block;";
                 document.getElementById("cmd_preview_card").style="display: block;";
+                document.getElementById("lyric_card").style="display: block;";
+                // 自动从 MIDI 提取歌词
+                lyricEditor.loadFromMidi(midiFile);
                 initWaterfall('waterfall-container', midiFile, { speed: parseFloat(speed.value) / 100 });
-                initMCSoundWaterfall('cmd-preview-container', midiFile, { speed: parseFloat(speed.value) / 100, rowLookup: window._rowLookup });
+                initMCSoundWaterfall('cmd-preview-container', midiFile, Object.assign({
+                    speed: parseFloat(speed.value) / 100,
+                    rowLookup: window._rowLookup
+                }, lyricEditor.getWaterfallCallbacks()));
                 fileName=upload.files[0].name;
+                refreshLyricManager();
             }catch(e){
                 var errMsg=e.toString().split('\n')[0];
                 document.getElementById("status").innerText=errMsg;
@@ -344,9 +408,30 @@
             if (content!=''){ contents.push(content); timerange.push([timeMin, timeMax]); content=''; }
             timeMin=Infinity; timeMax=0;
         }
+        // ---- 歌词命令 ----
+        let lyricLines = [];
+        if(document.getElementById('enableLyrics').checked && lyricMgr && lyricMgr.lyrics.length){
+            var _scoreboardName = 'time'; // midi2tiles 固定使用 time 计分板
+            for(var _lyi=0; _lyi<lyricMgr.lyrics.length; _lyi++){
+                var _lrc = lyricMgr.lyrics[_lyi];
+                var _tick = Math.round(_lrc.time_ms / (50*(parseFloat(speed.value)/100)));
+                var _cmd = lyricMgr.buildTitleCommand(_lrc.time_ms, fileName);
+                // titleraw 以 @a 为目标（玩家看 actionbar），不使用指针实体
+                // 用 @a[scores={time=TICK}] 选择器保证只在对应刻触发
+                lyricLines.push({ tick: _tick, cmd: _cmd.replace('titleraw @a actionbar ', `titleraw @a[scores={${_scoreboardName}=${_tick}}] actionbar `) });
+            }
+        }
+
         let easyPlay='scoreboard players add @e[tag=pointer] time 1\n'
         for(let i in contents){
-            functions.file(`T${i}.mcfunction`, contents[i]);
+            // 将歌词命令按 tick 插入对应文件头部
+            var _lyrHead = '';
+            for(var _lci=0; _lci<lyricLines.length; _lci++){
+                if(lyricLines[_lci].tick >= timerange[i][0] && lyricLines[_lci].tick <= timerange[i][1]){
+                    _lyrHead += lyricLines[_lci].cmd + '\n';
+                }
+            }
+            functions.file(`T${i}.mcfunction`, _lyrHead + contents[i]);
             easyPlay+=`execute ${commandVersion.value=="new"?'at':''} @e[tag=pointer,scores={time=${timerange[i][0]}..${timerange[i][1]}}] ${commandVersion.value=="new"?'run':'~~~'} function T${i}
 `
         }
