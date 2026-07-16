@@ -315,6 +315,8 @@
             state.lyricManager = window._pendingLyricPreview.mgr;
             state.lyricDisplayEnabled = true;
             state.lyricSongName = window._pendingLyricPreview.songName || '';
+            state.lyricMarkerMode = window._pendingLyricPreview.markerMode || 'phrase';
+            state.lyricMarkers = window._pendingLyricPreview.markers || [];
         }
 
         resizeCanvas(state);
@@ -334,12 +336,15 @@
             clickTimeMs = Math.max(0, Math.min(state.timeTotal, clickTimeMs));
             var snapped = snapToNearestNote(state, clickTimeMs);
 
-            // 优先命中已有歌词标记（原始点击时间 / 吸附时间，容差 500ms，取最近）
-            if (state.lyricManager && state.lyricDisplayEnabled && state.lyricManager.lyrics.length) {
+            // 优先命中已有歌词标记（精确时间附近，默认 80ms）
+            if (state.lyricDisplayEnabled) {
+                var markList = (state.lyricMarkers && state.lyricMarkers.length)
+                    ? state.lyricMarkers
+                    : (state.lyricManager && state.lyricManager.lyrics) || [];
                 var bestLi = -1;
-                var bestDist = 500;
-                for (var li = 0; li < state.lyricManager.lyrics.length; li++) {
-                    var lyricMs = state.lyricManager.lyrics[li].time_ms;
+                var bestDist = 80;
+                for (var li = 0; li < markList.length; li++) {
+                    var lyricMs = markList[li].time_ms;
                     var d1 = Math.abs(lyricMs - clickTimeMs);
                     var d2 = Math.abs(lyricMs - snapped);
                     var d = Math.min(d1, d2);
@@ -349,14 +354,14 @@
                     }
                 }
                 if (bestLi >= 0) {
-                    var hit = state.lyricManager.lyrics[bestLi];
+                    var hit = markList[bestLi];
                     state._selectedTimeMs = hit.time_ms;
                     state._selectedTimeIsDrag = false;
                     renderFrame(state);
+                    var hitText = hit.displayText != null ? hit.displayText : (hit.text || '');
                     if (typeof state.onLyricEdit === 'function') {
-                        state.onLyricEdit(bestLi, hit.text, hit.time_ms);
+                        state.onLyricEdit(bestLi, hitText, hit.time_ms);
                     } else if (typeof state.onTimeSelected === 'function') {
-                        // 兜底：即使未绑 onLyricEdit，也把命中信息交给选时回调
                         state.onTimeSelected(hit.time_ms, clickTimeMs);
                     }
                     return;
@@ -396,14 +401,21 @@
             var clickMs = state.currentTime + (devY - state.height * state.playheadY) / state.pixelsPerMs;
             state._dragLyricIdx = -1;
             state._dragStartMs = clickMs; // 记录起始位置（未弱吸附前的原始值）
-            if (!state.lyricManager) return;
-            for (var li = 0; li < state.lyricManager.lyrics.length; li++) {
-                var dt = Math.abs(state.lyricManager.lyrics[li].time_ms - clickMs);
-                if (dt < 300) { state._dragLyricIdx = li; break; }
+            var dragList = (state.lyricMarkers && state.lyricMarkers.length)
+                ? state.lyricMarkers
+                : (state.lyricManager && state.lyricManager.lyrics) || [];
+            if (!dragList.length) return;
+            for (var li = 0; li < dragList.length; li++) {
+                var dt = Math.abs(dragList[li].time_ms - clickMs);
+                if (dt < 80) { state._dragLyricIdx = li; break; }
             }
         });
         document.addEventListener('mousemove', function(e) {
-            if (state._dragLyricIdx < 0 || !state.lyricManager) return;
+            if (state._dragLyricIdx < 0) return;
+            var dragList = (state.lyricMarkers && state.lyricMarkers.length)
+                ? state.lyricMarkers
+                : (state.lyricManager && state.lyricManager.lyrics) || [];
+            if (!dragList.length || state._dragLyricIdx >= dragList.length) return;
             var rect = canvas.getBoundingClientRect();
             var devY = (e.clientY - rect.top) * state.dpr;
             var rawMs = state.currentTime + (devY - state.height * state.playheadY) / state.pixelsPerMs;
@@ -412,10 +424,11 @@
             // 弱吸附：如果距离原位置 <200ms，锁定在原位
             var dragDelta = Math.abs(rawMs - state._dragStartMs);
             var newTimeMs = dragDelta < 200
-                ? state.lyricManager.lyrics[state._dragLyricIdx].time_ms  // 保持原位
-                : snappedMs; // 否则跳到最近音符
+                ? dragList[state._dragLyricIdx].time_ms
+                : snappedMs;
             if (typeof state.onLyricTimeChanged === 'function') {
-                state.onLyricTimeChanged(state._dragLyricIdx, Math.round(newTimeMs));
+                // 传入标记时间点，编辑器按精确时间改标签
+                state.onLyricTimeChanged(state._dragLyricIdx, Math.round(newTimeMs), dragList[state._dragLyricIdx].time_ms);
             }
             state._selectedTimeMs = newTimeMs;
             state._selectedTimeIsDrag = true;
@@ -742,30 +755,35 @@
             }
         }
 
-        if (!state.lyricManager || !state.lyricDisplayEnabled) return;
+        if (!state.lyricDisplayEnabled) return;
+        var markList = (state.lyricMarkers && state.lyricMarkers.length)
+            ? state.lyricMarkers
+            : ((state.lyricManager && state.lyricManager.lyrics) || []);
+        if (!markList.length) return;
+
         var ctx = state.ctx, w = state.width, h = state.height, dpr = state.dpr;
         var lm = state.leftMargin * dpr, rm = state.rightMargin * dpr, tm = state.topMargin * dpr;
         var overlayTop = h - 76 * dpr; // 底部歌词覆盖层，避免标记压在上面
         var markX = w - rm + 8 * dpr;
         var tri = 5 * dpr;
-        var lyrics = state.lyricManager.lyrics;
         var scrollOff = getScrollOffset(state);
-        var curIdx = findCurrentLyricIndex(state);
-
-        // 判断每条 lyrics 是否为"乐句起点"：与下一条间隔 > 500ms 视为乐句起点；末条总是起点
-        var isSentenceStart = [];
-        for (var li0 = 0; li0 < lyrics.length; li0++) {
-            var nextGap0 = (li0 < lyrics.length - 1) ? lyrics[li0+1].time_ms - lyrics[li0].time_ms : Infinity;
-            isSentenceStart.push(li0 === 0 || nextGap0 > 500 || (lyrics[li0].text || '').length > 10);
+        var mode = state.lyricMarkerMode || 'phrase';
+        var curIdx = -1;
+        var tNow = state.currentTime;
+        for (var ci = 0; ci < markList.length; ci++) {
+            if (markList[ci].time_ms <= tNow) curIdx = ci; else break;
         }
 
         // ---- 右侧歌词时间标记 ----
-        for (var li = 0; li < lyrics.length; li++) {
-            var mY = lyrics[li].time_ms * state.pixelsPerMs - scrollOff;
+        for (var li = 0; li < markList.length; li++) {
+            var mark = markList[li];
+            var mY = mark.time_ms * state.pixelsPerMs - scrollOff;
             if (mY < tm || mY > overlayTop) continue;
 
-            // 仅乐句起点画淡虚线
-            var isFullLine = isSentenceStart[li];
+            // phrase 模式：仅乐句起点画虚线；syllable 模式：每个音节都可有短虚线
+            var isFullLine = mode === 'phrase'
+                ? (mark.isPhraseStart !== false)
+                : !!mark.isPhraseStart;
             if (isFullLine) {
                 ctx.strokeStyle = 'rgba(148,163,184,0.2)';
                 ctx.lineWidth = Math.max(1, 1 * dpr);
@@ -785,23 +803,24 @@
             ctx.fill();
 
             // 显示时间文本 + 歌词缩略
-            var timeStr = formatTime(lyrics[li].time_ms);
+            var timeStr = formatTime(mark.time_ms);
             ctx.font = (9 * dpr) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textBaseline = 'middle';
             ctx.textAlign = 'right';
             ctx.fillStyle = isCur ? '#f59e0b' : '#94a3b8';
             ctx.fillText(timeStr, markX - 3 * dpr, mY);
-            // 歌词文本在时间左侧：音节非起点显示空，起点显示该乐句完整文本（含后续音节拼接）
-            if (isFullLine) {
-                var preview = '';
-                for (var pj = li; pj < lyrics.length; pj++) {
-                    preview += (pj > li ? ' ' : '') + (lyrics[pj].text || '');
-                    if (pj + 1 < lyrics.length && (isSentenceStart[pj+1])) break;
-                }
-                preview = preview.replace(/\n/g, ' ');
-                if (preview.length > 16) preview = preview.substring(0, 16) + '…';
-                if (preview) ctx.fillText(preview, markX - 42 * dpr, mY);
+
+            var preview = '';
+            if (mode === 'syllable') {
+                // 音节模式：每个标记显示自身音节文本
+                preview = (mark.displayText != null ? mark.displayText : (mark.text || ''));
+            } else if (isFullLine) {
+                // 乐句模式：起点显示整句
+                preview = mark.phraseText || mark.text || '';
             }
+            preview = String(preview).replace(/\n/g, ' ');
+            if (preview.length > 16) preview = preview.substring(0, 16) + '…';
+            if (preview) ctx.fillText(preview, markX - 42 * dpr, mY);
         }
     }
 
