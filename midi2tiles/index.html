@@ -453,7 +453,7 @@
         zip.file("manifest.json", JSON.stringify(manifestBE));
         zip.generateAsync({type:"blob"}).then(function(content,err) {
             if(err) console.log(err)
-            saveAs(content, `Tiles-${fileName}.mcpack`);
+            saveAs(content, `Tiles-${fileName}.mcfunction.zip`);
         });
     })
 </script>

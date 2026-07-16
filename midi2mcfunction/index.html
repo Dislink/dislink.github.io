@@ -640,7 +640,7 @@
         zip.file("manifest.json", JSON.stringify(manifestBE, "", "\t"));
         zip.generateAsync({type:"blob"}).then(function(content,err) {
             if(err) console.log(err)
-            saveAs(content, `${fileName}.mcpack`);
+            saveAs(content, `${fileName}.mcfunction.zip`);
         });
     })
 </script>

@@ -261,7 +261,7 @@
                     <label for="convertResult">生成结果</label>
                     <select id="convertResult">
                         <option value="bdx">BDX</option>
-                        <option value="mcpack">mcpack</option>
+                        <option value="mcfunction">mcfunction</option>
                         <option value="mcstructure" selected>mcstructure</option>
                     </select>
                 </div>
@@ -619,7 +619,7 @@
             _isFirstBlock = false;
         }
     }catch(e){ alert(e); console.error(e); commandBlocks=[]; }
-        if(convertResult.value=='mcpack'){
+        if(convertResult.value=='mcfunction'){
             if(upload.seq==0){
                 zip=new JSZip();
                 manifestBE.format_version=(commandVersion.value=="new"?2:1);
@@ -650,7 +650,7 @@
                 functions.file("load.mcfunction", loadContent);
                 zip.generateAsync({type:"blob"}).then(function(content,err) {
                     if(err) console.log(err)
-                    saveAs(content, `${manifestBE.header.name}.mcpack.zip`);
+                    saveAs(content, `${manifestBE.header.name}.mcfunction.zip`);
                 });
                 return;
             }
