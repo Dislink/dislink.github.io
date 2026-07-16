@@ -620,37 +620,84 @@
         }
     }catch(e){ alert(e); console.error(e); commandBlocks=[]; }
         if(convertResult.value=='mcfunction'){
+            // 参考 midi2mcfunction：导出 functions/*.mcfunction，不生成 structure
             if(upload.seq==0){
                 zip=new JSZip();
+                functions=zip.folder("functions");
+                window._mcfPlayLines=[];
+                window._mcfFileIdx=0;
                 manifestBE.format_version=(commandVersion.value=="new"?2:1);
                 manifestBE.header.name=upload.files.length>1?`mixed_midis${Math.random().toFixed(5).replace("0.",'')}`:upload.files[0].name.replace(/.midi?$/,'');
                 manifestBE.header.uuid=Math.uuid();
-                manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,0]:[1,13,0]);
+                manifestBE.header.min_engine_version=(commandVersion.value=="new"?[1,19,50]:[1,13,0]);
                 manifestBE.modules[0].uuid=Math.uuid();
-                zip.file("manifest.json", JSON.stringify(manifestBE, "", "\t"));
-                structures=zip.folder("structures");
-                functions=zip.folder("functions");
-                loadPosition=[]; contentLength=0;
             }
             if(commandBlocks.length){
-                // 高度应包含歌词命令块，用 commandBlocks.length（而非 commandBlockLength）计算
-                var _yHeight = Math.ceil(commandBlocks.length / (parseInt(xLength.value) * parseInt(zLength.value)));
-                loadPosition.push([upload.files[upload.seq].name.replace(/\.midi?$/,''),parseInt(xLength.value)]);
-                contentLength+=parseInt(xLength.value);
-                structures.file(`${upload.files[upload.seq].name.replace(/\.midi?$/,'')}.mcstructure`, new CBConstructor(commandBlocks).generateMCStructure(parseInt(xLength.value), _yHeight, parseInt(zLength.value)));
+                var scoreboardName='time';
+                var absTick=0;
+                var lyricCmds=[];
+                var musicCmds=[];
+                for(var bi=0; bi<commandBlocks.length; bi++){
+                    absTick += (commandBlocks[bi].tickDelay||0);
+                    var rawCmd = commandBlocks[bi].command || '';
+                    if(rawCmd.indexOf('titleraw')>=0){
+                        // 字幕：按 tick 选择器；全部字幕命令最终放在音乐命令之前
+                        var lcmd = rawCmd;
+                        if(lcmd.indexOf('scores=')<0){
+                            lcmd = lcmd.replace('titleraw @a actionbar', 'titleraw @a[scores={'+scoreboardName+'='+absTick+'}] actionbar');
+                        }
+                        lyricCmds.push(lcmd);
+                    }else{
+                        // 音乐：从原 execute/playsound 中抽出 playsound，按 tick 选择器重写
+                        var psIdx = rawCmd.indexOf('playsound');
+                        if(psIdx<0) continue;
+                        var playsoundPart = rawCmd.slice(psIdx);
+                        // 链命令里目标常为 @s；改为在 execute as 选择器内对 @s 播放
+                        var mcmd;
+                        if(commandVersion.value=='new'){
+                            mcmd = 'execute as @a[scores={'+scoreboardName+'='+absTick+'}] at @s run ' + playsoundPart.replace(/@s\b/g, '@s');
+                        }else{
+                            mcmd = 'execute @a[scores={'+scoreboardName+'='+absTick+'}] ~~~ ' + playsoundPart;
+                        }
+                        musicCmds.push(mcmd);
+                    }
+                }
+                // 用户要求：mcfunction 中字幕命令放最前，后面是音乐命令
+                var allLines = lyricCmds.concat(musicCmds);
+                var chunkSize = 8192;
+                var base = upload.files[upload.seq].name.replace(/\.midi?$/i,'');
+                if(!allLines.length){
+                    // 无命令时仍写空帮助
+                }else{
+                    for(var ci=0; ci<allLines.length; ci+=chunkSize){
+                        var chunk = allLines.slice(ci, ci+chunkSize).join('\n') + '\n';
+                        var fname = (upload.files.length>1 ? (base+'_N'+window._mcfFileIdx) : ('N'+window._mcfFileIdx));
+                        functions.file(fname+'.mcfunction', chunk);
+                        window._mcfPlayLines.push('function '+fname);
+                        window._mcfFileIdx++;
+                    }
+                }
             }
             if(upload.seq==upload.files.length-1){
-                let pos=-Math.round(contentLength/2);
-                let loadContent='';
-                for(let i of loadPosition){
-                    loadContent+=`structure load "${i[0]}" ~${pos}~~
-`;
-                    pos+=i[1];
+                var scoreboardName2='time';
+                var playBody = 'scoreboard players add @a '+scoreboardName2+' 1\n';
+                if(window._mcfPlayLines && window._mcfPlayLines.length){
+                    playBody += window._mcfPlayLines.join('\n') + '\n';
                 }
-                functions.file("load.mcfunction", loadContent);
-                zip.generateAsync({type:"blob"}).then(function(content,err) {
-                    if(err) console.log(err)
-                    saveAs(content, `${manifestBE.header.name}.mcfunction.zip`);
+                functions.file('play.mcfunction', playBody);
+                functions.file('init.mcfunction',
+                    'scoreboard objectives add '+scoreboardName2+' dummy\n'+
+                    'scoreboard objectives setdisplay sidebar '+scoreboardName2+'\n'+
+                    'scoreboard players set @a '+scoreboardName2+' -1\n'
+                );
+                functions.file('help.mcfunction',
+                    'say MIDI转mcfunction: '+manifestBE.header.name+'\n'+
+                    'say 先 function init，再循环 function play\n'
+                );
+                zip.file('manifest.json', JSON.stringify(manifestBE, null, '\t'));
+                zip.generateAsync({type:'blob'}).then(function(content, err){
+                    if(err) console.log(err);
+                    saveAs(content, manifestBE.header.name+'.mcfunction.zip');
                 });
                 return;
             }
