@@ -30,8 +30,8 @@
     <script src="/javascript/Math.uuid.js" type="text/javascript"></script>
     <script src="/javascript/FileSaver.js" type="text/javascript"></script>
     <script src="/javascript/CBConstructor.js" type="text/javascript"></script>
-    <script src="/javascript/lyric.js" type="text/javascript"></script>
-    <script src="/javascript/lyric-editor.js" type="text/javascript"></script>
+    <script src="/javascript/lyric.js?v=20260716b" type="text/javascript"></script>
+    <script src="/javascript/lyric-editor.js?v=20260716b" type="text/javascript"></script>
     <script>
         function formatSeconds(value) {
             return `${Math.floor(value / 3600) < 10 ? '0' + Math.floor(value / 3600) : Math.floor(value / 3600)}:${Math.floor((value / 60 % 60)) < 10 ? '0' + Math.floor((value / 60 % 60)) : Math.floor((value / 60 % 60))}:${Math.round((value % 60)) < 10 ? '0' + Math.round((value % 60)) : Math.round((value % 60))}`
@@ -586,7 +586,29 @@
         // 收集歌词事件（内容变化时刷新；可选：跳秒也刷新）
         if(document.getElementById('enableLyrics').checked && lyricMgr && lyricMgr.lyrics.length){
             var _showTimeInfo = !!(document.getElementById('showLyricTimeInfo') && document.getElementById('showLyricTimeInfo').checked);
-            var _lyricTimes = lyricMgr.collectTitleUpdateTimes({ showTimeInfo: _showTimeInfo });
+
+            // 兼容旧 lyric.js 缓存：collectTitleUpdateTimes 缺失时本地计算
+            function _collectLyricUpdateTimes(mgr, showTimeInfo){
+                if (mgr && typeof mgr.collectTitleUpdateTimes === 'function') {
+                    return mgr.collectTitleUpdateTimes({ showTimeInfo: !!showTimeInfo });
+                }
+                var map = {}, lyrics = (mgr && mgr.lyrics) || [];
+                function add(t){ t=Math.max(0, Math.round(t||0)); map[t]=true; }
+                for (var i=0;i<lyrics.length;i++){
+                    add(lyrics[i].time_ms);
+                    var syls=lyrics[i].syllables||[];
+                    for (var s=0;s<syls.length;s++) add(syls[s].time_ms);
+                }
+                if (showTimeInfo){
+                    var total=Math.max(0, Math.round((mgr&&mgr.totalMs)||0));
+                    if(!total && lyrics.length) total=Math.round(lyrics[lyrics.length-1].time_ms||0);
+                    for (var t=0;t<=total;t+=1000) add(t);
+                    if (total%1000!==0) add(total);
+                }
+                return Object.keys(map).map(function(k){return parseInt(k,10);}).sort(function(a,b){return a-b;});
+            }
+
+            var _lyricTimes = _collectLyricUpdateTimes(lyricMgr, _showTimeInfo);
             for(var _lyi=0; _lyi<_lyricTimes.length; _lyi++){
                 allEvents.push({ playTime: _lyricTimes[_lyi], type: 'lyric', lyricTimeMs: _lyricTimes[_lyi] });
             }
