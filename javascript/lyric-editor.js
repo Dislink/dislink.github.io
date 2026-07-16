@@ -523,13 +523,9 @@
                 window._manualLyricMode = true;
 
                 // 修改：仅当 editingTagTimeMs 精确命中已有标签时替换该标签内容
+                // 注意：不要用整行单标签替换，否则会抹掉 MIDI 多音节时间轴
                 if (state.editingTagTimeMs >= 0) {
-                    // 添加乐句按钮的「修改」：整行替换为单标签乐句
-                    var replaced = replacePhraseLineAtTime(textarea.value || '', state.editingTagTimeMs, text);
-                    // 若失败（例如点的是展开音节），退回精确标签替换
-                    if (replaced == null) {
-                        replaced = replaceExactTagContent(textarea.value || '', state.editingTagTimeMs, text);
-                    }
+                    var replaced = replaceExactTagContent(textarea.value || '', state.editingTagTimeMs, text);
                     if (replaced != null) {
                         textarea.value = replaced;
                     } else {
@@ -688,15 +684,11 @@
                 if (!midiLyrics.length) return;
                 window._rawMidiSyllables = midiLyrics;
                 var sentences = window.LyricParser.mergeIntoSentences(midiLyrics);
-                var lrcLines = [];
-                for (var si = 0; si < sentences.length; si++) {
-                    var s = sentences[si];
-                    lrcLines.push(fmtLrcTag(s.time_ms) + s.text);
-                }
-                var full = lrcLines.join('\n');
+                // 按音节写出多时间标签 LRC，例如 [00:01.00]a[00:01.20]b
+                // 不要只写句首时间+整句文本，否则一修改就丢音节时间轴
+                var full = lyricsToLrcText(sentences);
                 state.midiExtractedText = full.trim();
-                // 末尾保留换行，便于后续添加乐句
-                textarea.value = full ? full + '\n' : '';
+                textarea.value = full;
                 updateLyricStatus();
             } catch (e) {
                 // MIDI 无歌词属正常
