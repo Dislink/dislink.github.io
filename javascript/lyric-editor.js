@@ -123,50 +123,37 @@
      * 从解析后的 lyrics（可能含 syllables）展开为瀑布流标记列表
      * mode: 'phrase' | 'syllable'
      */
-    function buildMarkers(lyrics, mode) {
+    /**
+     * 构建瀑布流标记：始终以乐句为一级标记；
+     * 若乐句含多个音节，附带 syllables 供展开显示。
+     */
+    function buildMarkers(lyrics) {
         var markers = [];
         if (!lyrics || !lyrics.length) return markers;
-        mode = mode || 'phrase';
         for (var i = 0; i < lyrics.length; i++) {
             var sent = lyrics[i];
-            var syls = sent.syllables;
-            if (mode === 'syllable' && syls && syls.length) {
-                for (var s = 0; s < syls.length; s++) {
-                    markers.push({
-                        time_ms: syls[s].time_ms,
-                        text: syls[s].text,
-                        displayText: syls[s].text,
-                        sentenceIndex: i,
-                        syllableIndex: s,
-                        isPhraseStart: s === 0,
-                        phraseText: sent.text || ''
-                    });
-                }
-            } else if (mode === 'syllable' && (!syls || !syls.length)) {
-                markers.push({
-                    time_ms: sent.time_ms,
-                    text: sent.text || '',
-                    displayText: sent.text || '',
-                    sentenceIndex: i,
-                    syllableIndex: -1,
-                    isPhraseStart: true,
-                    phraseText: sent.text || ''
-                });
-            } else {
-                // phrase 模式：每句一个标记，展示整句
-                markers.push({
-                    time_ms: sent.time_ms,
-                    text: sent.text || '',
-                    displayText: sent.text || '',
-                    sentenceIndex: i,
-                    syllableIndex: (syls && syls.length) ? 0 : -1,
-                    isPhraseStart: true,
-                    phraseText: sent.text || ''
-                });
-            }
+            var syls = sent.syllables && sent.syllables.length ? sent.syllables : null;
+            var hasMulti = !!(syls && syls.length > 1);
+            markers.push({
+                time_ms: sent.time_ms,
+                text: sent.text || '',
+                displayText: sent.text || '',
+                sentenceIndex: i,
+                syllableIndex: -1,
+                isPhrase: true,
+                isPhraseStart: true,
+                phraseText: sent.text || '',
+                hasMultiSyllables: hasMulti,
+                syllables: hasMulti ? syls.map(function(s) {
+                    return { time_ms: s.time_ms, text: s.text, displayText: s.text };
+                }) : (syls ? syls.map(function(s) {
+                    return { time_ms: s.time_ms, text: s.text, displayText: s.text };
+                }) : [])
+            });
         }
         return markers;
     }
+
 
 
     /**
@@ -295,7 +282,6 @@
         var addBtn = $(opts.addBtnId || 'lyricAddBtn');
         var appendBtn = $(opts.appendBtnId || 'lyricAppendBtn');
         var timeDisplay = $(opts.timeDisplayId || 'editTimeDisplay');
-        var markerModeEl = $(opts.markerModeId || 'lyricMarkerMode');
 
         var state = {
             lyricMgr: null,
@@ -303,8 +289,7 @@
             selectedEditTime: 0,
             editingLyricIdx: -1,
             editingTagTimeMs: -1,
-            lyricTimer: null,
-            markerMode: (markerModeEl && markerModeEl.value) || 'phrase'
+            lyricTimer: null
         };
 
         function getMidiFile() {
@@ -363,7 +348,6 @@
                 forEachWaterfall(function(wfState) {
                     if (wfState.setLyricManager) wfState.setLyricManager(null, false);
                     wfState.lyricMarkers = [];
-                    wfState.lyricMarkerMode = state.markerMode;
                 });
                 if (typeof opts.onAfterChange === 'function') opts.onAfterChange();
                 return;
@@ -392,13 +376,12 @@
             if (lyrics.length && totalMs) {
                 state.lyricMgr = new window.LyricManager(lyrics, totalMs);
                 var songName = getSongName();
-                var markers = buildMarkers(state.lyricMgr.lyrics, state.markerMode);
+                var markers = buildMarkers(state.lyricMgr.lyrics);
                 var applied = 0;
                 forEachWaterfall(function(wfState) {
                     if (wfState.setLyricManager) {
                         wfState.setLyricManager(state.lyricMgr, true, songName);
                     }
-                    wfState.lyricMarkerMode = state.markerMode;
                     wfState.lyricMarkers = markers;
                     applied++;
                 });
@@ -406,7 +389,6 @@
                 window._pendingLyricPreview = applied ? null : {
                     mgr: state.lyricMgr,
                     songName: songName,
-                    markerMode: state.markerMode,
                     markers: markers
                 };
             } else {
@@ -415,7 +397,6 @@
                 forEachWaterfall(function(wfState) {
                     if (wfState.setLyricManager) wfState.setLyricManager(null, false);
                     wfState.lyricMarkers = [];
-                    wfState.lyricMarkerMode = state.markerMode;
                 });
             }
             if (typeof opts.onAfterChange === 'function') opts.onAfterChange();
@@ -544,9 +525,12 @@
 
                 // 修改：仅当 editingTagTimeMs 精确命中已有标签时替换该标签内容
                 if (state.editingTagTimeMs >= 0) {
-                    var replaced = (state.markerMode === 'phrase')
-                        ? replacePhraseLineAtTime(textarea.value || '', state.editingTagTimeMs, text)
-                        : replaceExactTagContent(textarea.value || '', state.editingTagTimeMs, text);
+                    // 添加乐句按钮的「修改」：整行替换为单标签乐句
+                    var replaced = replacePhraseLineAtTime(textarea.value || '', state.editingTagTimeMs, text);
+                    // 若失败（例如点的是展开音节），退回精确标签替换
+                    if (replaced == null) {
+                        replaced = replaceExactTagContent(textarea.value || '', state.editingTagTimeMs, text);
+                    }
                     if (replaced != null) {
                         textarea.value = replaced;
                     } else {
@@ -600,6 +584,50 @@
             };
         }
 
+        function snapEditToNote(direction) {
+            // direction: -1 prev, +1 next
+            if (!isEnabled()) return;
+            var wfState = window.getWaterfallState && window.getWaterfallState(waterfallId);
+            if (!wfState || !wfState.notes || !wfState.notes.length) return;
+            var cur = state.selectedEditTime;
+            var target = null;
+            if (direction > 0) {
+                for (var i = 0; i < wfState.notes.length; i++) {
+                    if (wfState.notes[i].playTime > cur + 20) {
+                        target = wfState.notes[i].playTime;
+                        break;
+                    }
+                }
+            } else {
+                for (var j = wfState.notes.length - 1; j >= 0; j--) {
+                    if (wfState.notes[j].playTime < cur - 20) {
+                        target = wfState.notes[j].playTime;
+                        break;
+                    }
+                }
+            }
+            if (target == null) return;
+            state.selectedEditTime = target;
+            wfState._selectedTimeMs = target;
+            wfState._selectedTimeIsDrag = false;
+            // 精确同一时间有标签 → 编辑；否则新增
+            var match = findLyricNearTime(textarea.value, target, EXACT_TIME_MS);
+            if (match) {
+                state.editingLyricIdx = match.index;
+                state.editingTagTimeMs = match.time_ms;
+                showOverlay(match.time_ms, match.text, 'edit');
+            } else {
+                state.editingLyricIdx = -1;
+                state.editingTagTimeMs = -1;
+                showOverlay(target, '', 'add');
+            }
+            if (wfState.setLyricManager && wfState.lyricManager) {
+                wfState.setLyricManager(wfState.lyricManager, wfState.lyricDisplayEnabled, wfState.lyricSongName);
+            }
+                }
+            }
+        }
+
         if (input) {
             input.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
@@ -609,6 +637,12 @@
                     else if (addBtn) addBtn.click();
                 } else if (e.key === 'Escape') {
                     hideOverlay();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    snapEditToNote(-1);
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    snapEditToNote(1);
                 }
             });
         }
@@ -617,12 +651,6 @@
             enableEl.onchange = function() { refreshLyricManager(); };
         }
 
-        if (markerModeEl) {
-            markerModeEl.onchange = function() {
-                state.markerMode = markerModeEl.value || 'phrase';
-                refreshLyricManager();
-            };
-        }
 
         if (lrcUpload) {
             lrcUpload.onchange = function() {

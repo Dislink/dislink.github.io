@@ -277,6 +277,8 @@
             _lastLyricIdx: -2,
             _lastLyricUpdate: 0,
             _selectedTimeMs: -1, // 用户点击/拖拽选中的时间（虚线指示）
+            lyricMarkers: opts.lyricMarkers || [],
+            _expandedPhrases: {}, // sentenceIndex -> true 展开分音节
             // 歌词编辑回调
             onTimeSelected: opts.onTimeSelected || null,   // function(snappedTimeMs, rawClickMs)
             onLyricTimeChanged: opts.onLyricTimeChanged || null, // function(lyricIndex, newTimeMs)
@@ -315,7 +317,6 @@
             state.lyricManager = window._pendingLyricPreview.mgr;
             state.lyricDisplayEnabled = true;
             state.lyricSongName = window._pendingLyricPreview.songName || '';
-            state.lyricMarkerMode = window._pendingLyricPreview.markerMode || 'phrase';
             state.lyricMarkers = window._pendingLyricPreview.markers || [];
         }
 
@@ -329,40 +330,50 @@
             if (performance.now() < state._suppressClickUntil) return;
 
             var rect = canvas.getBoundingClientRect();
+            var cssX = e.clientX - rect.left;
             var cssY = e.clientY - rect.top;
             var dpr = state.dpr;
+            var devX = cssX * dpr;
             var devY = cssY * dpr;
             var clickTimeMs = state.currentTime + (devY - state.height * state.playheadY) / state.pixelsPerMs;
             clickTimeMs = Math.max(0, Math.min(state.timeTotal, clickTimeMs));
             var snapped = snapToNearestNote(state, clickTimeMs);
 
-            // 优先命中已有歌词标记（精确时间附近，默认 80ms）
+            // 优先命中可见歌词标记（含展开后的音节）
             if (state.lyricDisplayEnabled) {
-                var markList = (state.lyricMarkers && state.lyricMarkers.length)
-                    ? state.lyricMarkers
-                    : (state.lyricManager && state.lyricManager.lyrics) || [];
-                var bestLi = -1;
-                var bestDist = 80;
-                for (var li = 0; li < markList.length; li++) {
-                    var lyricMs = markList[li].time_ms;
-                    var d1 = Math.abs(lyricMs - clickTimeMs);
-                    var d2 = Math.abs(lyricMs - snapped);
-                    var d = Math.min(d1, d2);
-                    if (d < bestDist) {
-                        bestDist = d;
-                        bestLi = li;
+                var vis = getVisibleLyricMarkers(state);
+                var best = null;
+                var bestDist = 90 * dpr;
+                var scrollOff = getScrollOffset(state);
+                var markX = state.width - state.rightMargin * dpr + 8 * dpr;
+                for (var li = 0; li < vis.length; li++) {
+                    var mY = vis[li].time_ms * state.pixelsPerMs - scrollOff;
+                    var dy = Math.abs(mY - devY);
+                    if (dy < bestDist) {
+                        bestDist = dy;
+                        best = vis[li];
                     }
                 }
-                if (bestLi >= 0) {
-                    var hit = markList[bestLi];
-                    state._selectedTimeMs = hit.time_ms;
+                if (best) {
+                    // 点击右侧三角区域：多音节乐句 → 展开/收起
+                    var onTriangle = devX >= markX - 4 * dpr;
+                    if (onTriangle && best.isPhrase && best.hasMultiSyllables) {
+                        var key = String(best.sentenceIndex);
+                        if (!state._expandedPhrases) state._expandedPhrases = {};
+                        if (state._expandedPhrases[key]) delete state._expandedPhrases[key];
+                        else state._expandedPhrases[key] = true;
+                        state._selectedTimeMs = best.time_ms;
+                        renderFrame(state);
+                        return;
+                    }
+                    state._selectedTimeMs = best.time_ms;
                     state._selectedTimeIsDrag = false;
                     renderFrame(state);
-                    var hitText = hit.displayText != null ? hit.displayText : (hit.text || '');
+                    var hitText = best.displayText != null ? best.displayText : (best.text || '');
                     if (typeof state.onLyricEdit === 'function') {
-                        state.onLyricEdit(bestLi, hitText, hit.time_ms);
+                        state.onLyricEdit(best.sentenceIndex, hitText, best.time_ms);
                     } else if (typeof state.onTimeSelected === 'function') {
-                        state.onTimeSelected(hit.time_ms, clickTimeMs);
+                        state.onTimeSelected(best.time_ms, clickTimeMs);
                     }
                     return;
                 }
@@ -401,9 +412,7 @@
             var clickMs = state.currentTime + (devY - state.height * state.playheadY) / state.pixelsPerMs;
             state._dragLyricIdx = -1;
             state._dragStartMs = clickMs; // 记录起始位置（未弱吸附前的原始值）
-            var dragList = (state.lyricMarkers && state.lyricMarkers.length)
-                ? state.lyricMarkers
-                : (state.lyricManager && state.lyricManager.lyrics) || [];
+            var dragList = getVisibleLyricMarkers(state);
             if (!dragList.length) return;
             for (var li = 0; li < dragList.length; li++) {
                 var dt = Math.abs(dragList[li].time_ms - clickMs);
@@ -412,9 +421,7 @@
         });
         document.addEventListener('mousemove', function(e) {
             if (state._dragLyricIdx < 0) return;
-            var dragList = (state.lyricMarkers && state.lyricMarkers.length)
-                ? state.lyricMarkers
-                : (state.lyricManager && state.lyricManager.lyrics) || [];
+            var dragList = getVisibleLyricMarkers(state);
             if (!dragList.length || state._dragLyricIdx >= dragList.length) return;
             var rect = canvas.getBoundingClientRect();
             var devY = (e.clientY - rect.top) * state.dpr;
@@ -756,10 +763,8 @@
         }
 
         if (!state.lyricDisplayEnabled) return;
-        var markList = (state.lyricMarkers && state.lyricMarkers.length)
-            ? state.lyricMarkers
-            : ((state.lyricManager && state.lyricManager.lyrics) || []);
-        if (!markList.length) return;
+        var vis = getVisibleLyricMarkers(state);
+        if (!vis.length) return;
 
         var ctx = state.ctx, w = state.width, h = state.height, dpr = state.dpr;
         var lm = state.leftMargin * dpr, rm = state.rightMargin * dpr, tm = state.topMargin * dpr;
@@ -767,24 +772,21 @@
         var markX = w - rm + 8 * dpr;
         var tri = 5 * dpr;
         var scrollOff = getScrollOffset(state);
-        var mode = state.lyricMarkerMode || 'phrase';
         var curIdx = -1;
         var tNow = state.currentTime;
-        for (var ci = 0; ci < markList.length; ci++) {
-            if (markList[ci].time_ms <= tNow) curIdx = ci; else break;
+        for (var ci = 0; ci < vis.length; ci++) {
+            if (vis[ci].time_ms <= tNow) curIdx = ci; else break;
         }
 
         // ---- 右侧歌词时间标记 ----
-        for (var li = 0; li < markList.length; li++) {
-            var mark = markList[li];
+        for (var li = 0; li < vis.length; li++) {
+            var mark = vis[li];
             var mY = mark.time_ms * state.pixelsPerMs - scrollOff;
             if (mY < tm || mY > overlayTop) continue;
 
-            // phrase 模式：仅乐句起点画虚线；syllable 模式：每个音节都可有短虚线
-            var isFullLine = mode === 'phrase'
-                ? (mark.isPhraseStart !== false)
-                : !!mark.isPhraseStart;
-            if (isFullLine) {
+            var isPhrase = !!mark.isPhrase;
+            var isSyl = !!mark.isSyllable;
+            if (isPhrase) {
                 ctx.strokeStyle = 'rgba(148,163,184,0.2)';
                 ctx.lineWidth = Math.max(1, 1 * dpr);
                 ctx.setLineDash([3 * dpr, 6 * dpr]);
@@ -794,34 +796,105 @@
 
             var isCur = (li === curIdx);
             var isDrag = (li === state._dragLyricIdx);
-            ctx.fillStyle = isDrag ? '#ef4444' : (isCur ? '#f59e0b' : '#94a3b8');
+            // 多音节乐句三角：蓝色；音节浅蓝；当前琥珀；拖拽红；普通灰
+            var triColor;
+            if (isDrag) triColor = '#ef4444';
+            else if (isPhrase && mark.hasMultiSyllables) triColor = '#3b82f6';
+            else if (isSyl) triColor = isCur ? '#60a5fa' : '#93c5fd';
+            else if (isCur) triColor = '#f59e0b';
+            else triColor = '#94a3b8';
+            ctx.fillStyle = triColor;
+            var tSize = isSyl ? tri * 0.75 : tri;
             ctx.beginPath();
-            ctx.moveTo(markX, mY);
-            ctx.lineTo(markX + tri, mY - tri);
-            ctx.lineTo(markX + tri, mY + tri);
+            if (isPhrase && mark.hasMultiSyllables && mark._expanded) {
+                // 展开：向下三角
+                ctx.moveTo(markX + tSize * 0.5, mY + tSize);
+                ctx.lineTo(markX + tSize + tSize * 0.2, mY - tSize * 0.6);
+                ctx.lineTo(markX - tSize * 0.2, mY - tSize * 0.6);
+            } else {
+                // 默认：向右三角
+                ctx.moveTo(markX, mY);
+                ctx.lineTo(markX + tSize, mY - tSize);
+                ctx.lineTo(markX + tSize, mY + tSize);
+            }
             ctx.closePath();
             ctx.fill();
 
-            // 显示时间文本 + 歌词缩略
             var timeStr = formatTime(mark.time_ms);
-            ctx.font = (9 * dpr) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.font = ((isSyl ? 8 : 9) * dpr) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textBaseline = 'middle';
             ctx.textAlign = 'right';
-            ctx.fillStyle = isCur ? '#f59e0b' : '#94a3b8';
+            ctx.fillStyle = isCur ? '#f59e0b' : (isSyl ? '#64748b' : '#94a3b8');
             ctx.fillText(timeStr, markX - 3 * dpr, mY);
 
-            var preview = '';
-            if (mode === 'syllable') {
-                // 音节模式：每个标记显示自身音节文本
-                preview = (mark.displayText != null ? mark.displayText : (mark.text || ''));
-            } else if (isFullLine) {
-                // 乐句模式：起点显示整句
-                preview = mark.phraseText || mark.text || '';
-            }
+            var preview = isPhrase
+                ? (mark.phraseText || mark.text || '')
+                : (mark.displayText != null ? mark.displayText : (mark.text || ''));
             preview = String(preview).replace(/\n/g, ' ');
             if (preview.length > 16) preview = preview.substring(0, 16) + '…';
-            if (preview) ctx.fillText(preview, markX - 42 * dpr, mY);
+            if (preview) {
+                ctx.fillText((isSyl ? '· ' : '') + preview, markX - 42 * dpr, mY);
+            }
         }
+    }
+
+    /**
+     * 可见标记列表：乐句 + 已展开的音节
+     */
+    function getVisibleLyricMarkers(state) {
+        var phrases = state.lyricMarkers || [];
+        if (!phrases.length && state.lyricManager && state.lyricManager.lyrics) {
+            phrases = state.lyricManager.lyrics.map(function(s, i) {
+                var syls = s.syllables || [];
+                return {
+                    time_ms: s.time_ms,
+                    text: s.text || '',
+                    displayText: s.text || '',
+                    sentenceIndex: i,
+                    isPhrase: true,
+                    phraseText: s.text || '',
+                    hasMultiSyllables: syls.length > 1,
+                    syllables: syls
+                };
+            });
+        }
+        var out = [];
+        var expanded = state._expandedPhrases || {};
+        for (var i = 0; i < phrases.length; i++) {
+            var p = phrases[i];
+            var key = String(p.sentenceIndex != null ? p.sentenceIndex : i);
+            var isExp = !!expanded[key];
+            var phraseMark = {
+                time_ms: p.time_ms,
+                text: p.text,
+                displayText: p.displayText != null ? p.displayText : p.text,
+                sentenceIndex: p.sentenceIndex != null ? p.sentenceIndex : i,
+                isPhrase: true,
+                isSyllable: false,
+                phraseText: p.phraseText || p.text || '',
+                hasMultiSyllables: !!p.hasMultiSyllables,
+                syllables: p.syllables || [],
+                _expanded: isExp
+            };
+            out.push(phraseMark);
+            if (isExp && p.syllables && p.syllables.length) {
+                for (var s = 0; s < p.syllables.length; s++) {
+                    var sy = p.syllables[s];
+                    out.push({
+                        time_ms: sy.time_ms,
+                        text: sy.text || '',
+                        displayText: sy.displayText != null ? sy.displayText : (sy.text || ''),
+                        sentenceIndex: phraseMark.sentenceIndex,
+                        syllableIndex: s,
+                        isPhrase: false,
+                        isSyllable: true,
+                        phraseText: phraseMark.phraseText,
+                        hasMultiSyllables: false
+                    });
+                }
+            }
+        }
+        return out;
     }
 
     function findCurrentLyricIndex(state) {
