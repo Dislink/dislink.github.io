@@ -88,6 +88,16 @@
     }
 
     /**
+     * 将歌词数组写成 LRC 文本。
+     * 有内容时始终以 \n 结尾，保证「添加乐句」后下一句一定换行。
+     */
+    function lyricsToLrcText(lyricsArr) {
+        var lines = rebuildLrcLines(lyricsArr || []);
+        if (!lines.length) return '';
+        return lines.join('\n') + '\n';
+    }
+
+    /**
      * 在 LRC 源文本中查找与 timeMs 最接近的条目。
      * @returns {{index:number, text:string, time_ms:number}|null}
      */
@@ -341,7 +351,7 @@
             }
             currentLyrics[idx] = updated;
             currentLyrics.sort(function(a, b) { return a.time_ms - b.time_ms; });
-            textarea.value = rebuildLrcLines(currentLyrics).join('\n');
+            textarea.value = lyricsToLrcText(currentLyrics);
             window._rawMidiSyllables = null;
             window._manualLyricMode = true;
             updateLyricStatus();
@@ -384,34 +394,33 @@
                 window._rawMidiSyllables = null;
                 window._manualLyricMode = true;
 
-                if (state.editingLyricIdx >= 0) {
-                    var currentLyrics = window.LyricParser.parseLRC((textarea.value || '').trim());
-                    if (state.editingLyricIdx < currentLyrics.length) {
-                        var oldItem = currentLyrics[state.editingLyricIdx];
-                        // 整句修改：若原有 syllables，用新文本替换整句并去掉音节切分
-                        // （用户手改文本后不再保留旧音节边界）
-                        currentLyrics[state.editingLyricIdx] = {
-                            time_ms: oldItem.time_ms,
-                            text: text
-                        };
-                        currentLyrics.sort(function(a, b) { return a.time_ms - b.time_ms; });
-                        textarea.value = rebuildLrcLines(currentLyrics).join('\n');
-                    }
-                    hideOverlay();
+                var currentLyrics = window.LyricParser.parseLRC((textarea.value || '').trim());
+
+                if (state.editingLyricIdx >= 0 && state.editingLyricIdx < currentLyrics.length) {
+                    // 修改：替换指定句文本（去掉旧音节边界）
+                    currentLyrics[state.editingLyricIdx] = {
+                        time_ms: currentLyrics[state.editingLyricIdx].time_ms,
+                        text: text
+                    };
                 } else {
-                    // 乐句：始终新开一行，并在行尾保留 \n，方便后续继续添加
-                    var newLine = fmtLrcTag(state.selectedEditTime) + text;
-                    var prev = (textarea.value || '').replace(/\n*$/, '');
-                    textarea.value = (prev ? prev + '\n' + newLine : newLine) + '\n';
-                    hideOverlay();
+                    // 添加乐句：作为独立新行写入（按时间排序）
+                    currentLyrics.push({
+                        time_ms: Math.round(state.selectedEditTime),
+                        text: text
+                    });
                 }
+                currentLyrics.sort(function(a, b) { return a.time_ms - b.time_ms; });
+                // 始终以 \n 结尾，例如 "[00:02.13]lyric 111...\n"
+                textarea.value = lyricsToLrcText(currentLyrics);
+                state.editingLyricIdx = -1;
+                hideOverlay();
                 if (input) input.value = '';
                 updateLyricStatus();
                 refreshLyricManager();
             };
         }
 
-        // ---- 按钮：添加音节（不换行，追加到末尾同一 LRC 行） ----
+        // ---- 按钮：添加音节（不换行，同一 LRC 行追加多时间标签） ----
         if (appendBtn) {
             appendBtn.onclick = function() {
                 // 保留用户输入的首尾空格（单词间距）
@@ -420,10 +429,41 @@
                 window._rawMidiSyllables = null;
                 window._manualLyricMode = true;
 
-                // 音节：绝不插入换行，只在现有文本末尾追加 [time]text
-                var tag = fmtLrcTag(state.selectedEditTime) + appendText;
-                var prev = (textarea.value || '').replace(/\n*$/, '');
-                textarea.value = prev + tag;
+                var currentLyrics = window.LyricParser.parseLRC((textarea.value || '').trim());
+                var tMs = Math.round(state.selectedEditTime);
+                var syl = { time_ms: tMs, text: appendText };
+
+                if (!currentLyrics.length) {
+                    // 首个音节：单独成句（后续音节可并入）
+                    currentLyrics.push({ time_ms: tMs, text: appendText, syllables: [syl] });
+                } else {
+                    // 找到时间上最近且适合并入的句子（间隔 < 500ms 或作为该句后续音节）
+                    var best = currentLyrics.length - 1;
+                    // 若当前时间明显属于某一句的延续，并入该句
+                    for (var i = currentLyrics.length - 1; i >= 0; i--) {
+                        var base = currentLyrics[i];
+                        var lastMs = base.time_ms;
+                        if (base.syllables && base.syllables.length) {
+                            lastMs = base.syllables[base.syllables.length - 1].time_ms;
+                        }
+                        if (tMs >= lastMs - 50) { best = i; break; }
+                    }
+                    var target = currentLyrics[best];
+                    if (!target.syllables || !target.syllables.length) {
+                        target.syllables = [{ time_ms: target.time_ms, text: target.text || '' }];
+                    }
+                    target.syllables.push(syl);
+                    target.syllables.sort(function(a, b) { return a.time_ms - b.time_ms; });
+                    target.time_ms = target.syllables[0].time_ms;
+                    var full = '';
+                    for (var s = 0; s < target.syllables.length; s++) full += target.syllables[s].text;
+                    target.text = full;
+                    currentLyrics[best] = target;
+                }
+
+                currentLyrics.sort(function(a, b) { return a.time_ms - b.time_ms; });
+                // 音节行也保留末尾 \n，避免下一次「添加乐句」粘到同一视觉行
+                textarea.value = lyricsToLrcText(currentLyrics);
 
                 if (input) input.value = '';
                 updateLyricStatus();
@@ -496,7 +536,8 @@
                 }
                 var full = lrcLines.join('\n');
                 state.midiExtractedText = full.trim();
-                textarea.value = full;
+                // 末尾保留换行，便于后续添加乐句
+                textarea.value = full ? full + '\n' : '';
                 updateLyricStatus();
             } catch (e) {
                 // MIDI 无歌词属正常
@@ -525,6 +566,7 @@
             getWaterfallCallbacks: getWaterfallCallbacks,
             fmtLrcTag: fmtLrcTag,
             rebuildLrcLines: rebuildLrcLines,
+            lyricsToLrcText: lyricsToLrcText,
             findLyricNearTime: findLyricNearTime,
             /** 暴露内部 state 供高度估算等只读使用 */
             _state: state
@@ -535,6 +577,7 @@
         init: init,
         fmtLrcTag: fmtLrcTag,
         rebuildLrcLines: rebuildLrcLines,
+        lyricsToLrcText: lyricsToLrcText,
         findLyricNearTime: findLyricNearTime,
         formatEditTime: formatEditTime
     };
