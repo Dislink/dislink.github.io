@@ -624,8 +624,6 @@
             if (wfState.setLyricManager && wfState.lyricManager) {
                 wfState.setLyricManager(wfState.lyricManager, wfState.lyricDisplayEnabled, wfState.lyricSongName);
             }
-                }
-            }
         }
 
         if (input) {
