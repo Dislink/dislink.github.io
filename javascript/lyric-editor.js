@@ -205,20 +205,10 @@
         }
 
         function refreshLyricManager() {
-            var enabled = isEnabled();
-            if (optionsEl) optionsEl.style.display = enabled ? 'block' : 'none';
+            // 勾选框只控制「是否生成字幕命令」；编辑区与瀑布流预览始终可用
+            if (optionsEl) optionsEl.style.display = 'block';
 
             var mf = getMidiFile();
-
-            if (!enabled) {
-                state.lyricMgr = null;
-                forEachWaterfall(function(wfState) {
-                    if (wfState.setLyricManager) wfState.setLyricManager(null, false);
-                });
-                if (typeof opts.onAfterChange === 'function') opts.onAfterChange();
-                return;
-            }
-
             var text = (textarea.value || '').trim();
             var lyrics;
             // 文本仍是 MIDI 提取原样 → 保留音节级渐进高亮数据
@@ -228,6 +218,7 @@
                 lyrics = text ? window.LyricParser.parseLRC(text) : [];
             }
 
+            // 有歌词内容就推送到瀑布流预览（与是否勾选生成无关）
             if (lyrics.length && mf && mf.timeTotal) {
                 state.lyricMgr = new window.LyricManager(lyrics, mf.timeTotal);
                 var songName = getSongName();
@@ -273,7 +264,7 @@
          * 若该时间附近已有歌词 → 进入编辑并回填；否则进入新增模式。
          */
         function onTimeSelected(snappedMs, rawMs) {
-            if (!isEnabled()) return;
+            // 预览/编辑不依赖「启用歌词生成」勾选
             var match = findLyricNearTime(textarea.value, snappedMs, MATCH_TOLERANCE_MS);
             if (!match && rawMs != null) {
                 match = findLyricNearTime(textarea.value, rawMs, MATCH_TOLERANCE_MS);
@@ -295,7 +286,6 @@
 
         /** 点击时间轴上已有歌词标记 → 编辑 */
         function onLyricEdit(idx, text, timeMs) {
-            if (!isEnabled()) return;
             state.editingLyricIdx = idx;
             // 有音节时，编辑框填整句文本（不含时间标签），用户改的是整句内容
             showOverlay(timeMs, text || '', 'edit');
