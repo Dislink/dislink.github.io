@@ -399,10 +399,10 @@
                     }
                     hideOverlay();
                 } else {
-                    // 乐句：始终新开一行
+                    // 乐句：始终新开一行，并在行尾保留 \n，方便后续继续添加
                     var newLine = fmtLrcTag(state.selectedEditTime) + text;
                     var prev = (textarea.value || '').replace(/\n*$/, '');
-                    textarea.value = prev ? prev + '\n' + newLine : newLine;
+                    textarea.value = (prev ? prev + '\n' + newLine : newLine) + '\n';
                     hideOverlay();
                 }
                 if (input) input.value = '';
