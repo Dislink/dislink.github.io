@@ -348,7 +348,7 @@
                 var scrollOff = getScrollOffset(state);
                 var markX = state.width - state.rightMargin * dpr + 8 * dpr;
                 var best = null;
-                var bestDist = 28 * dpr; // 垂直命中容差
+                var bestDist = 36 * dpr; // 垂直命中容差（整行更易点中）
                 for (var li = 0; li < vis.length; li++) {
                     var mY = vis[li].time_ms * state.pixelsPerMs - scrollOff;
                     var dy = Math.abs(mY - devY);
@@ -358,13 +358,8 @@
                     }
                 }
                 if (best) {
-                    // 右侧热区：靠近三角或右 36% 区域
-                    var rightZone = devX >= state.width * 0.64;
-                    var nearTri = devX >= markX - 48 * dpr;
-                    var onMarkerSide = rightZone || nearTri;
-
-                    // 多音节乐句：点右侧标记区域 → 展开/收起
-                    if (onMarkerSide && best.isPhrase && best.hasMultiSyllables) {
+                    // 多音节乐句：点击整条乐句标记（时间/文本/三角）都展开/收起
+                    if (best.isPhrase && best.hasMultiSyllables) {
                         var key = String(best.sentenceIndex);
                         if (!state._expandedPhrases) state._expandedPhrases = {};
                         if (state._expandedPhrases[key]) delete state._expandedPhrases[key];
