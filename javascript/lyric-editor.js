@@ -7,7 +7,7 @@
  * 用法:
  *   var editor = LyricEditor.init({
  *     waterfallId: 'cmd-preview-container',
- *     onAfterChange: function() { /* optional height estimate etc. *\/ }
+ *     onAfterChange: function() { // optional height estimate etc. }
  *   });
  *   // 上传 MIDI 后:
  *   editor.loadFromMidi(midiFile);
@@ -39,17 +39,42 @@
     /**
      * 把扁平歌词数组还原为 LRC 文本行。
      * 同一行内多时间标签 = 音节模式；行与行之间换行 = 乐句。
-     * 规则：相邻条目间隔 < 500ms 时合并到同一行（与 parseLRC 多标签语义一致）。
+     * 若条目自带 syllables，按音节时间重建多标签行；
+     * 否则相邻条目间隔 < 500ms 时合并到同一行。
      */
     function rebuildLrcLines(lyricsArr) {
         if (!lyricsArr || !lyricsArr.length) return [];
+        var lines = [];
+
+        function lineFromSyllables(syls) {
+            var s = '';
+            for (var i = 0; i < syls.length; i++) {
+                s += fmtLrcTag(syls[i].time_ms) + syls[i].text;
+            }
+            return s;
+        }
+
+        // 优先：带 syllables 的句子级条目
+        if (lyricsArr[0].syllables && lyricsArr[0].syllables.length) {
+            for (var i = 0; i < lyricsArr.length; i++) {
+                var item = lyricsArr[i];
+                if (item.syllables && item.syllables.length) {
+                    lines.push(lineFromSyllables(item.syllables));
+                } else {
+                    lines.push(fmtLrcTag(item.time_ms) + (item.text || ''));
+                }
+            }
+            return lines;
+        }
+
+        // 扁平音节/整句：相邻 <500ms 合并为同一 LRC 行
         var result = [{
             time_ms: lyricsArr[0].time_ms,
             text: fmtLrcTag(lyricsArr[0].time_ms) + lyricsArr[0].text
         }];
-        for (var i = 1; i < lyricsArr.length; i++) {
+        for (var j = 1; j < lyricsArr.length; j++) {
             var prev = result[result.length - 1];
-            var cur = lyricsArr[i];
+            var cur = lyricsArr[j];
             if (cur.time_ms - prev.time_ms < 500) {
                 prev.text += fmtLrcTag(cur.time_ms) + cur.text;
             } else {
@@ -91,6 +116,7 @@
      * 初始化页面级歌词编辑器。
      * @param {object} opts
      * @param {string} opts.waterfallId - 命令预览瀑布流 container id（用于选时/推进）
+     * @param {string|string[]} [opts.previewWaterfallIds] - 额外需要同步歌词覆盖层的瀑布流 id
      * @param {function} [opts.onAfterChange] - 歌词变更后回调
      * @param {function} [opts.getMidiFile] - 返回当前 midiFile
      * @param {function} [opts.getSongName] - 返回当前歌曲名
@@ -108,6 +134,12 @@
     function init(opts) {
         opts = opts || {};
         var waterfallId = opts.waterfallId || 'cmd-preview-container';
+        var previewIds = opts.previewWaterfallIds || [];
+        if (typeof previewIds === 'string') previewIds = [previewIds];
+        // 始终包含编辑用瀑布流本身
+        var allWaterfallIds = [waterfallId].concat(previewIds).filter(function(id, i, arr) {
+            return id && arr.indexOf(id) === i;
+        });
         var enableEl = $(opts.enableId || 'enableLyrics');
         var optionsEl = $(opts.optionsId || 'lyric_options');
         var textarea = $(opts.textareaId || 'lyricTextarea');
@@ -150,6 +182,13 @@
             return state.lyricMgr;
         }
 
+        function forEachWaterfall(fn) {
+            for (var i = 0; i < allWaterfallIds.length; i++) {
+                var st = window.getWaterfallState && window.getWaterfallState(allWaterfallIds[i]);
+                if (st) fn(st, allWaterfallIds[i]);
+            }
+        }
+
         function updateLyricStatus() {
             var text = (textarea.value || '').trim();
             if (!text) {
@@ -170,11 +209,12 @@
             if (optionsEl) optionsEl.style.display = enabled ? 'block' : 'none';
 
             var mf = getMidiFile();
-            var wfState = window.getWaterfallState && window.getWaterfallState(waterfallId);
 
             if (!enabled) {
                 state.lyricMgr = null;
-                if (wfState && wfState.setLyricManager) wfState.setLyricManager(null, false);
+                forEachWaterfall(function(wfState) {
+                    if (wfState.setLyricManager) wfState.setLyricManager(null, false);
+                });
                 if (typeof opts.onAfterChange === 'function') opts.onAfterChange();
                 return;
             }
@@ -190,12 +230,15 @@
 
             if (lyrics.length && mf && mf.timeTotal) {
                 state.lyricMgr = new window.LyricManager(lyrics, mf.timeTotal);
-                if (wfState && wfState.setLyricManager) {
-                    wfState.setLyricManager(state.lyricMgr, true, getSongName());
-                }
+                var songName = getSongName();
+                forEachWaterfall(function(wfState) {
+                    if (wfState.setLyricManager) wfState.setLyricManager(state.lyricMgr, true, songName);
+                });
             } else {
                 state.lyricMgr = null;
-                if (wfState && wfState.setLyricManager) wfState.setLyricManager(null, false);
+                forEachWaterfall(function(wfState) {
+                    if (wfState.setLyricManager) wfState.setLyricManager(null, false);
+                });
             }
             if (typeof opts.onAfterChange === 'function') opts.onAfterChange();
         }
@@ -254,16 +297,28 @@
         function onLyricEdit(idx, text, timeMs) {
             if (!isEnabled()) return;
             state.editingLyricIdx = idx;
+            // 有音节时，编辑框填整句文本（不含时间标签），用户改的是整句内容
             showOverlay(timeMs, text || '', 'edit');
         }
 
         /** 拖拽歌词时间标记 */
         function onLyricTimeChanged(idx, newTimeMs) {
-            var text = (textarea.value || '').trim();
-            if (!text) return;
-            var currentLyrics = window.LyricParser.parseLRC(text);
+            var src = (textarea.value || '').trim();
+            if (!src) return;
+            var currentLyrics = window.LyricParser.parseLRC(src);
             if (!currentLyrics.length || idx < 0 || idx >= currentLyrics.length) return;
-            currentLyrics = window.LyricParser.updateLyricTime(currentLyrics, idx, newTimeMs);
+
+            // 保留 syllables：只平移整句起点，音节相对间隔不变
+            var old = currentLyrics[idx];
+            var delta = Math.round(newTimeMs) - old.time_ms;
+            var updated = { time_ms: Math.round(newTimeMs), text: old.text };
+            if (old.syllables && old.syllables.length) {
+                updated.syllables = old.syllables.map(function(s) {
+                    return { time_ms: s.time_ms + delta, text: s.text };
+                });
+            }
+            currentLyrics[idx] = updated;
+            currentLyrics.sort(function(a, b) { return a.time_ms - b.time_ms; });
             textarea.value = rebuildLrcLines(currentLyrics).join('\n');
             window._rawMidiSyllables = null;
             window._manualLyricMode = true;
@@ -310,8 +365,11 @@
                 if (state.editingLyricIdx >= 0) {
                     var currentLyrics = window.LyricParser.parseLRC((textarea.value || '').trim());
                     if (state.editingLyricIdx < currentLyrics.length) {
+                        var oldItem = currentLyrics[state.editingLyricIdx];
+                        // 整句修改：若原有 syllables，用新文本替换整句并去掉音节切分
+                        // （用户手改文本后不再保留旧音节边界）
                         currentLyrics[state.editingLyricIdx] = {
-                            time_ms: currentLyrics[state.editingLyricIdx].time_ms,
+                            time_ms: oldItem.time_ms,
                             text: text
                         };
                         currentLyrics.sort(function(a, b) { return a.time_ms - b.time_ms; });
