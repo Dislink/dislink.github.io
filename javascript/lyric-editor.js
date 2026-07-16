@@ -132,8 +132,8 @@
         if (!lyrics || !lyrics.length) return markers;
         for (var i = 0; i < lyrics.length; i++) {
             var sent = lyrics[i];
-            var syls = sent.syllables && sent.syllables.length ? sent.syllables : null;
-            var hasMulti = !!(syls && syls.length > 1);
+            var syls = (sent.syllables && sent.syllables.length) ? sent.syllables : [];
+            var hasMulti = syls.length > 1;
             markers.push({
                 time_ms: sent.time_ms,
                 text: sent.text || '',
@@ -144,15 +144,14 @@
                 isPhraseStart: true,
                 phraseText: sent.text || '',
                 hasMultiSyllables: hasMulti,
-                syllables: hasMulti ? syls.map(function(s) {
+                syllables: syls.map(function(s) {
                     return { time_ms: s.time_ms, text: s.text, displayText: s.text };
-                }) : (syls ? syls.map(function(s) {
-                    return { time_ms: s.time_ms, text: s.text, displayText: s.text };
-                }) : [])
+                })
             });
         }
         return markers;
     }
+
 
 
 

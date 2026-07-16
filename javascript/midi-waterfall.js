@@ -296,6 +296,10 @@
                 state.lyricDisplayEnabled = !!mgr;
             }
             if (songName !== undefined) state.lyricSongName = songName;
+            if (!mgr) {
+                state.lyricMarkers = [];
+                state._expandedPhrases = {};
+            }
             state._lastLyricIdx = -2; // 强制下次 render 刷新
             // 立即重绘；再 rAF 一次，避免容器刚 display:block 时宽高为 0
             try { renderFrame(state); } catch (e) {}
@@ -332,20 +336,19 @@
             var rect = canvas.getBoundingClientRect();
             var cssX = e.clientX - rect.left;
             var cssY = e.clientY - rect.top;
-            var dpr = state.dpr;
+            var dpr = state.dpr || 1;
             var devX = cssX * dpr;
             var devY = cssY * dpr;
             var clickTimeMs = state.currentTime + (devY - state.height * state.playheadY) / state.pixelsPerMs;
             clickTimeMs = Math.max(0, Math.min(state.timeTotal, clickTimeMs));
             var snapped = snapToNearestNote(state, clickTimeMs);
 
-            // 优先命中可见歌词标记（含展开后的音节）
             if (state.lyricDisplayEnabled) {
                 var vis = getVisibleLyricMarkers(state);
-                var best = null;
-                var bestDist = 90 * dpr;
                 var scrollOff = getScrollOffset(state);
                 var markX = state.width - state.rightMargin * dpr + 8 * dpr;
+                var best = null;
+                var bestDist = 28 * dpr; // 垂直命中容差
                 for (var li = 0; li < vis.length; li++) {
                     var mY = vis[li].time_ms * state.pixelsPerMs - scrollOff;
                     var dy = Math.abs(mY - devY);
@@ -355,17 +358,24 @@
                     }
                 }
                 if (best) {
-                    // 点击右侧三角区域：多音节乐句 → 展开/收起
-                    var onTriangle = devX >= markX - 4 * dpr;
-                    if (onTriangle && best.isPhrase && best.hasMultiSyllables) {
+                    // 右侧热区：靠近三角或右 36% 区域
+                    var rightZone = devX >= state.width * 0.64;
+                    var nearTri = devX >= markX - 48 * dpr;
+                    var onMarkerSide = rightZone || nearTri;
+
+                    // 多音节乐句：点右侧标记区域 → 展开/收起
+                    if (onMarkerSide && best.isPhrase && best.hasMultiSyllables) {
                         var key = String(best.sentenceIndex);
                         if (!state._expandedPhrases) state._expandedPhrases = {};
                         if (state._expandedPhrases[key]) delete state._expandedPhrases[key];
                         else state._expandedPhrases[key] = true;
                         state._selectedTimeMs = best.time_ms;
+                        state._selectedTimeIsDrag = false;
                         renderFrame(state);
                         return;
                     }
+
+                    // 已展开音节 / 单句乐句 → 编辑
                     state._selectedTimeMs = best.time_ms;
                     state._selectedTimeIsDrag = false;
                     renderFrame(state);
@@ -379,7 +389,7 @@
                 }
             }
 
-            // 没有匹配到已有歌词 → 添加模式：标记选中点
+            // 没有匹配到已有歌词 → 添加模式
             state._selectedTimeMs = snapped;
             state._selectedTimeIsDrag = false;
             state._lastLyricIdx = -2;
@@ -862,9 +872,16 @@
         var expanded = state._expandedPhrases || {};
         for (var i = 0; i < phrases.length; i++) {
             var p = phrases[i];
+            var syls = p.syllables || [];
+            // 兼容：标记缺 syllables 时从 lyricManager 回填
+            if ((!syls || !syls.length) && state.lyricManager && state.lyricManager.lyrics) {
+                var sent = state.lyricManager.lyrics[p.sentenceIndex != null ? p.sentenceIndex : i];
+                if (sent && sent.syllables && sent.syllables.length) syls = sent.syllables;
+            }
+            var hasMulti = syls && syls.length > 1;
             var key = String(p.sentenceIndex != null ? p.sentenceIndex : i);
             var isExp = !!expanded[key];
-            var phraseMark = {
+            out.push({
                 time_ms: p.time_ms,
                 text: p.text,
                 displayText: p.displayText != null ? p.displayText : p.text,
@@ -872,23 +889,22 @@
                 isPhrase: true,
                 isSyllable: false,
                 phraseText: p.phraseText || p.text || '',
-                hasMultiSyllables: !!p.hasMultiSyllables,
-                syllables: p.syllables || [],
+                hasMultiSyllables: !!hasMulti,
+                syllables: syls,
                 _expanded: isExp
-            };
-            out.push(phraseMark);
-            if (isExp && p.syllables && p.syllables.length) {
-                for (var s = 0; s < p.syllables.length; s++) {
-                    var sy = p.syllables[s];
+            });
+            if (isExp && syls && syls.length) {
+                for (var s = 0; s < syls.length; s++) {
+                    var sy = syls[s];
                     out.push({
                         time_ms: sy.time_ms,
                         text: sy.text || '',
                         displayText: sy.displayText != null ? sy.displayText : (sy.text || ''),
-                        sentenceIndex: phraseMark.sentenceIndex,
+                        sentenceIndex: p.sentenceIndex != null ? p.sentenceIndex : i,
                         syllableIndex: s,
                         isPhrase: false,
                         isSyllable: true,
-                        phraseText: phraseMark.phraseText,
+                        phraseText: p.phraseText || p.text || '',
                         hasMultiSyllables: false
                     });
                 }
