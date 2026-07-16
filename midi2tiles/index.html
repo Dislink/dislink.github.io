@@ -146,6 +146,11 @@
                     <label for="enableLyrics">启用歌词生成</label>
                 </div>
                 <div id="lyric_options" style="display:none;">
+                    <div class="inline-group">
+                        <input type="checkbox" id="showLyricTimeInfo" checked />
+                        <label for="showLyricTimeInfo">展示进度条与时间（跳秒时也刷新字幕）</label>
+                    </div>
+
                     <div class="file-upload-wrapper" style="margin:0.5rem 0;">
                         <span class="file-upload-text">上传 LRC 文件（可选）</span>
                         <input type="file" id="lrcUpload" accept=".lrc,.txt">
@@ -419,13 +424,14 @@
         // ---- 歌词命令 ----
         let lyricLines = [];
         if(document.getElementById('enableLyrics').checked && lyricMgr && lyricMgr.lyrics.length){
-            var _scoreboardName = 'time'; // midi2tiles 固定使用 time 计分板
-            for(var _lyi=0; _lyi<lyricMgr.lyrics.length; _lyi++){
-                var _lrc = lyricMgr.lyrics[_lyi];
-                var _tick = Math.round(_lrc.time_ms / (50*(parseFloat(speed.value)/100)));
-                var _cmd = lyricMgr.buildTitleCommand(_lrc.time_ms, fileName);
+            var _showTimeInfo = !!(document.getElementById('showLyricTimeInfo') && document.getElementById('showLyricTimeInfo').checked);
+            var _lyricTimes = lyricMgr.collectTitleUpdateTimes({ showTimeInfo: _showTimeInfo });
+            var _scoreboardName = 'time';
+            for(var _lyi=0; _lyi<_lyricTimes.length; _lyi++){
+                var _lrcTime = _lyricTimes[_lyi];
+                var _tick = Math.round(_lrcTime / (50*(parseFloat(speed.value)/100)));
+                var _cmd = lyricMgr.buildTitleCommand(_lrcTime, fileName, { showTimeInfo: _showTimeInfo });
                 // titleraw 以 @a 为目标（玩家看 actionbar），不使用指针实体
-                // 用 @a[scores={time=TICK}] 选择器保证只在对应刻触发
                 lyricLines.push({ tick: _tick, cmd: _cmd.replace('titleraw @a actionbar ', `titleraw @a[scores={${_scoreboardName}=${_tick}}] actionbar `) });
             }
         }

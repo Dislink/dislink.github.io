@@ -183,6 +183,11 @@
                     <label for="enableLyrics">启用歌词生成</label>
                 </div>
                 <div id="lyric_options" style="display:none;">
+                    <div class="inline-group">
+                        <input type="checkbox" id="showLyricTimeInfo" checked />
+                        <label for="showLyricTimeInfo">展示进度条与时间（跳秒时也刷新字幕）</label>
+                    </div>
+
                     <div class="file-upload-wrapper" style="margin:0.5rem 0;">
                         <span class="file-upload-text">上传 LRC 文件（可选）</span>
                         <input type="file" id="lrcUpload" accept=".lrc,.txt">
@@ -605,10 +610,12 @@
         // ---- 歌词命令 ----
         let lyricLines = [];
         if(document.getElementById('enableLyrics').checked && lyricMgr && lyricMgr.lyrics.length){
-            for(var _lyi=0; _lyi<lyricMgr.lyrics.length; _lyi++){
-                var _lrc = lyricMgr.lyrics[_lyi];
-                var _tick = Math.round(_lrc.time_ms / (50*(parseFloat(speed.value)/100)));
-                var _cmd = lyricMgr.buildTitleCommand(_lrc.time_ms, fileName);
+            var _showTimeInfo = !!(document.getElementById('showLyricTimeInfo') && document.getElementById('showLyricTimeInfo').checked);
+            var _lyricTimes = lyricMgr.collectTitleUpdateTimes({ showTimeInfo: _showTimeInfo });
+            for(var _lyi=0; _lyi<_lyricTimes.length; _lyi++){
+                var _lrcTime = _lyricTimes[_lyi];
+                var _tick = Math.round(_lrcTime / (50*(parseFloat(speed.value)/100)));
+                var _cmd = lyricMgr.buildTitleCommand(_lrcTime, fileName, { showTimeInfo: _showTimeInfo });
                 // 按 commandVersion 生成原始命令（不加 execute 包装，由下面的 map 统一处理）
                 // 对 execute-playsound 模式：map 会自己添加 execute as @a[...] at @s run
                 // 对 execute-function / no-execute 模式：map 原样输出

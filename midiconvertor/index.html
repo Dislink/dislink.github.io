@@ -186,6 +186,11 @@
                     <label for="enableLyrics">启用歌词生成</label>
                 </div>
                 <div id="lyric_options" style="display:none;">
+                    <div class="inline-group">
+                        <input type="checkbox" id="showLyricTimeInfo" checked />
+                        <label for="showLyricTimeInfo">展示进度条与时间（跳秒时也刷新字幕）</label>
+                    </div>
+
                     <div class="file-upload-wrapper" style="margin:0.5rem 0;">
                         <span class="file-upload-text">上传 LRC 文件（可选）</span>
                         <input type="file" id="lrcUpload" accept=".lrc,.txt">
@@ -364,7 +369,12 @@
     function refreshCommandBlockLengthEstimate(){
         var lyrCount = 0;
         if(lyricEditor && lyricEditor.isEnabled() && lyricMgr && lyricMgr.lyrics.length){
-            lyrCount = lyricMgr.lyrics.length;
+            var _sti = document.getElementById('showLyricTimeInfo');
+            if(_sti && _sti.checked && typeof lyricMgr.collectTitleUpdateTimes === 'function'){
+                lyrCount = lyricMgr.collectTitleUpdateTimes({ showTimeInfo: true }).length;
+            } else {
+                lyrCount = lyricMgr.lyrics.length;
+            }
         }
         heightEstimate.innerText = (commandBlockLength+lyrCount) ? `预计高度: ${Math.ceil((commandBlockLength+lyrCount)/(parseInt(xLength.value)*(parseInt(zLength.value))))}` : '';
     }
@@ -573,10 +583,12 @@
             allEvents.push({ playTime: notes[i].playTime, type: 'note', noteIdx: i });
         }
 
-        // 收集歌词事件
+        // 收集歌词事件（内容变化时刷新；可选：跳秒也刷新）
         if(document.getElementById('enableLyrics').checked && lyricMgr && lyricMgr.lyrics.length){
-            for(var _lyi=0; _lyi<lyricMgr.lyrics.length; _lyi++){
-                allEvents.push({ playTime: lyricMgr.lyrics[_lyi].time_ms, type: 'lyric', lyricIdx: _lyi });
+            var _showTimeInfo = !!(document.getElementById('showLyricTimeInfo') && document.getElementById('showLyricTimeInfo').checked);
+            var _lyricTimes = lyricMgr.collectTitleUpdateTimes({ showTimeInfo: _showTimeInfo });
+            for(var _lyi=0; _lyi<_lyricTimes.length; _lyi++){
+                allEvents.push({ playTime: _lyricTimes[_lyi], type: 'lyric', lyricTimeMs: _lyricTimes[_lyi] });
             }
         }
 
@@ -612,8 +624,11 @@
                 commandBlocks.push(new commandBlock(`execute ${commandVersion.value=="new"?'as ':''}${playerSelector.value} ${commandVersion.value=="new"?'at @s run':'~~~'} playsound ${convertToDefault.checked?(notes[_ni].channel==9?defaultPercussion.value:defaultMelodic.value):(notes[_ni].channel==9?soundStrings[notes[_ni].channel][notes[_ni].param1][0]:soundString[0])} @${commandVersion.value=="no-execute"?"a":"s"} ^^^8 ${((notes[_ni].param2*(notes[_ni].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[_ni].channel==9?soundStrings[notes[_ni].channel][notes[_ni].param1][1]:(soundString[1]))*0.01).toFixed(5)} ${(notes[_ni].channel==9?soundStrings[notes[_ni].channel][notes[_ni].param1][2]:(2**((notes[_ni].param1+(soundString[2]||0)+parseFloat(pitchOffset.value)-66)/12))).toFixed(5)} ${((notes[_ni].param2*(notes[_ni].channel==0?parseFloat(volume4Main.value):parseFloat(volume4Sub.value)))*(notes[_ni].channel==9?soundStrings[notes[_ni].channel][notes[_ni].param1][1]:(soundString[1]))*0.01).toFixed(5)}`, (_isFirstBlock?upload.files[upload.seq].name.replace(/\.midi?$/,''):'')+((!document.getElementById("hideDebugMsg").checked)?' ['+formatSeconds(notes[_ni].playTime/1000)+']'+soundString[3]:''), undefined, false, _tickDelay));
             }else{
                 // 歌词命令
-                var _lyricCmd = lyricMgr.buildTitleCommand(lyricMgr.lyrics[_ev.lyricIdx].time_ms,
-                    upload.files[upload.seq].name.replace(/\.midi?$/i, ''));
+                var _showTimeInfo2 = !!(document.getElementById('showLyricTimeInfo') && document.getElementById('showLyricTimeInfo').checked);
+                var _lyricTimeMs = (_ev.lyricTimeMs != null) ? _ev.lyricTimeMs : (lyricMgr.lyrics[_ev.lyricIdx] && lyricMgr.lyrics[_ev.lyricIdx].time_ms);
+                var _lyricCmd = lyricMgr.buildTitleCommand(_lyricTimeMs,
+                    upload.files[upload.seq].name.replace(/\.midi?$/i, ''),
+                    { showTimeInfo: _showTimeInfo2 });
                 commandBlocks.push(new commandBlock(_lyricCmd, '', undefined, false, _tickDelay));
             }
             _isFirstBlock = false;

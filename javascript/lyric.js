@@ -443,13 +443,55 @@
     };
 
     /**
+     * 收集需要刷新 titleraw 的时间点（毫秒，已排序去重）
+     * - 始终包含：乐句开始、音节切换（歌词内容变化）
+     * - showTimeInfo 时额外包含：每一整秒（进度条/时间跳秒刷新）
+     * @param {{showTimeInfo?:boolean}} [opts]
+     * @returns {number[]}
+     */
+    LyricManager.prototype.collectTitleUpdateTimes = function(opts) {
+        opts = opts || {};
+        var map = {};
+        function add(t) {
+            t = Math.max(0, Math.round(t || 0));
+            map[t] = true;
+        }
+        var lyrics = this.lyrics || [];
+        for (var i = 0; i < lyrics.length; i++) {
+            var item = lyrics[i];
+            add(item.time_ms);
+            if (item.syllables && item.syllables.length) {
+                for (var s = 0; s < item.syllables.length; s++) {
+                    add(item.syllables[s].time_ms);
+                }
+            }
+        }
+        if (opts.showTimeInfo) {
+            var total = Math.max(0, Math.round(this.totalMs || 0));
+            // 至少覆盖 0 到 total 的每一整秒；无 total 时用最后歌词时间兜底
+            if (!total && lyrics.length) {
+                total = Math.round(lyrics[lyrics.length - 1].time_ms || 0);
+            }
+            for (var t = 0; t <= total; t += 1000) add(t);
+            if (total % 1000 !== 0) add(total);
+        }
+        return Object.keys(map).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+    };
+
+    /**
      * 构建完整的 titleraw 命令
      * 当前行：句子级输出（无 syllables）全白；音节级输出（有 syllables）按已唱音节切分白/灰
      * @param {number} currentTime - 当前时间（毫秒）
      * @param {string} songName - 歌曲名
+     * @param {{showTimeInfo?:boolean}|boolean} [opts] - 是否展示进度条/时间/歌名；兼容旧调用传 boolean
      * @returns {string} titleraw 命令字符串
      */
-    LyricManager.prototype.buildTitleCommand = function(currentTime, songName) {
+    LyricManager.prototype.buildTitleCommand = function(currentTime, songName, opts) {
+        if (typeof opts === 'boolean') opts = { showTimeInfo: opts };
+        opts = opts || {};
+        // 默认展示时间信息（与历史行为一致）；显式 false 时只显示三行歌词
+        var showTimeInfo = opts.showTimeInfo !== false;
+
         var idx = this.getCurrentIndex(currentTime);
         var prev = idx > 0 ? this.getLyricAt(idx - 1) : '';
         var next = (idx >= 0 && idx < this.lyrics.length - 1) ? this.getLyricAt(idx + 1) : '';
@@ -465,25 +507,24 @@
             currText = currSentence ? '§f' + (currSentence.text || '') : '§f';
         }
 
-        var progress = this.totalMs > 0 ? Math.min(1, currentTime / this.totalMs) : 0;
-        var bar = this.buildProgressBar(progress);
-
-        var timeStr = this.formatTime(currentTime);
-        var remainStr = this.formatTime(Math.max(0, this.totalMs - currentTime));
-        var totalStr = this.formatTime(this.totalMs);
-
         var esc = LyricManager._escapeColor;
 
-        // 四行文本：上一句(灰) / 当前(白/灰渐进) / 下一句(灰) / 进度条+当前/剩余/总时长+歌名
+        // 三行歌词：上一句(灰) / 当前(白/灰渐进) / 下一句(灰)
         // 注意：当前行已自带 § 颜色代码（syllableLine 或 §f前缀），不再 esc
         var prevLine = '§7' + esc(prev);
         var nextLine = '§7' + esc(next);
         var currLine = currText; // currText 已包含 § 颜色代码
 
-        var text = prevLine
-                 + '\n' + currLine
-                 + '\n' + nextLine
-                 + '\n§7[' + bar + '§7] §f' + timeStr + ' §7/ -' + remainStr + ' §8(' + totalStr + ') §e' + esc(songName || '');
+        var text = prevLine + '\n' + currLine + '\n' + nextLine;
+
+        if (showTimeInfo) {
+            var progress = this.totalMs > 0 ? Math.min(1, currentTime / this.totalMs) : 0;
+            var bar = this.buildProgressBar(progress);
+            var timeStr = this.formatTime(currentTime);
+            var remainStr = this.formatTime(Math.max(0, this.totalMs - currentTime));
+            var totalStr = this.formatTime(this.totalMs);
+            text += '\n§7[' + bar + '§7] §f' + timeStr + ' §7/ -' + remainStr + ' §8(' + totalStr + ') §e' + esc(songName || '');
+        }
 
         var rawtext = JSON.stringify({ rawtext: [{ text: text }] });
         return 'titleraw @a actionbar ' + rawtext;
