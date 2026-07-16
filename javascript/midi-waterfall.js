@@ -346,19 +346,40 @@
             if (state.lyricDisplayEnabled) {
                 var vis = getVisibleLyricMarkers(state);
                 var scrollOff = getScrollOffset(state);
-                var markX = state.width - state.rightMargin * dpr + 8 * dpr;
+                // 扩大命中：按时间距离选最近标记，再限制在可见带内
                 var best = null;
-                var bestDist = 36 * dpr; // 垂直命中容差（整行更易点中）
+                var bestScore = Infinity;
+                var maxDy = 56 * dpr; // 更大的垂直容差
                 for (var li = 0; li < vis.length; li++) {
                     var mY = vis[li].time_ms * state.pixelsPerMs - scrollOff;
                     var dy = Math.abs(mY - devY);
-                    if (dy < bestDist) {
-                        bestDist = dy;
+                    if (dy > maxDy) continue;
+                    // 优先更近的；同分时优先乐句
+                    var score = dy - (vis[li].isPhrase ? 0.5 : 0);
+                    if (score < bestScore) {
+                        bestScore = score;
                         best = vis[li];
                     }
                 }
+                // 时间轴点击也尝试吸附到最近标记（即使纵向稍远）
+                if (!best && vis.length) {
+                    var bestT = null;
+                    var bestTd = 220; // ms
+                    for (var ti = 0; ti < vis.length; ti++) {
+                        var td = Math.min(
+                            Math.abs(vis[ti].time_ms - clickTimeMs),
+                            Math.abs(vis[ti].time_ms - snapped)
+                        );
+                        if (td < bestTd) {
+                            bestTd = td;
+                            bestT = vis[ti];
+                        }
+                    }
+                    // 仅当点击偏右侧时用时间吸附（避免误点音符区）
+                    if (bestT && devX >= state.width * 0.45) best = bestT;
+                }
                 if (best) {
-                    // 多音节乐句：点击整条乐句标记（时间/文本/三角）都展开/收起
+                    // 多音节乐句：点中该乐句标记即展开/收起
                     if (best.isPhrase && best.hasMultiSyllables) {
                         var key = String(best.sentenceIndex);
                         if (!state._expandedPhrases) state._expandedPhrases = {};
@@ -370,7 +391,7 @@
                         return;
                     }
 
-                    // 已展开音节 / 单句乐句 → 编辑
+                    // 音节 / 单句 → 编辑，选中线同步到标记真实时间
                     state._selectedTimeMs = best.time_ms;
                     state._selectedTimeIsDrag = false;
                     renderFrame(state);

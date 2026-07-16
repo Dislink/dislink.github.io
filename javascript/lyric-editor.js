@@ -401,16 +401,30 @@
             if (typeof opts.onAfterChange === 'function') opts.onAfterChange();
         }
 
+        function syncWaterfallSelection(timeMs) {
+            var wfState = window.getWaterfallState && window.getWaterfallState(waterfallId);
+            if (!wfState) return;
+            wfState._selectedTimeMs = timeMs;
+            wfState._selectedTimeIsDrag = false;
+            // 触发重绘，保证虚线与输入框时间一致
+            if (wfState.setLyricManager && wfState.lyricManager) {
+                wfState.setLyricManager(wfState.lyricManager, wfState.lyricDisplayEnabled, wfState.lyricSongName);
+            }
+        }
+
         function showOverlay(timeMs, fillText, mode) {
             // mode: 'add' | 'edit'
-            state.selectedEditTime = timeMs;
-            if (mode !== 'edit') state.editingTagTimeMs = -1;
-            if (timeDisplay) timeDisplay.innerText = formatEditTime(timeMs);
+            state.selectedEditTime = Math.round(timeMs);
+            if (mode === 'edit') {
+                state.editingTagTimeMs = Math.round(timeMs);
+            } else {
+                state.editingTagTimeMs = -1;
+            }
+            if (timeDisplay) timeDisplay.innerText = formatEditTime(state.selectedEditTime);
             if (overlay) overlay.style.display = 'block';
             if (input) {
                 input.value = fillText == null ? '' : fillText;
                 input.focus();
-                // 编辑时把光标放到末尾，方便继续改
                 try {
                     var len = input.value.length;
                     input.setSelectionRange(len, len);
@@ -419,6 +433,8 @@
             if (addBtn) {
                 addBtn.textContent = mode === 'edit' ? '修改' : '添加乐句';
             }
+            // 瀑布流选中线与编辑时间强制同步
+            syncWaterfallSelection(state.selectedEditTime);
         }
 
         function hideOverlay() {
@@ -434,37 +450,31 @@
          */
         function onTimeSelected(snappedMs, rawMs) {
             if (!isEnabled()) return;
+            var tMs = Math.round(snappedMs);
             // 只有精确同一时间点才进入修改；附近时间一律视为新增
-            var match = findLyricNearTime(textarea.value, snappedMs, EXACT_TIME_MS);
+            var match = findLyricNearTime(textarea.value, tMs, EXACT_TIME_MS);
             if (match) {
                 state.editingLyricIdx = match.index;
                 state.editingTagTimeMs = match.time_ms;
                 showOverlay(match.time_ms, match.text, 'edit');
-                var wfState = window.getWaterfallState && window.getWaterfallState(waterfallId);
-                if (wfState) {
-                    wfState._selectedTimeMs = match.time_ms;
-                    wfState._selectedTimeIsDrag = false;
-                }
                 return;
             }
             state.editingLyricIdx = -1;
             state.editingTagTimeMs = -1;
-            showOverlay(snappedMs, '', 'add');
+            showOverlay(tMs, '', 'add');
         }
 
         /** 点击时间轴上已有歌词标记 → 编辑该时间点标签内容 */
         function onLyricEdit(idx, text, timeMs) {
             if (!isEnabled()) return;
-            var match = findLyricNearTime(textarea.value, timeMs, EXACT_TIME_MS);
-            if (match) {
-                state.editingLyricIdx = match.index;
-                state.editingTagTimeMs = match.time_ms;
-                showOverlay(match.time_ms, match.text, 'edit');
-                return;
-            }
-            state.editingLyricIdx = idx;
-            state.editingTagTimeMs = timeMs;
-            showOverlay(timeMs, text || '', 'edit');
+            var tMs = Math.round(timeMs);
+            var match = findLyricNearTime(textarea.value, tMs, EXACT_TIME_MS);
+            // 优先用源文本精确标签内容；没有则用标记传来的 text
+            var fill = match ? match.text : (text || '');
+            var useTime = match ? match.time_ms : tMs;
+            state.editingLyricIdx = match ? match.index : idx;
+            state.editingTagTimeMs = useTime;
+            showOverlay(useTime, fill, 'edit');
         }
 
         /** 拖拽歌词时间标记 */
@@ -615,9 +625,6 @@
                 state.editingLyricIdx = -1;
                 state.editingTagTimeMs = -1;
                 showOverlay(target, '', 'add');
-            }
-            if (wfState.setLyricManager && wfState.lyricManager) {
-                wfState.setLyricManager(wfState.lyricManager, wfState.lyricDisplayEnabled, wfState.lyricSongName);
             }
         }
 
