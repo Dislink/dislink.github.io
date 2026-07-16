@@ -404,11 +404,12 @@
         function syncWaterfallSelection(timeMs) {
             var wfState = window.getWaterfallState && window.getWaterfallState(waterfallId);
             if (!wfState) return;
-            wfState._selectedTimeMs = timeMs;
-            wfState._selectedTimeIsDrag = false;
-            // 触发重绘，保证虚线与输入框时间一致
-            if (wfState.setLyricManager && wfState.lyricManager) {
-                wfState.setLyricManager(wfState.lyricManager, wfState.lyricDisplayEnabled, wfState.lyricSongName);
+            var ms = Math.round(timeMs);
+            if (typeof wfState.setSelectedTimeMs === 'function') {
+                wfState.setSelectedTimeMs(ms);
+            } else {
+                wfState._selectedTimeMs = ms;
+                wfState._selectedTimeIsDrag = false;
             }
         }
 
@@ -451,11 +452,12 @@
         function onTimeSelected(snappedMs, rawMs) {
             if (!isEnabled()) return;
             var tMs = Math.round(snappedMs);
-            // 只有精确同一时间点才进入修改；附近时间一律视为新增
+            // 精确同一时间有标签 → 编辑该标签；否则新增
             var match = findLyricNearTime(textarea.value, tMs, EXACT_TIME_MS);
             if (match) {
                 state.editingLyricIdx = match.index;
                 state.editingTagTimeMs = match.time_ms;
+                // 选中时间用标签真实时间，保证与标记一致
                 showOverlay(match.time_ms, match.text, 'edit');
                 return;
             }
@@ -505,23 +507,19 @@
             var wfState = window.getWaterfallState && window.getWaterfallState(waterfallId);
             if (!wfState || !wfState.notes || !wfState.notes.length) return;
             var found = false;
+            var nextT = null;
             for (var ni = 0; ni < wfState.notes.length; ni++) {
                 if (wfState.notes[ni].playTime > state.selectedEditTime + 50) {
-                    state.selectedEditTime = wfState.notes[ni].playTime;
+                    nextT = wfState.notes[ni].playTime;
                     found = true;
                     break;
                 }
             }
             if (!found) return;
-            wfState._selectedTimeMs = state.selectedEditTime;
-            wfState._selectedTimeIsDrag = false;
-            if (timeDisplay) timeDisplay.innerText = formatEditTime(state.selectedEditTime);
-            // 推进到下一音符后：始终保持「新增」状态，清空输入，避免误进修改
+            // 推进后始终新增模式，清空输入；选中线与时间同步
             state.editingLyricIdx = -1;
             state.editingTagTimeMs = -1;
-            if (input) input.value = '';
-            if (addBtn) addBtn.textContent = '添加乐句';
-            if (overlay) overlay.style.display = 'block';
+            showOverlay(nextT, '', 'add');
         }
 
         // ---- 按钮：添加乐句（独立成行，行尾固定 \n）----

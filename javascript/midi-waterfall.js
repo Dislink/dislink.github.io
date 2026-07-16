@@ -287,6 +287,14 @@
         instances[containerId] = state;
 
         // 动态设置歌词管理器的便捷方法
+        state.setSelectedTimeMs = function(ms) {
+            state._selectedTimeMs = (ms == null || ms < 0) ? -1 : Math.round(ms);
+            state._selectedTimeIsDrag = false;
+            if (!state.isPlaying) {
+                try { renderFrame(state); } catch (e) {}
+            }
+        };
+
         state.setLyricManager = function(mgr, enabled, songName) {
             state.lyricManager = mgr || null;
             // 只要传入了管理器就默认开启显示；enabled 显式 false 时关闭
@@ -331,6 +339,7 @@
         state._dragLyricIdx = -1;
         state._suppressClickUntil = 0;
         canvas.addEventListener('click', function(e) {
+            // 拖拽刚结束时的 click 仍允许进入编辑（仅抑制极短误触）
             if (performance.now() < state._suppressClickUntil) return;
 
             var rect = canvas.getBoundingClientRect();
@@ -341,77 +350,62 @@
             var devY = cssY * dpr;
             var clickTimeMs = state.currentTime + (devY - state.height * state.playheadY) / state.pixelsPerMs;
             clickTimeMs = Math.max(0, Math.min(state.timeTotal, clickTimeMs));
+            // 任意位置：吸附到最近音符起始
             var snapped = snapToNearestNote(state, clickTimeMs);
 
+            // 歌词开启时：若点中多音节乐句（含文字/时间/三角），先切换展开
             if (state.lyricDisplayEnabled) {
                 var vis = getVisibleLyricMarkers(state);
                 var scrollOff = getScrollOffset(state);
-                // 扩大命中：按时间距离选最近标记，再限制在可见带内
-                var best = null;
-                var bestScore = Infinity;
-                var maxDy = 56 * dpr; // 更大的垂直容差
+                var bestPhrase = null;
+                var bestDy = 72 * dpr; // 很大的垂直命中
                 for (var li = 0; li < vis.length; li++) {
-                    var mY = vis[li].time_ms * state.pixelsPerMs - scrollOff;
+                    var mk = vis[li];
+                    if (!mk.isPhrase || !mk.hasMultiSyllables) continue;
+                    var mY = mk.time_ms * state.pixelsPerMs - scrollOff;
                     var dy = Math.abs(mY - devY);
-                    if (dy > maxDy) continue;
-                    // 优先更近的；同分时优先乐句
-                    var score = dy - (vis[li].isPhrase ? 0.5 : 0);
-                    if (score < bestScore) {
-                        bestScore = score;
-                        best = vis[li];
+                    if (dy < bestDy) {
+                        bestDy = dy;
+                        bestPhrase = mk;
                     }
                 }
-                // 时间轴点击也尝试吸附到最近标记（即使纵向稍远）
-                if (!best && vis.length) {
-                    var bestT = null;
-                    var bestTd = 220; // ms
+                // 时间上也接近时同样可展开（点整行文字更稳）
+                if (!bestPhrase) {
+                    var bestTd = 350;
                     for (var ti = 0; ti < vis.length; ti++) {
-                        var td = Math.min(
-                            Math.abs(vis[ti].time_ms - clickTimeMs),
-                            Math.abs(vis[ti].time_ms - snapped)
-                        );
+                        var mk2 = vis[ti];
+                        if (!mk2.isPhrase || !mk2.hasMultiSyllables) continue;
+                        var td = Math.abs(mk2.time_ms - clickTimeMs);
                         if (td < bestTd) {
                             bestTd = td;
-                            bestT = vis[ti];
+                            bestPhrase = mk2;
                         }
                     }
-                    // 仅当点击偏右侧时用时间吸附（避免误点音符区）
-                    if (bestT && devX >= state.width * 0.45) best = bestT;
                 }
-                if (best) {
-                    // 多音节乐句：点中该乐句标记即展开/收起
-                    if (best.isPhrase && best.hasMultiSyllables) {
-                        var key = String(best.sentenceIndex);
-                        if (!state._expandedPhrases) state._expandedPhrases = {};
-                        if (state._expandedPhrases[key]) delete state._expandedPhrases[key];
-                        else state._expandedPhrases[key] = true;
-                        state._selectedTimeMs = best.time_ms;
-                        state._selectedTimeIsDrag = false;
-                        renderFrame(state);
-                        return;
-                    }
-
-                    // 音节 / 单句 → 编辑，选中线同步到标记真实时间
-                    state._selectedTimeMs = best.time_ms;
-                    state._selectedTimeIsDrag = false;
-                    renderFrame(state);
-                    var hitText = best.displayText != null ? best.displayText : (best.text || '');
-                    if (typeof state.onLyricEdit === 'function') {
-                        state.onLyricEdit(best.sentenceIndex, hitText, best.time_ms);
-                    } else if (typeof state.onTimeSelected === 'function') {
-                        state.onTimeSelected(best.time_ms, clickTimeMs);
-                    }
-                    return;
+                if (bestPhrase) {
+                    var key = String(bestPhrase.sentenceIndex);
+                    if (!state._expandedPhrases) state._expandedPhrases = {};
+                    if (state._expandedPhrases[key]) delete state._expandedPhrases[key];
+                    else state._expandedPhrases[key] = true;
                 }
             }
 
-            // 没有匹配到已有歌词 → 添加模式
+            // 始终进入编辑：选中吸附音符时间，并回调页面编辑器
             state._selectedTimeMs = snapped;
             state._selectedTimeIsDrag = false;
             state._lastLyricIdx = -2;
             renderFrame(state);
             if (typeof state.onTimeSelected === 'function') {
                 state.onTimeSelected(snapped, clickTimeMs);
+            } else if (typeof state.onLyricEdit === 'function' && state.lyricManager) {
+                // 兜底：若该时间有歌词则编辑
+                var lyrics = state.lyricManager.lyrics || [];
+                for (var i = 0; i < lyrics.length; i++) {
+                    if (Math.abs(lyrics[i].time_ms - snapped) <= 20) {
+                        state.onLyricEdit(i, lyrics[i].text, lyrics[i].time_ms);
+                        break;
+                    }
+                }
             }
         });
 
@@ -469,14 +463,14 @@
         document.addEventListener('mouseup', function() {
             if (state._dragLyricIdx >= 0) {
                 state._selectedTimeIsDrag = false;
-                state._suppressClickUntil = performance.now() + 250;
+                state._suppressClickUntil = performance.now() + 80;
             }
             state._dragLyricIdx = -1;
         });
         document.addEventListener('mouseleave', function() {
             if (state._dragLyricIdx >= 0) {
                 state._selectedTimeIsDrag = false;
-                state._suppressClickUntil = performance.now() + 250;
+                state._suppressClickUntil = performance.now() + 80;
             }
             state._dragLyricIdx = -1;
         });
