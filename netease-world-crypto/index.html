@@ -1724,8 +1724,16 @@
         try {
             var zip = new JSZip();
             var total = entries.length;
-            var prefix = rootName + '/';
+            // zip 保留外层目录便于解压；mcworld 必须是扁平结构（level.dat / db 在根）
+            var useRootPrefix = exportExt !== 'mcworld';
+            var prefix = useRootPrefix ? (rootName + '/') : '';
             var usedPaths = Object.create(null);
+            appendLog(
+                useRootPrefix
+                    ? ('打包结构：外层目录 ' + rootName + '/')
+                    : '打包结构：mcworld 扁平根目录（无外层文件夹）',
+                'info'
+            );
 
             for (var i = 0; i < total; i++) {
                 throwIfAborted();
