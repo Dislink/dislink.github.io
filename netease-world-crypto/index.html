@@ -11,6 +11,7 @@
     <script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s);})();</script>
     <script src="/javascript/jszip.min.js" type="text/javascript"></script>
     <script src="/javascript/FileSaver.js" type="text/javascript"></script>
+    <script src="/javascript/nbt.js" type="text/javascript"></script>
     <script src="/javascript/enc.js" type="text/javascript"></script>
     <script src="/javascript/error-handler.js"></script>
     <style>
@@ -457,6 +458,12 @@
         <label><input type="radio" name="exportFormat" value="zip" checked> .zip</label>
         <label><input type="radio" name="exportFormat" value="mcworld"> .mcworld</label>
     </div>
+    <div class="export-format" id="encryptOptionsRow">
+        <label title="仅在加密时生效：把 level.dat 中的世界版本字段替换为网易可加载的兼容版本，不改动其它数据">
+            <input type="checkbox" id="patchWorldVersion" checked>
+            加密时替换 level.dat 世界版本为网易兼容版
+        </label>
+    </div>
     <div class="btn-group">
         <button id="downloadEnc" class="btn btn-warning" disabled title="将未加密的 db 文件加密后打包下载">下载加密存档</button>
         <button id="downloadDec" class="btn btn-success" disabled title="将已加密的 db 文件解密后打包下载">下载解密存档</button>
@@ -550,6 +557,19 @@
     var abortFlag = false;
     var logCount = 0;
     var progressStartedAt = 0;
+    var patchWorldVersionEl = document.getElementById('patchWorldVersion');
+
+    // 来自网易可加载标准样例 level.dat 的兼容世界版本字段（仅替换这些键，不改其它值）
+    // sample: kMXdLPIUVkU= / level.dat  headerVersion=10
+    var NETEASE_COMPAT_LEVELDAT = {
+        headerVersion: 10,
+        InventoryVersion: '1.21.120',
+        NetworkVersion: 860,
+        StorageVersion: 10,
+        WorldVersion: 1,
+        MinimumCompatibleClientVersion: [1, 21, 120, 0, 0],
+        lastOpenedWithVersion: [1, 21, 120, 0, 0]
+    };
 
     // 阈值
     var WARN_TOTAL_SIZE = 800 * 1024 * 1024;   // 800MB 提示
@@ -724,6 +744,154 @@
         return ext === 'mcworld' ? 'mcworld' : 'zip';
     }
 
+    function isLevelDatPath(path) {
+        var rel = normalizePath(path);
+        // 仅匹配世界根目录 level.dat，避免误伤子路径
+        return /(^|\/)level\.dat$/i.test(rel) && !/\/db\//i.test(rel);
+    }
+
+    function cloneJson(obj) {
+        return JSON.parse(JSON.stringify(obj));
+    }
+
+    function formatVersionTag(tag) {
+        if (!tag) return '(无)';
+        try {
+            if (tag.type === 'list') {
+                var vals = (tag.value && tag.value.value) || [];
+                return vals.join('.');
+            }
+            if (tag.type === 'string' || tag.type === 'int' || tag.type === 'byte' || tag.type === 'short' || tag.type === 'long') {
+                return String(tag.value);
+            }
+            return JSON.stringify(tag.value);
+        } catch (e) {
+            return '(?)';
+        }
+    }
+
+    function patchLevelDatWorldVersion(arrayBuffer) {
+        if (!arrayBuffer || arrayBuffer.byteLength < 16) {
+            throw new Error('level.dat 过短，无法解析');
+        }
+        if (typeof nbt === 'undefined' || typeof nbt.parseUncompressed !== 'function' || typeof nbt.writeUncompressed !== 'function') {
+            throw new Error('nbt.js 未加载，无法修改世界版本');
+        }
+
+        var src = arrayBuffer;
+        // 若 level.dat 被意外加密，先尝试解密
+        if (safeIsEncrypted(src)) {
+            src = fileDecrypt(src);
+        }
+
+        var dv = new DataView(src);
+        var headerVersion = dv.getInt32(0, true);
+        var nbtLen = dv.getInt32(4, true);
+        if (nbtLen <= 0 || nbtLen + 8 > src.byteLength) {
+            // 有些工具写出的 level.dat 可能无 8 字节头，尝试整文件当 NBT
+            try {
+                var bare = nbt.parseUncompressed(src.slice(0), true);
+                return writeLevelDatWithPatch(bare, NETEASE_COMPAT_LEVELDAT.headerVersion, null);
+            } catch (e) {
+                throw new Error('level.dat 头部无效（header=' + headerVersion + ', len=' + nbtLen + '）');
+            }
+        }
+
+        var nbtBuf = src.slice(8, 8 + nbtLen);
+        var parsed;
+        try {
+            parsed = nbt.parseUncompressed(nbtBuf, true);
+        } catch (e) {
+            throw new Error('解析 level.dat NBT 失败：' + friendlyError(e));
+        }
+
+        return writeLevelDatWithPatch(parsed, headerVersion, {
+            InventoryVersion: parsed.value && parsed.value.InventoryVersion,
+            NetworkVersion: parsed.value && parsed.value.NetworkVersion,
+            StorageVersion: parsed.value && parsed.value.StorageVersion,
+            WorldVersion: parsed.value && parsed.value.WorldVersion,
+            MinimumCompatibleClientVersion: parsed.value && parsed.value.MinimumCompatibleClientVersion,
+            lastOpenedWithVersion: parsed.value && parsed.value.lastOpenedWithVersion
+        });
+    }
+
+    function writeLevelDatWithPatch(parsed, originalHeaderVersion, oldTags) {
+        if (!parsed || !parsed.value || typeof parsed.value !== 'object') {
+            throw new Error('level.dat 根节点无效');
+        }
+
+        var root = parsed.value;
+        var changes = [];
+        var compat = NETEASE_COMPAT_LEVELDAT;
+
+        function setInt(key, value) {
+            var old = root[key] ? formatVersionTag(root[key]) : '(无)';
+            root[key] = { type: 'int', value: value | 0 };
+            var neu = String(value | 0);
+            if (old !== neu) changes.push(key + ': ' + old + ' → ' + neu);
+        }
+        function setString(key, value) {
+            var old = root[key] ? formatVersionTag(root[key]) : '(无)';
+            root[key] = { type: 'string', value: String(value) };
+            var neu = String(value);
+            if (old !== neu) changes.push(key + ': ' + old + ' → ' + neu);
+        }
+        function setIntList(key, values) {
+            var old = root[key] ? formatVersionTag(root[key]) : '(无)';
+            root[key] = {
+                type: 'list',
+                value: {
+                    type: 'int',
+                    value: values.map(function (v) { return v | 0; })
+                }
+            };
+            var neu = values.join('.');
+            if (old !== neu) changes.push(key + ': ' + old + ' → ' + neu);
+        }
+
+        // 只替换世界版本相关字段，其它 NBT 值保持不动
+        setString('InventoryVersion', compat.InventoryVersion);
+        setInt('NetworkVersion', compat.NetworkVersion);
+        setInt('StorageVersion', compat.StorageVersion);
+        setInt('WorldVersion', compat.WorldVersion);
+        setIntList('MinimumCompatibleClientVersion', compat.MinimumCompatibleClientVersion);
+        setIntList('lastOpenedWithVersion', compat.lastOpenedWithVersion);
+
+        var written;
+        try {
+            written = nbt.writeUncompressed({
+                name: typeof parsed.name === 'string' ? parsed.name : '',
+                value: root
+            }, true);
+        } catch (e) {
+            throw new Error('写回 level.dat 失败：' + friendlyError(e));
+        }
+
+        var out = new ArrayBuffer(8 + written.byteLength);
+        var outDv = new DataView(out);
+        // 头部版本：优先使用兼容样例的 Storage/header 版本；若原文件已有合理 header 也统一为样例
+        outDv.setInt32(0, compat.headerVersion | 0, true);
+        outDv.setInt32(4, written.byteLength, true);
+        new Uint8Array(out).set(new Uint8Array(written), 8);
+
+        if (originalHeaderVersion !== compat.headerVersion) {
+            changes.unshift('headerVersion: ' + originalHeaderVersion + ' → ' + compat.headerVersion);
+        }
+
+        return {
+            buffer: out,
+            changes: changes,
+            oldTags: oldTags || null
+        };
+    }
+
+    async function maybePatchLevelDatEntry(entry, rel, enablePatch) {
+        if (!enablePatch || !isLevelDatPath(rel)) return null;
+        var buf = await entry.getArrayBuffer();
+        var result = patchLevelDatWorldVersion(buf);
+        return result;
+    }
+
     function sanitizeRootName(name) {
         var n = String(name || 'world')
             .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
@@ -853,7 +1021,7 @@
         if (typeof fileEncrypt !== 'function' || typeof fileDecrypt !== 'function' || typeof isEncrypted !== 'function') {
             issues.push('加解密库 enc.js 未加载');
         }
-        if (!window.FileReader && !Blob.prototype.arrayBuffer) {
+        if (!window.FileReader && !(Blob && Blob.prototype && Blob.prototype.arrayBuffer)) {
             issues.push('当前浏览器过旧，不支持读取本地文件');
         }
         // directory 支持检测
@@ -863,6 +1031,13 @@
             compatNotice.textContent = '当前浏览器可能不支持选择文件夹，请改用 zip / mcworld 上传。';
         }
         return issues;
+    }
+
+    function checkVersionPatchSupport() {
+        if (typeof nbt === 'undefined' || typeof nbt.parseUncompressed !== 'function' || typeof nbt.writeUncompressed !== 'function') {
+            return 'nbt.js 未加载，无法替换世界版本';
+        }
+        return '';
     }
 
     async function analyzeEntries(entries, meta) {
@@ -1291,6 +1466,9 @@
         } else if (scanState.cryptoState === 'mixed') {
             hint = '混合状态：加密会处理明文文件，解密会处理密文文件。';
         }
+        if (patchWorldVersionEl && patchWorldVersionEl.checked) {
+            hint = (hint ? hint + ' ' : '') + '加密时将替换 level.dat 世界版本。';
+        }
         btnHint.textContent = hint;
     }
 
@@ -1496,11 +1674,20 @@
         }
 
         var isEncrypt = mode === 'encrypt';
+        var enableVersionPatch = isEncrypt && !!(patchWorldVersionEl && patchWorldVersionEl.checked);
+        if (enableVersionPatch) {
+            var patchIssue = checkVersionPatchSupport();
+            if (patchIssue) {
+                setStatus(patchIssue + '。请刷新页面，或取消勾选版本替换后重试', 'error');
+                return;
+            }
+        }
         var actionLabel = isEncrypt ? '加密' : '解密';
         var entries = scanState.entries;
         var rootName = sanitizeRootName(scanState.rootName || 'world');
         var exportExt = getSelectedExportExt();
         var zipName = rootName + (isEncrypt ? '-encrypted' : '-decrypted') + '.' + exportExt;
+        // enableVersionPatch 已在前置校验中计算
 
         abortFlag = false;
         setBusy(true);
@@ -1513,6 +1700,14 @@
             unknown: '未知'
         }[scanState.cryptoState] || '未知'), 'info');
         appendLog('导出格式：.' + exportExt, 'info');
+        if (isEncrypt) {
+            appendLog(
+                '世界版本替换：' + (enableVersionPatch
+                    ? ('启用（目标 ' + NETEASE_COMPAT_LEVELDAT.InventoryVersion + ' / Network ' + NETEASE_COMPAT_LEVELDAT.NetworkVersion + '）')
+                    : '关闭'),
+                'info'
+            );
+        }
         appendLog('开始' + actionLabel + '，共 ' + entries.length + ' 个文件…', 'info');
         setStatus('正在' + actionLabel + '并打包…', 'info');
         setProgress(0, '准备中…');
@@ -1523,6 +1718,8 @@
         var copied = 0;
         var failed = 0;
         var emptySkipped = 0;
+        var levelDatPatched = 0;
+        var levelDatPatchFailed = 0;
 
         try {
             var zip = new JSZip();
@@ -1608,6 +1805,32 @@
                                 }
                             }
                         }
+                    } else if (enableVersionPatch && isLevelDatPath(rel)) {
+                        try {
+                            var patchResult = await maybePatchLevelDatEntry(entry, rel, true);
+                            if (patchResult && patchResult.buffer) {
+                                zip.file(outPath, patchResult.buffer);
+                                levelDatPatched++;
+                                if (patchResult.changes && patchResult.changes.length) {
+                                    appendLog('[版本替换] ' + rel, 'ok');
+                                    patchResult.changes.forEach(function (c) {
+                                        appendLog('  · ' + c, 'info');
+                                    });
+                                } else {
+                                    appendLog('[版本替换] ' + rel + '（字段已是目标版本）', 'info');
+                                }
+                            } else {
+                                zip.file(outPath, await entry.getZipData());
+                                copied++;
+                            }
+                        } catch (patchErr) {
+                            levelDatPatchFailed++;
+                            failed++;
+                            appendLog('[版本替换失败] ' + rel + ' → ' + friendlyError(patchErr), 'error');
+                            try {
+                                zip.file(outPath, await entry.getZipData());
+                            } catch (_) { /* ignore */ }
+                        }
                     } else {
                         try {
                             zip.file(outPath, await entry.getZipData());
@@ -1625,6 +1848,10 @@
                 if (i % 5 === 4) {
                     await new Promise(function (r) { setTimeout(r, 0); });
                 }
+            }
+
+            if (enableVersionPatch && !levelDatPatched && !levelDatPatchFailed) {
+                appendLog('[警告] 未找到 level.dat，跳过世界版本替换', 'warn');
             }
 
             throwIfAborted();
@@ -1684,8 +1911,12 @@
                 ' 个，状态匹配跳过 ' + skippedSame +
                 ' 个，原样复制 ' + copied +
                 ' 个，空文件 ' + emptySkipped +
-                ' 个，失败 ' + failed + ' 个。',
-                failed ? 'warn' : 'ok'
+                ' 个，失败 ' + failed + ' 个' +
+                (isEncrypt
+                    ? ('；level.dat 版本替换 ' + levelDatPatched +
+                        (levelDatPatchFailed ? '（失败 ' + levelDatPatchFailed + '）' : ''))
+                    : '') + '。',
+                failed || levelDatPatchFailed ? 'warn' : 'ok'
             );
             appendLog('输出大小约 ' + formatBytes(content.size) + '，已触发下载：' + zipName, 'ok');
 
@@ -1752,6 +1983,12 @@
 
     downloadEnc.onclick = function () { processAndDownload('encrypt'); };
     downloadDec.onclick = function () { processAndDownload('decrypt'); };
+
+    if (patchWorldVersionEl) {
+        patchWorldVersionEl.onchange = function () {
+            refreshActionButtons();
+        };
+    }
 
     cancelBtn.onclick = function () {
         if (!busy) return;
