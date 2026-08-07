@@ -27,8 +27,8 @@
     <script src="/javascript/jszip.min.js" type="text/javascript"></script>
     <script src="/javascript/FileSaver.js" type="text/javascript"></script>
     <script src="/javascript/Math.uuid.js" type="text/javascript"></script>
-    <script src="/javascript/lyric.js?v=20260716b" type="text/javascript"></script>
-    <script src="/javascript/lyric-editor.js?v=20260716b" type="text/javascript"></script>
+    <script src="/javascript/lyric.js?v=20260807a" type="text/javascript"></script>
+    <script src="/javascript/lyric-editor.js?v=20260807a" type="text/javascript"></script>
     <script>
         manifestBE={"format_version":0,"header":{"description":"url:https://dislink.github.io/midi2mcfunction","name":"","uuid":"","min_engine_version":[],"version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
     </script>
@@ -607,11 +607,14 @@
             }
             timeMin=Infinity; timeMax=0;
         }
-        // ---- 歌词命令 ----
+        // ---- 歌词命令（无歌词时也可生成进度条/时间/歌曲信息）----
         let lyricLines = [];
-        if(document.getElementById('enableLyrics').checked && lyricMgr && lyricMgr.lyrics.length){
+        if(document.getElementById('enableLyrics').checked && lyricMgr){
             var _showTimeInfo = !!(document.getElementById('showLyricTimeInfo') && document.getElementById('showLyricTimeInfo').checked);
-
+            // 无歌词且未勾选时间信息：无需生成
+            if (!(lyricMgr.lyrics && lyricMgr.lyrics.length) && !_showTimeInfo) {
+                // skip
+            } else {
             // 兼容旧 lyric.js 缓存：collectTitleUpdateTimes 缺失时本地计算
             function _collectLyricUpdateTimes(mgr, showTimeInfo){
                 if (mgr && typeof mgr.collectTitleUpdateTimes === 'function') {
@@ -627,8 +630,11 @@
                 if (showTimeInfo){
                     var total=Math.max(0, Math.round((mgr&&mgr.totalMs)||0));
                     if(!total && lyrics.length) total=Math.round(lyrics[lyrics.length-1].time_ms||0);
-                    for (var t=0;t<=total;t+=1000) add(t);
-                    if (total%1000!==0) add(total);
+                    if(!total && !lyrics.length){ add(0); }
+                    else {
+                        for (var t=0;t<=total;t+=1000) add(t);
+                        if (total%1000!==0) add(total);
+                    }
                 }
                 return Object.keys(map).map(function(k){return parseInt(k,10);}).sort(function(a,b){return a-b;});
             }
@@ -643,6 +649,7 @@
                 // 对 execute-function / no-execute 模式：map 原样输出
                 // 故我们只需生成带 @a[scores={time=TICK}] 选择器的原始 titleraw 命令
                 lyricLines.push({ tick: _tick, cmd: _cmd.replace('titleraw @a actionbar ', `titleraw @a[scores={${document.getElementById('scoreboard').value}=${_tick}}] actionbar `) });
+            }
             }
         }
 

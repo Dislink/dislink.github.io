@@ -472,8 +472,15 @@
             if (!total && lyrics.length) {
                 total = Math.round(lyrics[lyrics.length - 1].time_ms || 0);
             }
-            for (var t = 0; t <= total; t += 1000) add(t);
-            if (total % 1000 !== 0) add(total);
+            // 无歌词但有总时长：至少生成 0 时刻，保证进度条/歌曲信息能出现
+            if (!total && !lyrics.length) {
+                add(0);
+            } else {
+                for (var t = 0; t <= total; t += 1000) add(t);
+                if (total % 1000 !== 0) add(total);
+            }
+        } else if (!lyrics.length) {
+            // 无歌词且不展示时间信息：无需刷新点
         }
         return Object.keys(map).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
     };
@@ -491,29 +498,40 @@
         opts = opts || {};
         // 默认展示时间信息（与历史行为一致）；显式 false 时只显示三行歌词
         var showTimeInfo = opts.showTimeInfo !== false;
-
-        var idx = this.getCurrentIndex(currentTime);
-        var prev = idx > 0 ? this.getLyricAt(idx - 1) : '';
-        var next = (idx >= 0 && idx < this.lyrics.length - 1) ? this.getLyricAt(idx + 1) : '';
-        var currSentence = idx >= 0 ? this.lyrics[idx] : null;
-
-        // 当前行：根据是否含 syllables 选择渲染方式
-        var currText;
-        if (currSentence && currSentence.syllables) {
-            // MIDI 音节级：渐进高亮（已唱白/未唱灰），已包含 §f/§7 前缀
-            currText = this.buildSyllableLine(currSentence, currentTime);
-        } else {
-            // LRC 整句：整行白色（需添加 §f 前缀）
-            currText = currSentence ? '§f' + (currSentence.text || '') : '§f';
-        }
-
         var esc = LyricManager._escapeColor;
+        var safeSong = esc(songName || '');
+        var hasLyrics = !!(this.lyrics && this.lyrics.length);
 
-        // 三行歌词：上一句(灰) / 当前(白/灰渐进) / 下一句(灰)
-        // 注意：当前行已自带 § 颜色代码（syllableLine 或 §f前缀），不再 esc
-        var prevLine = '§7' + esc(prev);
-        var nextLine = '§7' + esc(next);
-        var currLine = currText; // currText 已包含 § 颜色代码
+        var prevLine, currLine, nextLine;
+        if (!hasLyrics) {
+            // 无歌词：歌词栏展示歌曲信息，避免三行空白
+            prevLine = '§7♪ 正在播放';
+            currLine = '§e' + (safeSong || '未知曲目');
+            nextLine = this.totalMs > 0
+                ? ('§7时长 ' + this.formatTime(this.totalMs))
+                : '§7';
+        } else {
+            var idx = this.getCurrentIndex(currentTime);
+            var prev = idx > 0 ? this.getLyricAt(idx - 1) : '';
+            var next = (idx >= 0 && idx < this.lyrics.length - 1) ? this.getLyricAt(idx + 1) : '';
+            var currSentence = idx >= 0 ? this.lyrics[idx] : null;
+
+            // 当前行：根据是否含 syllables 选择渲染方式
+            var currText;
+            if (currSentence && currSentence.syllables) {
+                // MIDI 音节级：渐进高亮（已唱白/未唱灰），已包含 §f/§7 前缀
+                currText = this.buildSyllableLine(currSentence, currentTime);
+            } else {
+                // LRC 整句：整行白色（需添加 §f 前缀）
+                currText = currSentence ? '§f' + (currSentence.text || '') : '§f';
+            }
+
+            // 三行歌词：上一句(灰) / 当前(白/灰渐进) / 下一句(灰)
+            // 注意：当前行已自带 § 颜色代码（syllableLine 或 §f前缀），不再 esc
+            prevLine = '§7' + esc(prev);
+            nextLine = '§7' + esc(next);
+            currLine = currText; // currText 已包含 § 颜色代码
+        }
 
         var text = prevLine + '\n' + currLine + '\n' + nextLine;
 
@@ -523,7 +541,7 @@
             var timeStr = this.formatTime(currentTime);
             var remainStr = this.formatTime(Math.max(0, this.totalMs - currentTime));
             var totalStr = this.formatTime(this.totalMs);
-            text += '\n§7[' + bar + '§7] §f' + timeStr + ' §7/ -' + remainStr + ' §8(' + totalStr + ') §e' + esc(songName || '');
+            text += '\n§7[' + bar + '§7] §f' + timeStr + ' §7/ -' + remainStr + ' §8(' + totalStr + ') §e' + safeSong;
         }
 
         var rawtext = JSON.stringify({ rawtext: [{ text: text }] });

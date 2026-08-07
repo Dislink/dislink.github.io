@@ -324,13 +324,19 @@
         function updateLyricStatus() {
             var text = (textarea.value || '').trim();
             if (!text) {
-                if (infoEl) infoEl.innerText = '已解析 0 条歌词';
+                if (infoEl) {
+                    infoEl.innerText = isEnabled()
+                        ? '暂无歌词：将展示歌曲信息与进度条/时间（若已勾选）'
+                        : '已解析 0 条歌词';
+                }
                 return [];
             }
             var lyrics = window.LyricParser.parseLRC(text);
             var msg = '已解析 ' + lyrics.length + ' 条歌词';
             if (lyrics.length) {
                 msg += '（最后时间: ' + new window.LyricManager(lyrics, 0).formatTime(lyrics[lyrics.length - 1].time_ms) + '）';
+            } else if (isEnabled()) {
+                msg = '暂无歌词：将展示歌曲信息与进度条/时间（若已勾选）';
             }
             if (infoEl) infoEl.innerText = msg;
             return lyrics;
@@ -371,9 +377,9 @@
                 });
             }
 
-            // 仅在启用时，把歌词推送到目标瀑布流（默认命令预览，不含合成音瀑布流）
-            if (lyrics.length && totalMs) {
-                state.lyricMgr = new window.LyricManager(lyrics, totalMs);
+            // 启用时即使没有歌词也创建管理器：用于进度条/时间/歌曲信息展示
+            if (totalMs || lyrics.length) {
+                state.lyricMgr = new window.LyricManager(lyrics, totalMs || 0);
                 var songName = getSongName();
                 var markers = buildMarkers(state.lyricMgr.lyrics);
                 var applied = 0;
