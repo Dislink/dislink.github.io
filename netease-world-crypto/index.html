@@ -55,6 +55,27 @@
             justify-content: center;
             margin-bottom: 0.5rem;
         }
+        .export-format {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem 0.85rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+        }
+        .export-format label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .export-format input[type="radio"] {
+            accent-color: var(--color-primary);
+            cursor: pointer;
+        }
         .btn-hint {
             text-align: center;
             font-size: 0.78rem;
@@ -366,17 +387,17 @@
                         <div class="file-upload-icon">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         </div>
-                        <span class="file-upload-text" id="uploadZipText">选择 zip 压缩包</span>
-                        <input type="file" id="uploadZip" accept=".zip,application/zip,application/x-zip-compressed">
+                        <span class="file-upload-text" id="uploadZipText">选择 zip / mcworld</span>
+                        <input type="file" id="uploadZip" accept=".zip,.mcworld,application/zip,application/x-zip-compressed">
                     </div>
                 </div>
                 <div class="drop-zone" id="dropZone">
-                    或将<strong>文件夹</strong> / <strong>zip</strong> 拖放到此处
+                    或将<strong>文件夹</strong> / <strong>zip</strong> / <strong>mcworld</strong> 拖放到此处
                 </div>
                 <div class="notice">
-                    支持完整世界<strong>文件夹</strong>或 <strong>zip</strong>。
+                    支持完整世界<strong>文件夹</strong>、<strong>zip</strong> 或基岩版 <strong>mcworld</strong>（本质为 zip）。
                     仅处理 <code>db/</code> 下 LevelDB 数据文件，自动跳过 <code>.log</code> / <code>.json</code> / <code>LOCK</code> / <code>.bak</code>。
-                    处理完成后打包为 zip 下载。所有操作均在浏览器本地完成。
+                    处理后可导出为 zip 或 mcworld。所有操作均在浏览器本地完成。
                 </div>
                 <div class="notice" id="compatNotice" style="display:none;color:#b45309;"></div>
             </div>
@@ -436,6 +457,11 @@
         </div>
     </form>
 
+    <div class="export-format" id="exportFormatRow">
+        <span>导出格式：</span>
+        <label><input type="radio" name="exportFormat" value="zip" checked> .zip</label>
+        <label><input type="radio" name="exportFormat" value="mcworld"> .mcworld</label>
+    </div>
     <div class="btn-group">
         <button id="downloadEnc" class="btn btn-warning" disabled title="将未加密的 db 文件加密后打包下载">下载加密存档</button>
         <button id="downloadDec" class="btn btn-success" disabled title="将已加密的 db 文件解密后打包下载">下载解密存档</button>
@@ -443,7 +469,7 @@
     </div>
     <div class="btn-hint" id="btnHint"></div>
 
-    <div class="status-bar" id="status">请选择存档文件夹或 zip 压缩包</div>
+    <div class="status-bar" id="status">请选择存档文件夹、zip 或 mcworld</div>
     <div id="progressArea" style="display:none;">
         <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
         <div class="progress-text">
@@ -566,10 +592,10 @@
             return '内存不足，请尝试更小的存档，或关闭其他标签页后重试';
         }
         if (/Encrypted zip|password|wrong password/i.test(msg)) {
-            return '该 zip 似乎有密码保护，请先用无密码 zip 重新打包';
+            return '该压缩包似乎有密码保护，请先用无密码 zip/mcworld 重新打包';
         }
         if (/Corrupted zip|Can't find end of central directory|invalid zip|zip file/i.test(msg)) {
-            return 'zip 文件损坏或不是有效的 zip（若是 rar/7z 请先转换为 zip）';
+            return '压缩包损坏或不是有效的 zip/mcworld（若是 rar/7z 请先转换）';
         }
         if (msg.length > 180) msg = msg.slice(0, 180) + '…';
         return msg;
@@ -686,7 +712,21 @@
     }
 
     function stripZipExt(name) {
-        return String(name || '').replace(/\.zip$/i, '') || 'world';
+        return String(name || '').replace(/\.(zip|mcworld)$/i, '') || 'world';
+    }
+
+    function isZipLikeName(name) {
+        return /\.(zip|mcworld)$/i.test(name || '');
+    }
+
+    function getSelectedExportExt() {
+        var checked = document.querySelector('input[name="exportFormat"]:checked');
+        var val = checked ? checked.value : 'zip';
+        return val === 'mcworld' ? 'mcworld' : 'zip';
+    }
+
+    function exportExtLabel(ext) {
+        return ext === 'mcworld' ? 'mcworld' : 'zip';
     }
 
     function sanitizeRootName(name) {
@@ -825,7 +865,7 @@
         var supportsDir = 'webkitdirectory' in document.createElement('input');
         if (!supportsDir) {
             compatNotice.style.display = 'block';
-            compatNotice.textContent = '当前浏览器可能不支持选择文件夹，请改用 zip 上传。';
+            compatNotice.textContent = '当前浏览器可能不支持选择文件夹，请改用 zip / mcworld 上传。';
         }
         return issues;
     }
@@ -988,37 +1028,38 @@
     }
 
     async function loadFromZip(file) {
-        if (!file) throw new Error('未选择 zip 文件');
+        if (!file) throw new Error('未选择 zip / mcworld 文件');
 
         var name = file.name || 'archive.zip';
         var lower = name.toLowerCase();
+        var isMcworld = /\.mcworld$/i.test(lower);
+        var isZip = /\.zip$/i.test(lower);
 
         if (/\.(rar|7z|tar|gz|tgz|bz2|xz)$/i.test(lower)) {
-            throw new Error('暂不支持 ' + lower.split('.').pop().toUpperCase() + ' 格式，请先转换为 zip 后上传');
+            throw new Error('暂不支持 ' + lower.split('.').pop().toUpperCase() + ' 格式，请先转换为 zip 或 mcworld 后上传');
         }
-        if (!/\.zip$/i.test(lower) && file.type && file.type.indexOf('zip') === -1 && file.type !== '' && file.type !== 'application/octet-stream') {
-            // type 可能为空，不能太严格
-            if (!/\.zip$/i.test(lower)) {
-                throw new Error('请上传 .zip 压缩包（当前：' + (file.type || name) + '）');
+        if (!isZip && !isMcworld && file.type && file.type.indexOf('zip') === -1 && file.type !== '' && file.type !== 'application/octet-stream') {
+            if (!isZipLikeName(lower)) {
+                throw new Error('请上传 .zip 或 .mcworld（当前：' + (file.type || name) + '）');
             }
         }
         if (typeof JSZip === 'undefined') {
             throw new Error('JSZip 未加载，请刷新页面重试');
         }
         if (!file.size) {
-            throw new Error('zip 文件大小为 0，可能已损坏');
+            throw new Error((isMcworld ? 'mcworld' : 'zip') + ' 文件大小为 0，可能已损坏');
         }
         if (file.size >= HARD_TOTAL_SIZE) {
-            throw new Error('zip 过大（' + formatBytes(file.size) + '），浏览器可能无法处理。建议解压后选择文件夹上传，或缩小存档');
+            throw new Error('文件过大（' + formatBytes(file.size) + '），浏览器可能无法处理。建议解压后选择文件夹上传，或缩小存档');
         }
 
-        setProgress(3, '校验 zip 文件头…');
+        setProgress(3, '校验文件头…');
         var isPk = await sniffZipMagic(file);
         if (!isPk) {
-            throw new Error('文件头不是 zip 格式（缺少 PK 标识）。若是改后缀的 rar/7z，请先正确转换为 zip');
+            throw new Error('文件头不是 zip 格式（缺少 PK 标识）。mcworld 本质也是 zip；若是 rar/7z 请先正确转换');
         }
 
-        setProgress(8, '正在读取 zip…');
+        setProgress(8, '正在读取 ' + (isMcworld ? 'mcworld' : 'zip') + '…');
         var zip;
         try {
             zip = await JSZip.loadAsync(file, { checkCRC32: false });
@@ -1040,9 +1081,9 @@
             }
         });
 
-        if (!paths.length) throw new Error('zip 内没有文件（可能是空包或仅有空目录）');
+        if (!paths.length) throw new Error((isMcworld ? 'mcworld' : 'zip') + ' 内没有文件（可能是空包或仅有空目录）');
         if (paths.length >= HARD_FILE_COUNT) {
-            throw new Error('zip 内文件过多（' + paths.length + '），可能不是单个世界存档');
+            throw new Error('压缩包内文件过多（' + paths.length + '），可能不是单个世界存档');
         }
 
         var commonRoot = detectCommonRoot(paths);
@@ -1061,14 +1102,14 @@
             entries.push(createZipEntry(p, zipObj));
         });
 
-        if (!entries.length) throw new Error('zip 解析后没有可用文件（路径可能全部非法）');
+        if (!entries.length) throw new Error('压缩包解析后没有可用文件（路径可能全部非法）');
 
         setProgress(20, '正在分析加密状态…');
         var state = await analyzeEntries(entries, {
             rootName: rootName,
-            sourceType: 'zip',
-            sourceLabel: 'ZIP',
-            sourceDetail: '压缩包 · ' + name + '（' + formatBytes(file.size) + '）'
+            sourceType: isMcworld ? 'mcworld' : 'zip',
+            sourceLabel: isMcworld ? 'MCWORLD' : 'ZIP',
+            sourceDetail: (isMcworld ? 'mcworld · ' : '压缩包 · ') + name + '（' + formatBytes(file.size) + '）'
         });
         state.nestedArchives = nestedArchives;
         return state;
@@ -1182,14 +1223,14 @@
         if (state.nestedArchives && state.nestedArchives.length) {
             alerts.push({
                 type: 'info',
-                text: 'zip 内发现其它压缩包（' + state.nestedArchives.slice(0, 3).join('，') + (state.nestedArchives.length > 3 ? ' 等' : '') + '），不会自动二次解压。'
+                text: '压缩包内发现其它压缩包（' + state.nestedArchives.slice(0, 3).join('，') + (state.nestedArchives.length > 3 ? ' 等' : '') + '），不会自动二次解压。'
             });
         }
 
-        if (state.sourceType === 'zip' && state.dbFiles.length && state.cryptoState === 'unknown') {
+        if ((state.sourceType === 'zip' || state.sourceType === 'mcworld') && state.dbFiles.length && state.cryptoState === 'unknown') {
             alerts.push({
                 type: 'warn',
-                text: 'zip 已加载但未能识别加密状态，请检查是否选错了压缩包。'
+                text: '压缩包已加载但未能识别加密状态，请检查是否选错了文件。'
             });
         }
 
@@ -1266,10 +1307,10 @@
         if (!state || !state.entries || !state.entries.length) {
             fileInfo.style.display = 'none';
             uploadFolderText.textContent = '选择存档文件夹';
-            uploadZipText.textContent = '选择 zip 压缩包';
+            uploadZipText.textContent = '选择 zip / mcworld';
             renderAlerts([]);
             refreshActionButtons();
-            setStatus('请选择存档文件夹或 zip 压缩包');
+            setStatus('请选择存档文件夹、zip 或 mcworld');
             return;
         }
 
@@ -1280,12 +1321,22 @@
 
         if (state.sourceType === 'folder') {
             uploadFolderText.textContent = '已选文件夹：' + state.rootName;
-            uploadZipText.textContent = '选择 zip 压缩包';
+            uploadZipText.textContent = '选择 zip / mcworld';
             folderWrap.classList.add('has-file');
         } else {
-            uploadZipText.textContent = '已选 zip：' + (state.rootName || 'archive') + '.zip';
+            var srcExt = state.sourceType === 'mcworld' ? '.mcworld' : '.zip';
+            uploadZipText.textContent = '已选：' + (state.rootName || 'archive') + srcExt;
             uploadFolderText.textContent = '选择存档文件夹';
             zipWrap.classList.add('has-file');
+        }
+
+        // 来源为 mcworld 时默认导出 mcworld，其余默认 zip
+        var preferMcworld = state.sourceType === 'mcworld';
+        var radios = document.querySelectorAll('input[name="exportFormat"]');
+        for (var ri = 0; ri < radios.length; ri++) {
+            radios[ri].checked = preferMcworld
+                ? (radios[ri].value === 'mcworld')
+                : (radios[ri].value === 'zip');
         }
 
         statTotal.textContent = String(state.entries.length);
@@ -1325,7 +1376,7 @@
         updateScanUI(null);
         resetLog();
         hideProgress();
-        setStatus('已清除，请重新选择存档文件夹或 zip');
+        setStatus('已清除，请重新选择存档文件夹、zip 或 mcworld');
     }
 
     async function handleLoad(loaderPromise, scanningMsg) {
@@ -1434,7 +1485,7 @@
             return;
         }
         if (!scanState || !scanState.entries || !scanState.entries.length) {
-            setStatus('请先上传存档文件夹或 zip', 'warning');
+            setStatus('请先上传存档文件夹、zip 或 mcworld', 'warning');
             return;
         }
 
@@ -1453,7 +1504,8 @@
         var actionLabel = isEncrypt ? '加密' : '解密';
         var entries = scanState.entries;
         var rootName = sanitizeRootName(scanState.rootName || 'world');
-        var zipName = rootName + (isEncrypt ? '-encrypted' : '-decrypted') + '.zip';
+        var exportExt = getSelectedExportExt();
+        var zipName = rootName + (isEncrypt ? '-encrypted' : '-decrypted') + '.' + exportExt;
 
         abortFlag = false;
         setBusy(true);
@@ -1465,6 +1517,7 @@
             mixed: '混合',
             unknown: '未知'
         }[scanState.cryptoState] || '未知'), 'info');
+        appendLog('导出格式：.' + exportExt, 'info');
         appendLog('开始' + actionLabel + '，共 ' + entries.length + ' 个文件…', 'info');
         setStatus('正在' + actionLabel + '并打包…', 'info');
         setProgress(0, '准备中…');
@@ -1586,8 +1639,8 @@
                 throw new Error('输出结果为空，没有可打包的文件');
             }
 
-            setProgress(94, '正在生成 zip…');
-            appendLog('正在生成 zip 压缩包（' + fileCountInZip + ' 个条目）…', 'info');
+            setProgress(94, '正在生成 ' + exportExtLabel(exportExt) + '…');
+            appendLog('正在生成 ' + exportExtLabel(exportExt) + ' 文件（' + fileCountInZip + ' 个条目）…', 'info');
 
             var content;
             try {
@@ -1600,13 +1653,13 @@
                     }
                 );
             } catch (genErr) {
-                throw new Error('生成 zip 失败：' + friendlyError(genErr));
+                throw new Error('生成 ' + exportExtLabel(exportExt) + ' 失败：' + friendlyError(genErr));
             }
 
             throwIfAborted();
 
             if (!content || !content.size) {
-                throw new Error('生成的 zip 为空，请重试或更换浏览器');
+                throw new Error('生成的文件为空，请重试或更换浏览器');
             }
 
             try {
@@ -1699,7 +1752,7 @@
         }
         if (!uploadZip.files || !uploadZip.files.length) return;
         uploadFolder.value = '';
-        handleLoad(loadFromZip(uploadZip.files[0]), '正在解析 zip…');
+        handleLoad(loadFromZip(uploadZip.files[0]), '正在解析压缩包…');
     };
 
     downloadEnc.onclick = function () { processAndDownload('encrypt'); };
@@ -1875,18 +1928,19 @@
             var fileList = dt.files ? Array.prototype.slice.call(dt.files) : [];
             if (!fileList.length && dirEntries.length) {
                 // 多条目或无法作为 FileList
-                setStatus('请拖放单个世界文件夹，或一个 zip 文件', 'warning');
+                setStatus('请拖放单个世界文件夹，或一个 zip / mcworld 文件', 'warning');
                 return;
             }
 
-            if (fileList.length === 1 && /\.zip$/i.test(fileList[0].name || '')) {
+            if (fileList.length === 1 && isZipLikeName(fileList[0].name || '')) {
                 uploadFolder.value = '';
-                handleLoad(loadFromZip(fileList[0]), '正在解析拖放的 zip…');
+                var dropLabel = /\.mcworld$/i.test(fileList[0].name || '') ? 'mcworld' : 'zip';
+                handleLoad(loadFromZip(fileList[0]), '正在解析拖放的 ' + dropLabel + '…');
                 return;
             }
 
-            if (fileList.length === 1 && ARCHIVE_EXT_RE.test(fileList[0].name || '') && !/\.zip$/i.test(fileList[0].name || '')) {
-                setStatus('暂不支持该压缩格式，请转换为 zip 后上传', 'error');
+            if (fileList.length === 1 && ARCHIVE_EXT_RE.test(fileList[0].name || '') && !isZipLikeName(fileList[0].name || '')) {
+                setStatus('暂不支持该压缩格式，请转换为 zip 或 mcworld 后上传', 'error');
                 return;
             }
 
@@ -1898,12 +1952,12 @@
                     handleLoad(loadFromFolder(fileList), '正在扫描拖放的文件…');
                     return;
                 }
-                setStatus('检测到多个文件。请拖放整个文件夹，或先打包为 zip', 'warning');
+                setStatus('检测到多个文件。请拖放整个文件夹，或先打包为 zip / mcworld', 'warning');
                 return;
             }
 
             if (fileList.length === 1) {
-                setStatus('单个非 zip 文件无法识别为存档，请拖放文件夹或 zip', 'warning');
+                setStatus('单个非 zip/mcworld 文件无法识别为存档，请拖放文件夹、zip 或 mcworld', 'warning');
                 return;
             }
 
