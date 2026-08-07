@@ -19,20 +19,48 @@
             color: #fff;
             box-shadow: var(--shadow-sm);
         }
-        .btn-warning:hover {
+        .btn-warning:hover:not(:disabled) {
             background: #d97706;
             box-shadow: var(--shadow-md);
             transform: translateY(-1px);
         }
-        .btn-warning:active {
+        .btn-warning:active:not(:disabled) {
             transform: translateY(0);
+        }
+        .btn-secondary {
+            background: var(--color-surface);
+            color: var(--color-text);
+            border: 1px solid var(--color-border-strong);
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-secondary:hover:not(:disabled) {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+            background: var(--color-primary-light);
+        }
+        .btn-danger {
+            background: #ef4444;
+            color: #fff;
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-danger:hover:not(:disabled) {
+            background: #dc2626;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
         }
         .btn-group {
             display: flex;
             flex-wrap: wrap;
             gap: 0.75rem;
             justify-content: center;
+            margin-bottom: 0.5rem;
+        }
+        .btn-hint {
+            text-align: center;
+            font-size: 0.78rem;
+            color: var(--color-text-muted);
             margin-bottom: 1rem;
+            min-height: 1.2em;
         }
         .upload-grid {
             display: grid;
@@ -41,6 +69,27 @@
         }
         @media (max-width: 600px) {
             .upload-grid { grid-template-columns: 1fr; }
+        }
+        .drop-zone {
+            margin-top: 0.75rem;
+            border: 2px dashed var(--color-border-strong);
+            border-radius: var(--radius-md);
+            background: var(--color-surface-alt);
+            padding: 0.85rem 1rem;
+            text-align: center;
+            color: var(--color-text-secondary);
+            font-size: 0.85rem;
+            transition: border-color 0.15s, background 0.15s, color 0.15s;
+            user-select: none;
+        }
+        .drop-zone.dragover {
+            border-color: var(--color-primary);
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+        .drop-zone.disabled {
+            opacity: 0.55;
+            pointer-events: none;
         }
         .progress-bar {
             width: 100%;
@@ -61,6 +110,10 @@
             font-size: 0.78rem;
             color: var(--color-text-secondary);
             font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: wrap;
         }
         .status-bar.warning {
             background: #fffbeb;
@@ -72,9 +125,38 @@
             border-color: #bbf7d0;
             color: #15803d;
         }
+        .log-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .log-toolbar .log-meta {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+        }
+        .log-toolbar .log-actions {
+            display: flex;
+            gap: 0.4rem;
+        }
+        .log-toolbar button {
+            font-size: 0.72rem;
+            padding: 0.2rem 0.55rem;
+            border: 1px solid var(--color-border-strong);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            font-family: var(--font-sans);
+        }
+        .log-toolbar button:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
         .log-panel {
-            margin-top: 0.75rem;
-            max-height: 220px;
+            max-height: 240px;
             overflow: auto;
             background: var(--color-surface-alt);
             border: 1px solid var(--color-border);
@@ -87,9 +169,13 @@
             white-space: pre-wrap;
             word-break: break-all;
         }
+        .log-panel .log-error { color: #dc2626; }
+        .log-panel .log-warn { color: #b45309; }
+        .log-panel .log-ok { color: #15803d; }
+        .log-panel .log-info { color: #1d4ed8; }
         .stat-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
             gap: 0.5rem;
             margin-top: 0.75rem;
         }
@@ -111,6 +197,8 @@
             color: var(--color-text);
             font-variant-numeric: tabular-nums;
         }
+        .stat-item.warn .stat-value { color: #b45309; }
+        .stat-item.danger .stat-value { color: #dc2626; }
         .folder-name {
             font-family: var(--font-mono);
             font-size: 0.85rem;
@@ -208,6 +296,47 @@
             vertical-align: middle;
             margin-left: 0.35rem;
         }
+        .alert-list {
+            margin-top: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .alert-item {
+            font-size: 0.8rem;
+            line-height: 1.45;
+            padding: 0.5rem 0.7rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--color-border);
+            background: var(--color-surface-alt);
+            color: var(--color-text-secondary);
+        }
+        .alert-item.warn {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #92400e;
+        }
+        .alert-item.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+        .alert-item.info {
+            background: var(--color-primary-light);
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
+        .file-upload-wrapper.disabled {
+            opacity: 0.55;
+            pointer-events: none;
+        }
+        .file-upload-wrapper.has-file {
+            border-color: var(--color-primary);
+            background: var(--color-primary-light);
+        }
+        .file-upload-wrapper.has-file .file-upload-text {
+            color: var(--color-primary);
+        }
     </style>
 </head>
 <body>
@@ -226,14 +355,14 @@
             </div>
             <div class="card-body">
                 <div class="upload-grid">
-                    <div class="file-upload-wrapper">
+                    <div class="file-upload-wrapper" id="folderWrap">
                         <div class="file-upload-icon">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                         </div>
                         <span class="file-upload-text" id="uploadFolderText">选择存档文件夹</span>
                         <input type="file" id="uploadFolder" webkitdirectory directory multiple>
                     </div>
-                    <div class="file-upload-wrapper">
+                    <div class="file-upload-wrapper" id="zipWrap">
                         <div class="file-upload-icon">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         </div>
@@ -241,16 +370,23 @@
                         <input type="file" id="uploadZip" accept=".zip,application/zip,application/x-zip-compressed">
                     </div>
                 </div>
-                <div class="notice">
-                    支持上传完整世界<strong>文件夹</strong>或打包后的 <strong>zip</strong>。
-                    工具会自动扫描 <code>db/</code> 下的 LevelDB 数据文件并判断加密状态，跳过 <code>.log</code> / <code>.json</code> / <code>LOCK</code> / <code>.bak</code>。
-                    处理后重新打包为 zip 下载。
+                <div class="drop-zone" id="dropZone">
+                    或将<strong>文件夹</strong> / <strong>zip</strong> 拖放到此处
                 </div>
+                <div class="notice">
+                    支持完整世界<strong>文件夹</strong>或 <strong>zip</strong>。
+                    仅处理 <code>db/</code> 下 LevelDB 数据文件，自动跳过 <code>.log</code> / <code>.json</code> / <code>LOCK</code> / <code>.bak</code>。
+                    处理完成后打包为 zip 下载。所有操作均在浏览器本地完成。
+                </div>
+                <div class="notice" id="compatNotice" style="display:none;color:#b45309;"></div>
             </div>
         </div>
 
         <div class="card" id="fileInfo" style="display:none;">
-            <div class="card-header">存档信息</div>
+            <div class="card-header" style="justify-content:space-between;">
+                <span>存档信息</span>
+                <button type="button" id="clearBtn" class="btn btn-secondary" style="padding:0.25rem 0.7rem;font-size:0.75rem;">清除</button>
+            </div>
             <div class="card-body">
                 <div class="crypto-banner state-unknown" id="cryptoBanner">
                     <div class="crypto-icon" id="cryptoIcon">?</div>
@@ -274,7 +410,7 @@
                         <span class="stat-value" id="statTotal">0</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">db 候选文件</span>
+                        <span class="stat-label">db 候选</span>
                         <span class="stat-value" id="statDb">0</span>
                     </div>
                     <div class="stat-item">
@@ -285,29 +421,46 @@
                         <span class="stat-label">未加密</span>
                         <span class="stat-value" id="statPlain">0</span>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">跳过文件</span>
+                    <div class="stat-item" id="statSkippedItem">
+                        <span class="stat-label">跳过</span>
                         <span class="stat-value" id="statSkipped">0</span>
+                    </div>
+                    <div class="stat-item" id="statScanFailItem" style="display:none;">
+                        <span class="stat-label">扫描失败</span>
+                        <span class="stat-value" id="statScanFail">0</span>
                     </div>
                 </div>
                 <div class="notice" id="scanHint" style="margin-top:0.75rem;"></div>
+                <div class="alert-list" id="alertList"></div>
             </div>
         </div>
     </form>
 
     <div class="btn-group">
-        <button id="downloadEnc" class="btn btn-warning" disabled>下载加密存档</button>
-        <button id="downloadDec" class="btn btn-success" disabled>下载解密存档</button>
+        <button id="downloadEnc" class="btn btn-warning" disabled title="将未加密的 db 文件加密后打包下载">下载加密存档</button>
+        <button id="downloadDec" class="btn btn-success" disabled title="将已加密的 db 文件解密后打包下载">下载解密存档</button>
+        <button id="cancelBtn" class="btn btn-danger" style="display:none;">取消</button>
     </div>
+    <div class="btn-hint" id="btnHint"></div>
 
     <div class="status-bar" id="status">请选择存档文件夹或 zip 压缩包</div>
     <div id="progressArea" style="display:none;">
         <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-        <div class="progress-text" id="progressText"></div>
+        <div class="progress-text">
+            <span id="progressText"></span>
+            <span id="progressEta"></span>
+        </div>
     </div>
     <div class="card" id="logCard" style="display:none;margin-top:1rem;">
         <div class="card-header">处理日志</div>
         <div class="card-body" style="padding-top:0.75rem;">
+            <div class="log-toolbar">
+                <span class="log-meta" id="logMeta">0 条</span>
+                <div class="log-actions">
+                    <button type="button" id="copyLogBtn">复制日志</button>
+                    <button type="button" id="clearLogBtn">清空</button>
+                </div>
+            </div>
             <div class="log-panel" id="logPanel"></div>
         </div>
     </div>
@@ -332,8 +485,12 @@
 (function () {
     var uploadFolder = document.getElementById('uploadFolder');
     var uploadZip = document.getElementById('uploadZip');
+    var folderWrap = document.getElementById('folderWrap');
+    var zipWrap = document.getElementById('zipWrap');
     var uploadFolderText = document.getElementById('uploadFolderText');
     var uploadZipText = document.getElementById('uploadZipText');
+    var dropZone = document.getElementById('dropZone');
+    var compatNotice = document.getElementById('compatNotice');
     var fileInfo = document.getElementById('fileInfo');
     var folderNameEl = document.getElementById('folderName');
     var sourceTag = document.getElementById('sourceTag');
@@ -347,78 +504,207 @@
     var statEncrypted = document.getElementById('statEncrypted');
     var statPlain = document.getElementById('statPlain');
     var statSkipped = document.getElementById('statSkipped');
+    var statScanFailItem = document.getElementById('statScanFailItem');
+    var statScanFail = document.getElementById('statScanFail');
     var scanHint = document.getElementById('scanHint');
+    var alertList = document.getElementById('alertList');
     var downloadEnc = document.getElementById('downloadEnc');
     var downloadDec = document.getElementById('downloadDec');
+    var cancelBtn = document.getElementById('cancelBtn');
+    var clearBtn = document.getElementById('clearBtn');
+    var btnHint = document.getElementById('btnHint');
     var statusEl = document.getElementById('status');
     var progressArea = document.getElementById('progressArea');
     var progressFill = document.getElementById('progressFill');
     var progressText = document.getElementById('progressText');
+    var progressEta = document.getElementById('progressEta');
     var logCard = document.getElementById('logCard');
     var logPanel = document.getElementById('logPanel');
+    var logMeta = document.getElementById('logMeta');
+    var copyLogBtn = document.getElementById('copyLogBtn');
+    var clearLogBtn = document.getElementById('clearLogBtn');
 
     var busy = false;
     var scanState = null;
+    var abortFlag = false;
+    var logCount = 0;
+    var progressStartedAt = 0;
+
+    // 阈值
+    var WARN_TOTAL_SIZE = 800 * 1024 * 1024;   // 800MB 提示
+    var HARD_TOTAL_SIZE = 2 * 1024 * 1024 * 1024; // 2GB 强提示
+    var WARN_FILE_COUNT = 8000;
+    var HARD_FILE_COUNT = 30000;
+    var WARN_SINGLE_FILE = 200 * 1024 * 1024; // 200MB 单文件
 
     var SKIP_NAME_RE = /(\.log|\.json|LOCK|\.bak)$/i;
     var DB_PATH_RE = /(?:^|[\\/])db(?:[\\/]|$)/i;
+    var ARCHIVE_EXT_RE = /\.(zip|rar|7z|tar|gz|tgz|bz2|xz)$/i;
+    var WORLD_MARKER_RE = /(^|\/)(level\.dat|levelname\.txt|world_icon\.jpeg|world_icon\.png|behavior_packs|resource_packs)(\/|$)/i;
 
     function setStatus(msg, type) {
         statusEl.textContent = msg;
         statusEl.className = 'status-bar' + (type ? ' ' + type : '');
     }
 
+    function friendlyError(err) {
+        if (!err) return '未知错误';
+        if (typeof err === 'string') return err;
+        var name = err.name || '';
+        var msg = err.message || String(err);
+
+        if (name === 'AbortError' || /aborted|cancelled|取消/i.test(msg)) {
+            return '操作已取消';
+        }
+        if (name === 'NotFoundError' || /not found|找不到|no such file/i.test(msg)) {
+            return '文件不存在或已被移动/删除，请重新选择';
+        }
+        if (name === 'NotReadableError' || /not readable|permission|denied|无法读取/i.test(msg)) {
+            return '无法读取文件（权限不足或文件被占用），请关闭游戏后重试';
+        }
+        if (name === 'QuotaExceededError' || /quota|out of memory|allocation failed|array buffer/i.test(msg)) {
+            return '内存不足，请尝试更小的存档，或关闭其他标签页后重试';
+        }
+        if (/Encrypted zip|password|wrong password/i.test(msg)) {
+            return '该 zip 似乎有密码保护，请先用无密码 zip 重新打包';
+        }
+        if (/Corrupted zip|Can't find end of central directory|invalid zip|zip file/i.test(msg)) {
+            return 'zip 文件损坏或不是有效的 zip（若是 rar/7z 请先转换为 zip）';
+        }
+        if (msg.length > 180) msg = msg.slice(0, 180) + '…';
+        return msg;
+    }
+
+    function isUserMistake(err) {
+        var msg = (err && err.message) ? err.message : String(err || '');
+        return /请上传|未选择|没有文件|不是有效|密码|损坏|rar|7z|不是网易|已经是加密|过短|文件夹为空|无法识别/i.test(msg);
+    }
+
+    function reportIfNeeded(err) {
+        if (!err) return;
+        if (isUserMistake(err)) return;
+        if (err && (err.name === 'AbortError' || /取消|aborted/i.test(err.message || ''))) return;
+        if (typeof window.reportError === 'function') {
+            try { window.reportError(err); } catch (_) { /* ignore */ }
+        }
+    }
+
     function setBusy(isBusy) {
         busy = isBusy;
-        var ready = !!(scanState && scanState.entries && scanState.entries.length);
-        downloadEnc.disabled = isBusy || !ready;
-        downloadDec.disabled = isBusy || !ready;
+        refreshActionButtons();
         uploadFolder.disabled = isBusy;
         uploadZip.disabled = isBusy;
+        folderWrap.classList.toggle('disabled', isBusy);
+        zipWrap.classList.toggle('disabled', isBusy);
+        dropZone.classList.toggle('disabled', isBusy);
+        cancelBtn.style.display = isBusy ? 'inline-flex' : 'none';
+        if (clearBtn) clearBtn.disabled = isBusy;
     }
 
     function resetLog() {
-        logPanel.textContent = '';
+        logPanel.innerHTML = '';
+        logCount = 0;
+        logMeta.textContent = '0 条';
         logCard.style.display = 'none';
     }
 
-    function appendLog(line) {
+    function appendLog(line, level) {
         logCard.style.display = 'block';
-        logPanel.textContent += line + '\n';
+        logCount++;
+        logMeta.textContent = logCount + ' 条';
+        var span = document.createElement('div');
+        var cls = 'log-info';
+        if (level === 'error') cls = 'log-error';
+        else if (level === 'warn') cls = 'log-warn';
+        else if (level === 'ok') cls = 'log-ok';
+        span.className = cls;
+        span.textContent = line;
+        logPanel.appendChild(span);
+        // 防止日志过多拖垮 DOM
+        while (logPanel.childNodes.length > 2000) {
+            logPanel.removeChild(logPanel.firstChild);
+        }
         logPanel.scrollTop = logPanel.scrollHeight;
     }
 
     function setProgress(pct, msg) {
         progressArea.style.display = 'block';
-        progressFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+        var p = Math.max(0, Math.min(100, pct || 0));
+        progressFill.style.width = p + '%';
         progressText.textContent = msg || '';
+        if (!progressStartedAt) progressStartedAt = Date.now();
+        if (p > 2 && p < 100) {
+            var elapsed = (Date.now() - progressStartedAt) / 1000;
+            var remain = elapsed * (100 - p) / p;
+            if (remain > 2 && isFinite(remain)) {
+                progressEta.textContent = '约剩余 ' + formatDuration(remain);
+            } else {
+                progressEta.textContent = '';
+            }
+        } else {
+            progressEta.textContent = '';
+        }
     }
 
     function hideProgress() {
         progressArea.style.display = 'none';
         progressFill.style.width = '0%';
         progressText.textContent = '';
+        progressEta.textContent = '';
+        progressStartedAt = 0;
     }
 
     function formatBytes(n) {
-        n = n || 0;
+        n = Number(n) || 0;
         if (n < 1024) return n + ' B';
         if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
         if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB';
         return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
     }
 
+    function formatDuration(sec) {
+        sec = Math.max(0, Math.round(sec));
+        if (sec < 60) return sec + ' 秒';
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        if (m < 60) return m + ' 分 ' + s + ' 秒';
+        var h = Math.floor(m / 60);
+        m = m % 60;
+        return h + ' 小时 ' + m + ' 分';
+    }
+
     function normalizePath(p) {
-        return String(p || '').replace(/\\/g, '/').replace(/^\.?\//, '');
+        return String(p || '')
+            .replace(/\\/g, '/')
+            .replace(/^\.\/+/, '')
+            .replace(/\/{2,}/g, '/');
     }
 
     function basename(p) {
-        var parts = normalizePath(p).split('/');
-        return parts[parts.length - 1] || p || '';
+        var parts = normalizePath(p).split('/').filter(Boolean);
+        return parts[parts.length - 1] || '';
     }
 
     function stripZipExt(name) {
         return String(name || '').replace(/\.zip$/i, '') || 'world';
+    }
+
+    function sanitizeRootName(name) {
+        var n = String(name || 'world')
+            .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+            .replace(/\.+$/g, '')
+            .trim();
+        if (!n || n === '.' || n === '..') n = 'world';
+        if (n.length > 80) n = n.slice(0, 80);
+        return n;
+    }
+
+    function throwIfAborted() {
+        if (abortFlag) {
+            var e = new Error('操作已取消');
+            e.name = 'AbortError';
+            throw e;
+        }
     }
 
     function safeIsEncrypted(buffer) {
@@ -433,10 +719,15 @@
     function isDbCandidatePath(path) {
         var rel = normalizePath(path);
         var name = basename(rel);
+        if (!name) return false;
+        if (/\/$/.test(path)) return false;
         if (!DB_PATH_RE.test(rel)) return false;
         if (SKIP_NAME_RE.test(name)) return false;
-        // 跳过目录占位
-        if (!name || /\/$/.test(path)) return false;
+        // 常见非数据文件
+        if (/^(CURRENT|IDENTITY|MANIFEST-\d+|OPTIONS-.*|LOG(\.old)?)$/i.test(name)) {
+            // CURRENT / MANIFEST 有时也需处理？原工具只排除 log/json/LOCK/bak
+            // 保持与原逻辑一致：CURRENT/MANIFEST 若在 db/ 下且非排除名，会进入候选
+        }
         return true;
     }
 
@@ -444,15 +735,11 @@
         if (!paths.length) return '';
         var split = paths.map(function (p) {
             return normalizePath(p).split('/').filter(Boolean);
-        });
+        }).filter(function (parts) { return parts.length > 0; });
         if (!split.length) return '';
-        // 若所有路径都以同一顶层目录开头，则去掉它，避免 zip 多一层
         var first = split[0][0];
         if (!first) return '';
-        var allShare = split.every(function (parts) {
-            return parts[0] === first;
-        });
-        // 若顶层就是 db，则不要去掉
+        var allShare = split.every(function (parts) { return parts[0] === first; });
         if (allShare && first.toLowerCase() !== 'db') return first;
         return '';
     }
@@ -465,32 +752,82 @@
         return rel;
     }
 
-    function createFolderEntry(file) {
-        var path = normalizePath(file.webkitRelativePath || file.mozFullPath || file.name || '');
+    function pathLooksUnsafe(path) {
+        var rel = normalizePath(path);
+        if (!rel) return true;
+        if (rel[0] === '/' || /^[a-zA-Z]:/.test(rel)) return true;
+        var parts = rel.split('/');
+        for (var i = 0; i < parts.length; i++) {
+            if (parts[i] === '..') return true;
+        }
+        return false;
+    }
+
+    function createFolderEntry(file, path) {
+        var resolved = path || file.webkitRelativePath || file._rel || file.mozFullPath || file.name || '';
         return {
-            path: path,
+            path: normalizePath(resolved),
             name: file.name,
             size: file.size || 0,
-            getHeader: function () { return file.slice(0, 4).arrayBuffer(); },
-            getArrayBuffer: function () { return file.arrayBuffer(); },
-            getZipData: function () { return Promise.resolve(file); }
+            getHeader: function () {
+                if (!file.size) return Promise.resolve(new ArrayBuffer(0));
+                return file.slice(0, 4).arrayBuffer();
+            },
+            getArrayBuffer: function () {
+                return file.arrayBuffer();
+            },
+            getZipData: function () {
+                return Promise.resolve(file);
+            }
         };
     }
 
     function createZipEntry(path, zipObj) {
+        var size = 0;
+        try {
+            if (zipObj._data && typeof zipObj._data.uncompressedSize === 'number') {
+                size = zipObj._data.uncompressedSize;
+            }
+        } catch (_) { /* ignore */ }
+
         return {
             path: normalizePath(path),
             name: basename(path),
-            size: (zipObj._data && typeof zipObj._data.uncompressedSize === 'number')
-                ? zipObj._data.uncompressedSize
-                : 0,
+            size: size,
             getHeader: async function () {
+                // JSZip 无法真正局部解压 deflate，只能整文件读取后截取
                 var u8 = await zipObj.async('uint8array');
-                return u8.buffer.slice(u8.byteOffset, u8.byteOffset + Math.min(4, u8.byteLength));
+                var len = Math.min(4, u8.byteLength);
+                var out = new Uint8Array(len);
+                out.set(u8.subarray(0, len));
+                return out.buffer;
             },
-            getArrayBuffer: function () { return zipObj.async('arraybuffer'); },
-            getZipData: function () { return zipObj.async('uint8array'); }
+            getArrayBuffer: function () {
+                return zipObj.async('arraybuffer');
+            },
+            getZipData: function () {
+                return zipObj.async('uint8array');
+            }
         };
+    }
+
+    function checkBrowserSupport() {
+        var issues = [];
+        if (typeof JSZip === 'undefined') issues.push('JSZip 未加载');
+        if (typeof saveAs !== 'function') issues.push('FileSaver 未加载');
+        if (typeof fileEncrypt !== 'function' || typeof fileDecrypt !== 'function' || typeof isEncrypted !== 'function') {
+            issues.push('加解密库 enc.js 未加载');
+        }
+        if (!window.FileReader && !Blob.prototype.arrayBuffer) {
+            issues.push('当前浏览器过旧，不支持读取本地文件');
+        }
+        // directory 支持检测
+        var supportsDir = 'webkitdirectory' in document.createElement('input');
+        if (!supportsDir) {
+            compatNotice.style.display = 'block';
+            compatNotice.textContent = '当前浏览器可能不支持选择文件夹，请改用 zip 上传。';
+        }
+        return issues;
     }
 
     async function analyzeEntries(entries, meta) {
@@ -500,40 +837,88 @@
         var plain = 0;
         var totalSize = 0;
         var hasDbDir = false;
+        var hasWorldMarker = false;
+        var scanFailed = 0;
+        var scanFailSamples = [];
+        var largeFiles = [];
+        var unsafeSkipped = 0;
 
+        var cleaned = [];
         for (var i = 0; i < entries.length; i++) {
+            throwIfAborted();
             var entry = entries[i];
             var rel = normalizePath(entry.path);
+            if (!rel || pathLooksUnsafe(rel)) {
+                unsafeSkipped++;
+                continue;
+            }
+            cleaned.push(entry);
             totalSize += entry.size || 0;
             if (DB_PATH_RE.test(rel)) hasDbDir = true;
+            if (WORLD_MARKER_RE.test(rel)) hasWorldMarker = true;
+            if ((entry.size || 0) >= WARN_SINGLE_FILE) {
+                largeFiles.push({ path: rel, size: entry.size || 0 });
+            }
+        }
 
-            if (!isDbCandidatePath(rel)) {
+        for (var j = 0; j < cleaned.length; j++) {
+            throwIfAborted();
+            var e = cleaned[j];
+            var path = normalizePath(e.path);
+
+            if (!isDbCandidatePath(path)) {
                 skipped++;
                 continue;
             }
 
-            var header = await entry.getHeader();
-            var enc = safeIsEncrypted(header);
-            dbFiles.push({ entry: entry, encrypted: enc, path: rel });
-            if (enc) encrypted++;
-            else plain++;
+            try {
+                var header = await e.getHeader();
+                if (!header || header.byteLength === 0) {
+                    // 空文件按明文候选处理，但标记
+                    dbFiles.push({ entry: e, encrypted: false, path: path, empty: true });
+                    plain++;
+                } else {
+                    var enc = safeIsEncrypted(header);
+                    dbFiles.push({ entry: e, encrypted: enc, path: path, empty: false });
+                    if (enc) encrypted++;
+                    else plain++;
+                }
+            } catch (err) {
+                scanFailed++;
+                if (scanFailSamples.length < 8) {
+                    scanFailSamples.push(path + ' → ' + friendlyError(err));
+                }
+                // 读失败的仍放入 entries 供原样打包，但不计为可处理 db
+                skipped++;
+            }
 
-            if (i % 12 === 11) {
-                setProgress(Math.round(((i + 1) / entries.length) * 100), '扫描中… ' + (i + 1) + '/' + entries.length);
+            if (j % 10 === 9 || j === cleaned.length - 1) {
+                var pct = cleaned.length ? Math.round(((j + 1) / cleaned.length) * 100) : 100;
+                setProgress(pct, '扫描中… ' + (j + 1) + '/' + cleaned.length);
                 await new Promise(function (r) { setTimeout(r, 0); });
             }
         }
 
         var cryptoState = 'unknown';
-        if (dbFiles.length) {
-            if (encrypted && !plain) cryptoState = 'encrypted';
-            else if (!encrypted && plain) cryptoState = 'plain';
+        var processable = dbFiles.filter(function (d) { return !d.empty; });
+        if (processable.length) {
+            var encN = processable.filter(function (d) { return d.encrypted; }).length;
+            var plainN = processable.length - encN;
+            if (encN && !plainN) cryptoState = 'encrypted';
+            else if (!encN && plainN) cryptoState = 'plain';
             else cryptoState = 'mixed';
+            encrypted = encN;
+            plain = plainN + dbFiles.filter(function (d) { return d.empty; }).length;
+        } else if (dbFiles.length) {
+            // 全是空文件
+            cryptoState = 'plain';
+            plain = dbFiles.length;
+            encrypted = 0;
         }
 
         return {
-            entries: entries,
-            rootName: meta.rootName,
+            entries: cleaned,
+            rootName: sanitizeRootName(meta.rootName),
             sourceType: meta.sourceType,
             sourceLabel: meta.sourceLabel,
             sourceDetail: meta.sourceDetail,
@@ -543,89 +928,150 @@
             plain: plain,
             totalSize: totalSize,
             hasDbDir: hasDbDir,
-            cryptoState: cryptoState
+            hasWorldMarker: hasWorldMarker,
+            cryptoState: cryptoState,
+            scanFailed: scanFailed,
+            scanFailSamples: scanFailSamples,
+            largeFiles: largeFiles,
+            unsafeSkipped: unsafeSkipped
         };
     }
 
     async function loadFromFolder(fileList) {
         var files = Array.prototype.slice.call(fileList || []);
-        if (!files.length) throw new Error('未选择任何文件');
+        if (!files.length) throw new Error('未选择任何文件，请重新选择文件夹');
+
+        // 过滤掉浏览器偶发的 0 路径幽灵项
+        files = files.filter(function (f) {
+            return f && (f.name || f.webkitRelativePath || f._rel);
+        });
+        if (!files.length) throw new Error('文件夹为空');
+
+        if (files.length >= HARD_FILE_COUNT) {
+            throw new Error('文件数量过多（' + files.length + '），超过安全上限 ' + HARD_FILE_COUNT + '。请确认选择的是单个世界文件夹，而非上级目录');
+        }
 
         var rawPaths = files.map(function (f) {
-            return normalizePath(f.webkitRelativePath || f.mozFullPath || f.name || '');
+            return normalizePath(f.webkitRelativePath || f._rel || f.mozFullPath || f.name || '');
         });
         var root = detectCommonRoot(rawPaths);
         var rootName = root || (files[0] && files[0].name) || 'world';
 
-        var entries = files.map(function (f) {
-            var entry = createFolderEntry(f);
-            // 统一为去掉顶层目录后的相对路径，便于 zip 导出结构干净
-            if (root) {
-                var stripped = stripRoot(entry.path, root);
-                if (stripped) entry.path = stripped;
-            }
-            return entry;
-        }).filter(function (e) { return e.path; });
+        var entries = [];
+        for (var i = 0; i < files.length; i++) {
+            var f = files[i];
+            var p = normalizePath(f.webkitRelativePath || f._rel || f.mozFullPath || f.name || '');
+            if (root) p = stripRoot(p, root);
+            if (!p || pathLooksUnsafe(p)) continue;
+            entries.push(createFolderEntry(f, p));
+        }
+        if (!entries.length) throw new Error('未能从文件夹中解析出有效文件');
 
         return analyzeEntries(entries, {
             rootName: rootName,
             sourceType: 'folder',
             sourceLabel: '文件夹',
-            sourceDetail: '本地文件夹 · ' + rootName
+            sourceDetail: '本地文件夹 · ' + rootName + '（' + entries.length + ' 个文件）'
         });
+    }
+
+    async function sniffZipMagic(file) {
+        try {
+            var ab = await file.slice(0, 4).arrayBuffer();
+            if (ab.byteLength < 2) return false;
+            var u8 = new Uint8Array(ab);
+            // PK\x03\x04 / PK\x05\x06 / PK\x07\x08
+            return u8[0] === 0x50 && u8[1] === 0x4b;
+        } catch (e) {
+            return false;
+        }
     }
 
     async function loadFromZip(file) {
         if (!file) throw new Error('未选择 zip 文件');
-        if (!/\.zip$/i.test(file.name) && file.type && file.type.indexOf('zip') === -1) {
-            throw new Error('请上传 .zip 压缩包');
+
+        var name = file.name || 'archive.zip';
+        var lower = name.toLowerCase();
+
+        if (/\.(rar|7z|tar|gz|tgz|bz2|xz)$/i.test(lower)) {
+            throw new Error('暂不支持 ' + lower.split('.').pop().toUpperCase() + ' 格式，请先转换为 zip 后上传');
+        }
+        if (!/\.zip$/i.test(lower) && file.type && file.type.indexOf('zip') === -1 && file.type !== '' && file.type !== 'application/octet-stream') {
+            // type 可能为空，不能太严格
+            if (!/\.zip$/i.test(lower)) {
+                throw new Error('请上传 .zip 压缩包（当前：' + (file.type || name) + '）');
+            }
         }
         if (typeof JSZip === 'undefined') {
             throw new Error('JSZip 未加载，请刷新页面重试');
         }
-
-        setProgress(5, '正在读取 zip…');
-        var zip;
-        try {
-            zip = await JSZip.loadAsync(file);
-        } catch (e) {
-            throw new Error('无法解析 zip：' + ((e && e.message) || String(e)));
+        if (!file.size) {
+            throw new Error('zip 文件大小为 0，可能已损坏');
+        }
+        if (file.size >= HARD_TOTAL_SIZE) {
+            throw new Error('zip 过大（' + formatBytes(file.size) + '），浏览器可能无法处理。建议解压后选择文件夹上传，或缩小存档');
         }
 
+        setProgress(3, '校验 zip 文件头…');
+        var isPk = await sniffZipMagic(file);
+        if (!isPk) {
+            throw new Error('文件头不是 zip 格式（缺少 PK 标识）。若是改后缀的 rar/7z，请先正确转换为 zip');
+        }
+
+        setProgress(8, '正在读取 zip…');
+        var zip;
+        try {
+            zip = await JSZip.loadAsync(file, { checkCRC32: false });
+        } catch (e) {
+            throw new Error(friendlyError(e));
+        }
+
+        throwIfAborted();
+
         var paths = [];
+        var nestedArchives = [];
         zip.forEach(function (relPath, zipObj) {
             if (zipObj.dir) return;
             var p = normalizePath(relPath);
             if (!p || /\/$/.test(relPath)) return;
             paths.push(p);
+            if (ARCHIVE_EXT_RE.test(p) && !/\/db\//i.test(p)) {
+                nestedArchives.push(p);
+            }
         });
 
-        if (!paths.length) throw new Error('zip 内没有文件');
+        if (!paths.length) throw new Error('zip 内没有文件（可能是空包或仅有空目录）');
+        if (paths.length >= HARD_FILE_COUNT) {
+            throw new Error('zip 内文件过多（' + paths.length + '），可能不是单个世界存档');
+        }
 
         var commonRoot = detectCommonRoot(paths);
-        var rootName = commonRoot || stripZipExt(file.name);
+        var rootName = commonRoot || stripZipExt(name);
 
         var entries = [];
         zip.forEach(function (relPath, zipObj) {
             if (zipObj.dir) return;
             var p = normalizePath(relPath);
             if (!p || /\/$/.test(relPath)) return;
-            var entry = createZipEntry(p, zipObj);
             if (commonRoot) {
-                var stripped = stripRoot(entry.path, commonRoot);
-                if (!stripped) return;
-                entry.path = stripped;
+                p = stripRoot(p, commonRoot);
+                if (!p) return;
             }
-            entries.push(entry);
+            if (pathLooksUnsafe(p)) return;
+            entries.push(createZipEntry(p, zipObj));
         });
 
+        if (!entries.length) throw new Error('zip 解析后没有可用文件（路径可能全部非法）');
+
         setProgress(20, '正在分析加密状态…');
-        return analyzeEntries(entries, {
+        var state = await analyzeEntries(entries, {
             rootName: rootName,
             sourceType: 'zip',
             sourceLabel: 'ZIP',
-            sourceDetail: '压缩包 · ' + file.name + '（' + formatBytes(file.size) + '）'
+            sourceDetail: '压缩包 · ' + name + '（' + formatBytes(file.size) + '）'
         });
+        state.nestedArchives = nestedArchives;
+        return state;
     }
 
     function setCryptoBanner(state, encrypted, plain) {
@@ -662,14 +1108,167 @@
         cryptoDesc.textContent = info.desc;
     }
 
+    function buildAlerts(state) {
+        var alerts = [];
+        if (!state) return alerts;
+
+        if (!state.hasDbDir) {
+            alerts.push({
+                type: 'error',
+                text: '未检测到 db/ 目录。请确认选择的是世界根目录（内含 db、level.dat 等），而不是上级目录或其它文件夹。'
+            });
+        } else if (!state.dbFiles.length) {
+            alerts.push({
+                type: 'warn',
+                text: '检测到 db/，但没有可处理的数据文件（可能仅有 LOG/LOCK/json，或扫描失败）。'
+            });
+        }
+
+        if (state.hasDbDir && !state.hasWorldMarker) {
+            alerts.push({
+                type: 'info',
+                text: '未发现 level.dat / levelname.txt 等世界标记文件。仍可处理 db，但请确认这是完整存档。'
+            });
+        }
+
+        if (state.cryptoState === 'mixed') {
+            alerts.push({
+                type: 'warn',
+                text: '加密状态混合：可能是部分处理过的存档。建议先统一解密或加密后再使用。'
+            });
+        }
+
+        if (state.scanFailed) {
+            alerts.push({
+                type: 'error',
+                text: '有 ' + state.scanFailed + ' 个文件扫描失败（无法读取头部）。这些文件将跳过加解密，导出时尽量原样保留。'
+            });
+        }
+
+        if (state.unsafeSkipped) {
+            alerts.push({
+                type: 'warn',
+                text: '已忽略 ' + state.unsafeSkipped + ' 个可疑路径（绝对路径或含 ..），防止路径穿越。'
+            });
+        }
+
+        if (state.totalSize >= WARN_TOTAL_SIZE) {
+            alerts.push({
+                type: 'warn',
+                text: '存档较大（约 ' + formatBytes(state.totalSize) + '），处理时可能占用较多内存，请耐心等待并避免切换过多标签页。'
+            });
+        }
+
+        if (state.entries.length >= WARN_FILE_COUNT) {
+            alerts.push({
+                type: 'warn',
+                text: '文件数量较多（' + state.entries.length + '），扫描与打包会较慢。'
+            });
+        }
+
+        if (state.largeFiles && state.largeFiles.length) {
+            var top = state.largeFiles
+                .slice()
+                .sort(function (a, b) { return b.size - a.size; })
+                .slice(0, 3)
+                .map(function (f) { return basename(f.path) + ' ' + formatBytes(f.size); })
+                .join('；');
+            alerts.push({
+                type: 'info',
+                text: '存在大文件：' + top + (state.largeFiles.length > 3 ? ' 等' : '') + '。'
+            });
+        }
+
+        if (state.nestedArchives && state.nestedArchives.length) {
+            alerts.push({
+                type: 'info',
+                text: 'zip 内发现其它压缩包（' + state.nestedArchives.slice(0, 3).join('，') + (state.nestedArchives.length > 3 ? ' 等' : '') + '），不会自动二次解压。'
+            });
+        }
+
+        if (state.sourceType === 'zip' && state.dbFiles.length && state.cryptoState === 'unknown') {
+            alerts.push({
+                type: 'warn',
+                text: 'zip 已加载但未能识别加密状态，请检查是否选错了压缩包。'
+            });
+        }
+
+        return alerts;
+    }
+
+    function renderAlerts(alerts) {
+        alertList.innerHTML = '';
+        if (!alerts || !alerts.length) return;
+        for (var i = 0; i < alerts.length; i++) {
+            var div = document.createElement('div');
+            div.className = 'alert-item ' + (alerts[i].type || 'info');
+            div.textContent = alerts[i].text;
+            alertList.appendChild(div);
+        }
+    }
+
+    function refreshActionButtons() {
+        var ready = !!(scanState && scanState.entries && scanState.entries.length);
+        var canEnc = false;
+        var canDec = false;
+        var hint = '';
+
+        if (!ready) {
+            downloadEnc.disabled = true;
+            downloadDec.disabled = true;
+            downloadEnc.textContent = '下载加密存档';
+            downloadDec.textContent = '下载解密存档';
+            btnHint.textContent = '';
+            return;
+        }
+
+        if (busy) {
+            downloadEnc.disabled = true;
+            downloadDec.disabled = true;
+            btnHint.textContent = '处理中，可用「取消」中止…';
+            return;
+        }
+
+        var plainN = scanState.plain || 0;
+        var encN = scanState.encrypted || 0;
+        var dbN = (scanState.dbFiles && scanState.dbFiles.length) || 0;
+
+        // 即使没有可转换文件，也允许下载“原样打包”，点击时会二次确认
+        canEnc = plainN > 0;
+        canDec = encN > 0;
+        downloadEnc.disabled = false;
+        downloadDec.disabled = false;
+
+        downloadEnc.textContent = canEnc
+            ? ('下载加密存档（' + plainN + '）')
+            : (dbN ? '下载加密存档（无需加密）' : '下载加密存档');
+        downloadDec.textContent = canDec
+            ? ('下载解密存档（' + encN + '）')
+            : (dbN ? '下载解密存档（无需解密）' : '下载解密存档');
+
+        if (!dbN) {
+            hint = '没有可加解密的 db 文件，下载将仅原样打包。';
+        } else if (scanState.cryptoState === 'encrypted') {
+            hint = '建议使用「下载解密存档」。加密按钮只会原样打包。';
+        } else if (scanState.cryptoState === 'plain') {
+            hint = '建议使用「下载加密存档」。解密按钮只会原样打包。';
+        } else if (scanState.cryptoState === 'mixed') {
+            hint = '混合状态：加密会处理明文文件，解密会处理密文文件。';
+        }
+        btnHint.textContent = hint;
+    }
+
     function updateScanUI(state) {
         scanState = state;
+        folderWrap.classList.remove('has-file');
+        zipWrap.classList.remove('has-file');
+
         if (!state || !state.entries || !state.entries.length) {
             fileInfo.style.display = 'none';
             uploadFolderText.textContent = '选择存档文件夹';
             uploadZipText.textContent = '选择 zip 压缩包';
-            downloadEnc.disabled = true;
-            downloadDec.disabled = true;
+            renderAlerts([]);
+            refreshActionButtons();
             setStatus('请选择存档文件夹或 zip 压缩包');
             return;
         }
@@ -682,9 +1281,11 @@
         if (state.sourceType === 'folder') {
             uploadFolderText.textContent = '已选文件夹：' + state.rootName;
             uploadZipText.textContent = '选择 zip 压缩包';
+            folderWrap.classList.add('has-file');
         } else {
-            uploadZipText.textContent = '已选 zip：' + state.rootName + '.zip';
+            uploadZipText.textContent = '已选 zip：' + (state.rootName || 'archive') + '.zip';
             uploadFolderText.textContent = '选择存档文件夹';
+            zipWrap.classList.add('has-file');
         }
 
         statTotal.textContent = String(state.entries.length);
@@ -693,40 +1294,74 @@
         statPlain.textContent = String(state.plain);
         statSkipped.textContent = String(state.skipped);
 
+        if (state.scanFailed) {
+            statScanFailItem.style.display = '';
+            statScanFailItem.classList.add('danger');
+            statScanFail.textContent = String(state.scanFailed);
+        } else {
+            statScanFailItem.style.display = 'none';
+            statScanFailItem.classList.remove('danger');
+            statScanFail.textContent = '0';
+        }
+
         setCryptoBanner(state.cryptoState, state.encrypted, state.plain);
 
         var hints = [];
         hints.push('合计大小约 ' + formatBytes(state.totalSize) + '。');
-        if (!state.hasDbDir) {
-            hints.push('未检测到 db/ 目录，可能不是完整世界存档；加密/解密时不会改动文件内容。');
-        } else if (!state.dbFiles.length) {
-            hints.push('检测到 db/ 目录，但没有可处理的 LevelDB 数据文件。');
-        } else {
-            hints.push('将对 ' + state.dbFiles.length + ' 个 db 数据文件执行加解密，其余文件原样打包。');
+        if (state.hasDbDir && state.dbFiles.length) {
+            hints.push('将对 ' + state.dbFiles.length + ' 个 db 候选文件执行加解密（按状态跳过），其余文件原样打包。');
         }
         scanHint.textContent = hints.join(' ');
 
-        downloadEnc.disabled = busy;
-        downloadDec.disabled = busy;
+        renderAlerts(buildAlerts(state));
+        refreshActionButtons();
+    }
+
+    function clearAll() {
+        if (busy) return;
+        abortFlag = false;
+        uploadFolder.value = '';
+        uploadZip.value = '';
+        updateScanUI(null);
+        resetLog();
+        hideProgress();
+        setStatus('已清除，请重新选择存档文件夹或 zip');
     }
 
     async function handleLoad(loaderPromise, scanningMsg) {
-        if (busy) return;
+        if (busy) {
+            setStatus('当前正在处理，请先等待完成或点击取消', 'warning');
+            return;
+        }
+        abortFlag = false;
         resetLog();
         hideProgress();
         setBusy(true);
         setStatus(scanningMsg || '正在扫描…', 'info');
         setProgress(0, '准备中…');
+        progressStartedAt = Date.now();
 
         try {
             var state = await loaderPromise;
+            throwIfAborted();
             hideProgress();
             updateScanUI(state);
+
+            if (state.scanFailSamples && state.scanFailSamples.length) {
+                appendLog('扫描阶段部分文件失败：', 'warn');
+                state.scanFailSamples.forEach(function (s) { appendLog('  ' + s, 'error'); });
+            }
 
             if (!state.hasDbDir) {
                 setStatus('已加载，但未检测到 db/ 目录，请确认这是完整世界存档', 'warning');
             } else if (!state.dbFiles.length) {
                 setStatus('已加载，但没有可加解密的 db 数据文件', 'warning');
+            } else if (state.scanFailed) {
+                setStatus(
+                    '扫描完成（' + state.scanFailed + ' 个读取失败）：加密 ' +
+                    state.encrypted + ' / 明文 ' + state.plain,
+                    'warning'
+                );
             } else if (state.cryptoState === 'encrypted') {
                 setStatus('扫描完成：已加密存档（' + state.encrypted + ' 个 db 文件）', 'info');
             } else if (state.cryptoState === 'plain') {
@@ -741,157 +1376,274 @@
             }
         } catch (e) {
             hideProgress();
-            updateScanUI(null);
-            var msg = (e && e.message) ? e.message : String(e);
-            setStatus('加载失败：' + msg, 'error');
-            window.reportError(e);
+            if (e && e.name === 'AbortError') {
+                updateScanUI(scanState); // 保留旧状态
+                setStatus('已取消加载', 'warning');
+                appendLog('加载已取消', 'warn');
+            } else {
+                updateScanUI(null);
+                var msg = friendlyError(e);
+                setStatus('加载失败：' + msg, 'error');
+                appendLog('[加载失败] ' + msg, 'error');
+                reportIfNeeded(e);
+            }
         } finally {
             setBusy(false);
+            abortFlag = false;
         }
     }
 
-    uploadFolder.onchange = function () {
-        if (busy) return;
-        if (!uploadFolder.files || !uploadFolder.files.length) {
-            updateScanUI(null);
-            setStatus('未选择任何文件夹', 'warning');
-            return;
+    function confirmAction(mode, state) {
+        var isEncrypt = mode === 'encrypt';
+        var action = isEncrypt ? '加密' : '解密';
+        if (!state.dbFiles.length) {
+            return window.confirm(
+                '当前没有可' + action + '的 db 数据文件。\n' +
+                '继续将仅原样打包下载，是否继续？'
+            );
         }
-        // 选择文件夹时清空 zip 选择，避免混淆
-        uploadZip.value = '';
-        handleLoad(loadFromFolder(uploadFolder.files), '正在扫描文件夹…');
-    };
-
-    uploadZip.onchange = function () {
-        if (busy) return;
-        if (!uploadZip.files || !uploadZip.files.length) {
-            updateScanUI(null);
-            setStatus('未选择 zip 文件', 'warning');
-            return;
+        if (isEncrypt && state.cryptoState === 'encrypted') {
+            return window.confirm(
+                '检测到存档已全部加密，无需再次加密。\n' +
+                '继续将原样打包下载，是否继续？'
+            );
         }
-        uploadFolder.value = '';
-        handleLoad(loadFromZip(uploadZip.files[0]), '正在解析 zip…');
-    };
+        if (!isEncrypt && state.cryptoState === 'plain') {
+            return window.confirm(
+                '检测到存档均为明文，无需解密。\n' +
+                '继续将原样打包下载，是否继续？'
+            );
+        }
+        if (state.totalSize >= WARN_TOTAL_SIZE) {
+            return window.confirm(
+                '存档约 ' + formatBytes(state.totalSize) + '，' + action + '与打包可能较慢并占用内存。\n是否继续？'
+            );
+        }
+        if (state.cryptoState === 'mixed') {
+            return window.confirm(
+                '当前为混合加密状态（加密 ' + state.encrypted + ' / 明文 ' + state.plain + '）。\n' +
+                '将只' + action + '需要处理的文件，其余保持原样。是否继续？'
+            );
+        }
+        return true;
+    }
 
     async function processAndDownload(mode) {
-        if (busy) return;
+        if (busy) {
+            setStatus('正在处理中，请稍候或点击取消', 'warning');
+            return;
+        }
         if (!scanState || !scanState.entries || !scanState.entries.length) {
             setStatus('请先上传存档文件夹或 zip', 'warning');
             return;
         }
-        if (typeof JSZip === 'undefined' || typeof saveAs !== 'function') {
-            setStatus('缺少必要依赖（JSZip / FileSaver），请刷新页面重试', 'error');
+
+        var depIssues = checkBrowserSupport();
+        if (depIssues.length) {
+            setStatus('环境异常：' + depIssues.join('；') + '。请刷新页面重试', 'error');
             return;
         }
-        if (typeof fileEncrypt !== 'function' || typeof fileDecrypt !== 'function' || typeof isEncrypted !== 'function') {
-            setStatus('加解密库未正确加载，请刷新页面重试', 'error');
+
+        if (!confirmAction(mode, scanState)) {
+            setStatus('已取消' + (mode === 'encrypt' ? '加密' : '解密'), 'warning');
             return;
         }
 
         var isEncrypt = mode === 'encrypt';
         var actionLabel = isEncrypt ? '加密' : '解密';
         var entries = scanState.entries;
-        var rootName = scanState.rootName || 'world';
+        var rootName = sanitizeRootName(scanState.rootName || 'world');
         var zipName = rootName + (isEncrypt ? '-encrypted' : '-decrypted') + '.zip';
 
+        abortFlag = false;
         setBusy(true);
         resetLog();
-        appendLog('来源：' + (scanState.sourceDetail || scanState.sourceType));
+        appendLog('来源：' + (scanState.sourceDetail || scanState.sourceType), 'info');
         appendLog('加密状态：' + ({
             encrypted: '已加密',
             plain: '未加密',
             mixed: '混合',
             unknown: '未知'
-        }[scanState.cryptoState] || '未知'));
-        appendLog('开始' + actionLabel + '，共 ' + entries.length + ' 个文件…');
+        }[scanState.cryptoState] || '未知'), 'info');
+        appendLog('开始' + actionLabel + '，共 ' + entries.length + ' 个文件…', 'info');
         setStatus('正在' + actionLabel + '并打包…', 'info');
         setProgress(0, '准备中…');
+        progressStartedAt = Date.now();
 
         var converted = 0;
         var skippedSame = 0;
         var copied = 0;
         var failed = 0;
+        var emptySkipped = 0;
 
         try {
             var zip = new JSZip();
             var total = entries.length;
-            // 导出时保留一层根目录，方便解压
             var prefix = rootName + '/';
+            var usedPaths = Object.create(null);
 
             for (var i = 0; i < total; i++) {
+                throwIfAborted();
                 var entry = entries[i];
                 var rel = normalizePath(entry.path);
+                if (!rel || pathLooksUnsafe(rel)) {
+                    failed++;
+                    appendLog('[跳过-非法路径] ' + (entry.path || '(空)'), 'warn');
+                    continue;
+                }
+
                 var outPath = prefix + rel;
-                setProgress(Math.round((i / total) * 95), actionLabel + '中… ' + (i + 1) + '/' + total);
+                // 避免重名覆盖
+                if (usedPaths[outPath]) {
+                    var dup = 1;
+                    var alt;
+                    do {
+                        alt = prefix + rel + '.__dup' + dup;
+                        dup++;
+                    } while (usedPaths[alt]);
+                    appendLog('[重名] ' + rel + ' → ' + alt.slice(prefix.length), 'warn');
+                    outPath = alt;
+                }
+                usedPaths[outPath] = true;
+
+                setProgress(Math.round((i / total) * 92), actionLabel + '中… ' + (i + 1) + '/' + total);
 
                 try {
                     if (isDbCandidatePath(rel)) {
-                        var buf = await entry.getArrayBuffer();
-                        var encrypted = safeIsEncrypted(buf);
+                        var buf;
+                        try {
+                            buf = await entry.getArrayBuffer();
+                        } catch (readErr) {
+                            failed++;
+                            appendLog('[读取失败] ' + rel + ' → ' + friendlyError(readErr), 'error');
+                            continue;
+                        }
 
-                        if (isEncrypt) {
-                            if (!encrypted) {
-                                zip.file(outPath, fileEncrypt(buf));
-                                converted++;
-                                appendLog('[加密] ' + rel);
-                            } else {
-                                zip.file(outPath, await entry.getZipData());
-                                skippedSame++;
-                                appendLog('[跳过-已加密] ' + rel);
-                            }
+                        if (!buf || buf.byteLength === 0) {
+                            // 空文件原样写入
+                            zip.file(outPath, new Uint8Array(0));
+                            emptySkipped++;
+                            appendLog('[跳过-空文件] ' + rel, 'warn');
                         } else {
-                            if (encrypted) {
-                                zip.file(outPath, fileDecrypt(buf));
-                                converted++;
-                                appendLog('[解密] ' + rel);
+                            var encrypted = safeIsEncrypted(buf);
+                            if (isEncrypt) {
+                                if (!encrypted) {
+                                    try {
+                                        zip.file(outPath, fileEncrypt(buf));
+                                        converted++;
+                                        appendLog('[加密] ' + rel, 'ok');
+                                    } catch (encErr) {
+                                        failed++;
+                                        appendLog('[加密失败] ' + rel + ' → ' + friendlyError(encErr), 'error');
+                                        zip.file(outPath, buf);
+                                    }
+                                } else {
+                                    zip.file(outPath, buf);
+                                    skippedSame++;
+                                    appendLog('[跳过-已加密] ' + rel, 'info');
+                                }
                             } else {
-                                zip.file(outPath, await entry.getZipData());
-                                skippedSame++;
-                                appendLog('[跳过-未加密] ' + rel);
+                                if (encrypted) {
+                                    try {
+                                        zip.file(outPath, fileDecrypt(buf));
+                                        converted++;
+                                        appendLog('[解密] ' + rel, 'ok');
+                                    } catch (decErr) {
+                                        failed++;
+                                        appendLog('[解密失败] ' + rel + ' → ' + friendlyError(decErr), 'error');
+                                        zip.file(outPath, buf);
+                                    }
+                                } else {
+                                    zip.file(outPath, buf);
+                                    skippedSame++;
+                                    appendLog('[跳过-未加密] ' + rel, 'info');
+                                }
                             }
                         }
                     } else {
-                        zip.file(outPath, await entry.getZipData());
-                        copied++;
+                        try {
+                            zip.file(outPath, await entry.getZipData());
+                            copied++;
+                        } catch (copyErr) {
+                            failed++;
+                            appendLog('[复制失败] ' + rel + ' → ' + friendlyError(copyErr), 'error');
+                        }
                     }
                 } catch (fileErr) {
                     failed++;
-                    var fmsg = (fileErr && fileErr.message) ? fileErr.message : String(fileErr);
-                    appendLog('[失败] ' + rel + ' → ' + fmsg);
-                    try {
-                        zip.file(outPath, await entry.getZipData());
-                    } catch (_) { /* ignore */ }
+                    appendLog('[失败] ' + rel + ' → ' + friendlyError(fileErr), 'error');
                 }
 
-                if (i % 6 === 5) {
+                if (i % 5 === 4) {
                     await new Promise(function (r) { setTimeout(r, 0); });
                 }
             }
 
-            setProgress(96, '正在生成 zip…');
-            appendLog('正在生成 zip 压缩包…');
+            throwIfAborted();
 
-            var content = await zip.generateAsync(
-                { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
-                function (meta) {
-                    var p = 96 + Math.round(((meta.percent || 0) / 100) * 4);
-                    setProgress(Math.min(p, 100), '打包中… ' + Math.round(meta.percent || 0) + '%');
+            var fileCountInZip = Object.keys(zip.files).length;
+            if (!fileCountInZip) {
+                throw new Error('输出结果为空，没有可打包的文件');
+            }
+
+            setProgress(94, '正在生成 zip…');
+            appendLog('正在生成 zip 压缩包（' + fileCountInZip + ' 个条目）…', 'info');
+
+            var content;
+            try {
+                content = await zip.generateAsync(
+                    { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
+                    function (meta) {
+                        if (abortFlag) return;
+                        var p = 94 + Math.round(((meta.percent || 0) / 100) * 5);
+                        setProgress(Math.min(p, 99), '打包中… ' + Math.round(meta.percent || 0) + '%');
+                    }
+                );
+            } catch (genErr) {
+                throw new Error('生成 zip 失败：' + friendlyError(genErr));
+            }
+
+            throwIfAborted();
+
+            if (!content || !content.size) {
+                throw new Error('生成的 zip 为空，请重试或更换浏览器');
+            }
+
+            try {
+                saveAs(content, zipName);
+            } catch (saveErr) {
+                // 回退：创建下载链接
+                try {
+                    var url = URL.createObjectURL(content);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = zipName;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(function () {
+                        URL.revokeObjectURL(url);
+                        a.remove();
+                    }, 2000);
+                    appendLog('FileSaver 失败，已使用备用下载方式', 'warn');
+                } catch (fallbackErr) {
+                    throw new Error('触发下载失败：' + friendlyError(saveErr) + '。请检查浏览器是否拦截了下载');
                 }
-            );
+            }
 
-            saveAs(content, zipName);
             setProgress(100, '完成');
             appendLog(
                 '完成：' + actionLabel + ' ' + converted +
                 ' 个，状态匹配跳过 ' + skippedSame +
                 ' 个，原样复制 ' + copied +
-                ' 个，失败 ' + failed + ' 个。'
+                ' 个，空文件 ' + emptySkipped +
+                ' 个，失败 ' + failed + ' 个。',
+                failed ? 'warn' : 'ok'
             );
-            appendLog('已触发下载：' + zipName);
+            appendLog('输出大小约 ' + formatBytes(content.size) + '，已触发下载：' + zipName, 'ok');
 
             if (failed) {
                 setStatus(
-                    actionLabel + '完成（有 ' + failed + ' 个文件失败，详见日志），已下载 ' + zipName,
+                    actionLabel + '完成（失败 ' + failed + ' 个，详见日志），已下载 ' + zipName,
                     'warning'
                 );
             } else if (!converted && scanState.dbFiles.length) {
@@ -906,20 +1658,275 @@
                 );
             }
         } catch (e) {
-            var msg = (e && e.message) ? e.message : String(e);
-            appendLog('[错误] ' + msg);
-            setStatus(actionLabel + '失败：' + msg, 'error');
-            window.reportError(e);
+            if (e && e.name === 'AbortError') {
+                appendLog('操作已取消', 'warn');
+                setStatus(actionLabel + '已取消', 'warning');
+            } else {
+                var msg = friendlyError(e);
+                appendLog('[错误] ' + msg, 'error');
+                setStatus(actionLabel + '失败：' + msg, 'error');
+                reportIfNeeded(e);
+            }
         } finally {
             setBusy(false);
+            abortFlag = false;
             setTimeout(function () {
                 if (!busy) hideProgress();
             }, 1200);
         }
     }
 
+    // ---- 事件绑定 ----
+    uploadFolder.onchange = function () {
+        if (busy) {
+            setStatus('正在处理中，无法切换文件。请先取消或等待完成', 'warning');
+            uploadFolder.value = '';
+            return;
+        }
+        if (!uploadFolder.files || !uploadFolder.files.length) {
+            // 用户取消选择对话框
+            return;
+        }
+        uploadZip.value = '';
+        handleLoad(loadFromFolder(uploadFolder.files), '正在扫描文件夹…');
+    };
+
+    uploadZip.onchange = function () {
+        if (busy) {
+            setStatus('正在处理中，无法切换文件。请先取消或等待完成', 'warning');
+            uploadZip.value = '';
+            return;
+        }
+        if (!uploadZip.files || !uploadZip.files.length) return;
+        uploadFolder.value = '';
+        handleLoad(loadFromZip(uploadZip.files[0]), '正在解析 zip…');
+    };
+
     downloadEnc.onclick = function () { processAndDownload('encrypt'); };
     downloadDec.onclick = function () { processAndDownload('decrypt'); };
+
+    cancelBtn.onclick = function () {
+        if (!busy) return;
+        abortFlag = true;
+        setStatus('正在取消…', 'warning');
+        appendLog('用户请求取消…', 'warn');
+    };
+
+    clearBtn.onclick = function () {
+        if (busy) {
+            setStatus('处理中无法清除，请先取消', 'warning');
+            return;
+        }
+        clearAll();
+    };
+
+    clearLogBtn.onclick = function () {
+        resetLog();
+    };
+
+    copyLogBtn.onclick = async function () {
+        var text = Array.prototype.map.call(logPanel.childNodes, function (n) {
+            return n.textContent || '';
+        }).join('\n');
+        if (!text) {
+            setStatus('日志为空，无需复制', 'warning');
+            return;
+        }
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+            }
+            setStatus('日志已复制到剪贴板', 'success');
+        } catch (e) {
+            setStatus('复制失败：' + friendlyError(e), 'error');
+        }
+    };
+
+    // 拖放
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (ev) {
+        dropZone.addEventListener(ev, preventDefaults, false);
+        document.body.addEventListener(ev, function (e) {
+            // 避免浏览器直接打开文件
+            if (e.target === dropZone || dropZone.contains(e.target)) return;
+            if (ev === 'dragover' || ev === 'drop') preventDefaults(e);
+        }, false);
+    });
+
+    dropZone.addEventListener('dragenter', function () {
+        if (!busy) dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragover', function () {
+        if (!busy) dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', function (e) {
+        if (e.target === dropZone) dropZone.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', async function (e) {
+        dropZone.classList.remove('dragover');
+        if (busy) {
+            setStatus('正在处理中，请稍候再拖放', 'warning');
+            return;
+        }
+
+        var dt = e.dataTransfer;
+        if (!dt) return;
+
+        try {
+            // 优先处理目录（Chromium）
+            var items = dt.items ? Array.prototype.slice.call(dt.items) : [];
+            var filesFromEntries = [];
+
+            async function walkEntry(entry, pathPrefix) {
+                throwIfAborted();
+                return new Promise(function (resolve, reject) {
+                    if (entry.isFile) {
+                        entry.file(function (file) {
+                            // 给 File 补 webkitRelativePath 语义
+                            filesFromEntries.push({
+                                file: file,
+                                path: normalizePath((pathPrefix || '') + file.name)
+                            });
+                            resolve();
+                        }, reject);
+                    } else if (entry.isDirectory) {
+                        var reader = entry.createReader();
+                        var all = [];
+                        function readBatch() {
+                            reader.readEntries(async function (batch) {
+                                try {
+                                    if (!batch.length) {
+                                        for (var i = 0; i < all.length; i++) {
+                                            await walkEntry(all[i], (pathPrefix || '') + entry.name + '/');
+                                        }
+                                        resolve();
+                                        return;
+                                    }
+                                    all = all.concat(Array.prototype.slice.call(batch));
+                                    readBatch();
+                                } catch (err) {
+                                    reject(err);
+                                }
+                            }, reject);
+                        }
+                        readBatch();
+                    } else {
+                        resolve();
+                    }
+                });
+            }
+
+            var dirEntries = [];
+            for (var i = 0; i < items.length; i++) {
+                var item = items[i];
+                if (item.kind !== 'file') continue;
+                var entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                if (entry) dirEntries.push(entry);
+            }
+
+            if (dirEntries.length === 1 && dirEntries[0].isDirectory) {
+                abortFlag = false;
+                setBusy(true);
+                setStatus('正在读取拖放的文件夹…', 'info');
+                setProgress(0, '遍历目录…');
+                try {
+                    await walkEntry(dirEntries[0], '');
+                    throwIfAborted();
+                    if (!filesFromEntries.length) throw new Error('拖放的文件夹为空');
+
+                    // 构造类 FileList 结构
+                    var fakeFiles = filesFromEntries.map(function (x) {
+                        // 包装 path
+                        try {
+                            Object.defineProperty(x.file, 'webkitRelativePath', {
+                                value: (dirEntries[0].name + '/' + x.path).replace(/\\/g, '/'),
+                                configurable: true
+                            });
+                        } catch (_) {
+                            x.file._rel = dirEntries[0].name + '/' + x.path;
+                        }
+                        return x.file;
+                    });
+
+                    // 兼容 getRelPath：createFolderEntry 已用 webkitRelativePath
+                    uploadZip.value = '';
+                    setBusy(false);
+                    handleLoad(loadFromFolder(fakeFiles), '正在扫描拖放的文件夹…');
+                    return;
+                } catch (err) {
+                    setBusy(false);
+                    setStatus('读取拖放文件夹失败：' + friendlyError(err), 'error');
+                    reportIfNeeded(err);
+                    return;
+                }
+            }
+
+            var fileList = dt.files ? Array.prototype.slice.call(dt.files) : [];
+            if (!fileList.length && dirEntries.length) {
+                // 多条目或无法作为 FileList
+                setStatus('请拖放单个世界文件夹，或一个 zip 文件', 'warning');
+                return;
+            }
+
+            if (fileList.length === 1 && /\.zip$/i.test(fileList[0].name || '')) {
+                uploadFolder.value = '';
+                handleLoad(loadFromZip(fileList[0]), '正在解析拖放的 zip…');
+                return;
+            }
+
+            if (fileList.length === 1 && ARCHIVE_EXT_RE.test(fileList[0].name || '') && !/\.zip$/i.test(fileList[0].name || '')) {
+                setStatus('暂不支持该压缩格式，请转换为 zip 后上传', 'error');
+                return;
+            }
+
+            if (fileList.length > 1) {
+                // 可能是不支持 directory 的浏览器拖出的文件列表
+                var hasRel = fileList.some(function (f) { return f.webkitRelativePath; });
+                if (hasRel) {
+                    uploadZip.value = '';
+                    handleLoad(loadFromFolder(fileList), '正在扫描拖放的文件…');
+                    return;
+                }
+                setStatus('检测到多个文件。请拖放整个文件夹，或先打包为 zip', 'warning');
+                return;
+            }
+
+            if (fileList.length === 1) {
+                setStatus('单个非 zip 文件无法识别为存档，请拖放文件夹或 zip', 'warning');
+                return;
+            }
+
+            setStatus('未识别到可处理的文件', 'warning');
+        } catch (err) {
+            setStatus('拖放处理失败：' + friendlyError(err), 'error');
+            reportIfNeeded(err);
+        }
+    });
+
+    // 页面离开提醒
+    window.addEventListener('beforeunload', function (e) {
+        if (!busy) return;
+        e.preventDefault();
+        e.returnValue = '正在处理存档，离开将中断操作';
+        return e.returnValue;
+    });
+
+    // 启动自检
+    var bootIssues = checkBrowserSupport();
+    if (bootIssues.length) {
+        setStatus('页面依赖异常：' + bootIssues.join('；') + '。部分功能可能不可用', 'error');
+    }
 })();
 </script>
 </body>
