@@ -171,7 +171,9 @@ class Matrix {
 			for(const part of m[1].split(',')){
 				const eq=part.indexOf('=');
 				if(eq<0) continue;
-				if(part.slice(0,eq).trim()!==key) continue;
+				// states 里的 key 可能带双引号（如 "facing_direction"=3），去掉再比较
+				const k=part.slice(0,eq).trim().replace(/^"|"$/g,'');
+				if(k!==key) continue;
 				const v=part.slice(eq+1).trim();
 				if(v==='true') return true;
 				if(v==='false') return false;
