@@ -143,6 +143,122 @@ class Matrix {
 		}
 		return result;
 	}
+
+	/*
+	 * 将矩阵中的命令方块导出为 CBS 文本。
+	 * CBS 每对两行：
+	 *   # [dx dy dz] "悬停注释" 方块类型 条件 红石控制 延迟刻数 朝向
+	 *   命令正文
+	 * 方块类型: 脉冲/连锁/重复
+	 * 条件: 有条件/无条件（由 conditional_bit / conditionMet 决定）
+	 * 红石: 保持开启/红石控制（由 NBT auto 决定）
+	 * 朝向: x+/x-/y+/y-/z+/z-（由 facing_direction 映射）
+	 * 注意：加载器要求 CBS 按 y 从低到高排序，本方法已排序。
+	 */
+	toCBS(){
+		const id2type={
+			command_block:'脉冲',
+			chain_command_block:'连锁',
+			repeating_command_block:'重复'
+		};
+		const facingName={
+			0:'y-',1:'y+',2:'z-',3:'z+',4:'x-',5:'x+'
+		};
+		const parseState=(states,key)=>{
+			if(!states) return null;
+			const m=states.match(/\[(.+)\]/);
+			if(!m) return null;
+			for(const part of m[1].split(',')){
+				const eq=part.indexOf('=');
+				if(eq<0) continue;
+				if(part.slice(0,eq).trim()!==key) continue;
+				const v=part.slice(eq+1).trim();
+				if(v==='true') return true;
+				if(v==='false') return false;
+				const n=Number(v);
+				return Number.isNaN(n)?v:n;
+			}
+			return null;
+		};
+		const nbtVal=(obj,key)=>{
+			if(!obj) return undefined;
+			const v=obj[key];
+			if(v==null) return undefined;
+			if(typeof v==='object'&&v!==null&&'value' in v) return v.value;
+			return v;
+		};
+		const cmdNbt=(obj)=>{
+			// 兼容多种结构：顶层字段 / value.block_entity_data.value / 嵌套 .value
+			if(!obj) return {};
+			let inner=obj;
+			for(let guard=0; guard<6; guard++){
+				// case A: inner.value.block_entity_data.value
+				if(inner.value&&typeof inner.value==='object'&&inner.value.block_entity_data){
+					const be=inner.value.block_entity_data;
+					inner=be.value&&typeof be.value==='object'?be.value:be;
+					continue;
+				}
+				// case B: inner 本身含 block_entity_data
+				if(inner.block_entity_data&&typeof inner.block_entity_data==='object'){
+					const be=inner.block_entity_data;
+					inner=be.value&&typeof be.value==='object'?be.value:be;
+					continue;
+				}
+				// case C: 下钻到含 Command 的 value 层
+				if(inner.value&&typeof inner.value==='object'&&('Command' in inner.value||'CustomName' in inner.value||'id' in inner.value)){
+					inner=inner.value;
+					continue;
+				}
+				break;
+			}
+			return inner;
+		};
+		const cleanName=(s)=>{
+			if(s==null) return '';
+			s=String(s).trim();
+			if(s.length>=2&&s[0]==='"'&&s[s.length-1]==='"') s=s.slice(1,-1);
+			try{
+				const j=JSON.parse(s);
+				if(j&&typeof j.text==='string') s=j.text;
+			}catch(e){}
+			s=s.replace(/§./g,'').replace(/"/g,'\\"');
+			return s;
+		};
+
+		const items=[];
+		for(const {block,x,y,z} of this.getAllBlocks()){
+			if(typeof block.Index!=='number') continue;
+			const paletteID=this.palette[block.Index];
+			if(!paletteID) continue;
+			const b=new Block(paletteID);
+			if(!(b.id in id2type)) continue; // 只导出命令方块
+			const nbt=cmdNbt(block.blockEntityData);
+			const conditional=parseState(b.states,'conditional_bit');
+			const conditionFinal=(conditional!=null)?conditional:(nbtVal(nbt,'conditionMet')?true:false);
+			const auto=nbtVal(nbt,'auto');
+			const alwaysOn=(auto===undefined)?false:!!auto;
+			const delay=nbtVal(nbt,'TickDelay')??nbtVal(nbt,'delay')??0;
+			const facing=parseState(b.states,'facing_direction')??0;
+			items.push({
+				x,y,z,
+				type:id2type[b.id],
+				conditional:conditionFinal,
+				alwaysOn,
+				delay,
+				facing:facingName[facing]??String(facing),
+				name:cleanName(nbtVal(nbt,'CustomName')),
+				cmd:nbtVal(nbt,'Command')||''
+			});
+		}
+		// 加载器要求：按 y 从低到高排序（同 y 内再按 z、x）
+		items.sort((a,b)=>(a.y-b.y)||(a.z-b.z)||(a.x-b.x));
+		const lines=[];
+		for(const it of items){
+			lines.push(`# [${it.x} ${it.y} ${it.z}] "${it.name}" ${it.type} ${it.conditional?'有条件':'无条件'} ${it.alwaysOn?'保持开启':'红石控制'} ${it.delay} ${it.facing}`);
+			lines.push(it.cmd);
+		}
+		return lines.join('\n');
+	}
 }
 
 
