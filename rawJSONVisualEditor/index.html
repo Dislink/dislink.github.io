@@ -932,10 +932,12 @@
 
         chip.addEventListener('click', e => {
             if (e.target.closest('input,button')) return;
+            e.stopPropagation(); // 防止冒泡到外层组芯片，导致嵌套子芯片选不中
             select(pathKey);
         });
         chip.addEventListener('dragstart', e => {
             if (e.target.closest('input,button')) { e.preventDefault(); return; }
+            e.stopPropagation(); // 只拖当前芯片，不冒泡成拖动外层组
             dragState.kind = 'move';
             chip.classList.add('dragging');
             document.body.classList.add('rje-dragging');
