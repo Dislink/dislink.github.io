@@ -215,13 +215,13 @@
                 </div>
                 <div class="form-group">
                     <label for="volume4MainScroll">主音轨音量衰减</label>
-                    <input type="range" id="volume4MainScroll" min="0" max="1" value="0.9" step="0.01"/>
-                    <input type="number" id="volume4Main" step="0.01" value="0.9" />
+                    <input type="range" id="volume4MainScroll" min="0" max="1" value="1" step="0.01"/>
+                    <input type="number" id="volume4Main" step="0.01" value="1" />
                 </div>
                 <div class="form-group">
                     <label for="volume4SubScroll">副音轨音量衰减</label>
-                    <input type="range" id="volume4SubScroll" min="0" max="1" value="0.7" step="0.01"/>
-                    <input type="number" id="volume4Sub" step="0.01" value="0.7" />
+                    <input type="range" id="volume4SubScroll" min="0" max="1" value="1" step="0.01"/>
+                    <input type="number" id="volume4Sub" step="0.01" value="1" />
                 </div>
                 <div class="separator"></div>
                 <div class="form-group">
@@ -229,7 +229,7 @@
                     <select id="convertTracks" multiple style="display:none;"></select>
                 </div>
                 <div class="inline-group">
-                    <input type="checkbox" id="mergeTracks" />
+                    <input type="checkbox" id="mergeTracks" checked/>
                     <label for="mergeTracks">合并音轨</label>
                 </div>
                 <div class="inline-group">
@@ -257,14 +257,14 @@
             <div class="card-body">
                 <div class="form-group">
                     <label for="functionCommandLimitScroll">命令切分上限</label>
-                    <input type="range" id="functionCommandLimitScroll" min="1" max="10000" value="8192" />
-                    <input type="number" id="functionCommandLimit" step="1" value="8192" />
+                    <input type="range" id="functionCommandLimitScroll" min="1" max="10000" value="2147483648" />
+                    <input type="number" id="functionCommandLimit" step="1" value="2147483648" />
                     <span class="unit-label">command(s)</span>
                 </div>
                 <div class="form-group">
                     <label for="timeSplitLimitScroll">时间切分上限</label>
-                    <input type="range" id="timeSplitLimitScroll" min="0" max="12000" value="12000" />
-                    <input type="number" id="timeSplitLimit" step="1" value="12000" />
+                    <input type="range" id="timeSplitLimitScroll" min="0" max="12000" value="2147483648" />
+                    <input type="number" id="timeSplitLimit" step="1" value="2147483648" />
                     <span class="unit-label">tick(s)</span>
                 </div>
                 <div class="form-group">
@@ -283,8 +283,15 @@
                     <label for="commandCompression">命令压缩选项</label>
                     <select id="commandCompression">
                         <option value="disabled">禁用压缩</option>
-                        <option value="normal" selected>非失真压缩</option>
-                        <option value="maximum">最大压缩</option>
+                        <option value="normal">非失真压缩</option>
+                        <option value="maximum" selected>最大压缩 会导致音量失真！如果对音质有较高要求，请勿使用此选项！</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="convertResult">生成结果</label>
+                    <select id="convertResult">
+                        <option value="txt" selected>命令文本txt</option>
+                        <option value="mcpack">mcpack</option>
                     </select>
                 </div>
             </div>
@@ -334,6 +341,11 @@
             alert("最大压缩会导致音量失真！如果对音质有较高要求，请勿使用此选项！");
             volume4Main.value=1; volume4Sub.value=1;
             volume4MainScroll.value=1; volume4SubScroll.value=1;
+        }
+    }
+    convertResult.onchange=(e)=>{
+        if(e.target.value=="mcpack"){
+            functionCommandLimit.value=8192; functionCommandLimitScroll.value=8192;
         }
     }
 
@@ -510,6 +522,7 @@
         fr.readAsArrayBuffer(upload.files[0]);
     })
     download.onclick=(()=>{
+        let convertResult=document.querySelector('select#convertResult');
         zip=new JSZip();
         functions=zip.folder("functions");
         functions.file("help.mcfunction", `say MIDI信息：名称：${upload.files[0].name} 时长：${formatSeconds(Math.round(parseFloat(speed.value)*midiFile.timeTotal/100000))}  音轨数：${midiFile.header.getTracksCount()}  音符数：${midiFile.getEvents([MIDIEvents.EVENT_MIDI],[MIDIEvents.EVENT_MIDI_NOTE_ON], [], true)[0].filter((d)=>{return d.param2}).length}`);
@@ -655,6 +668,22 @@
             }
         }
 
+        if(convertResult.value=="txt"){
+            // 命令文本txt：只包含 title/execute/playsound 命令，不包含 init/play 等
+            let txtContent=[];
+            for(let i in contents){
+                // 将歌词命令按 tick 插入对应位置
+                for(var _lci=0; _lci<lyricLines.length; _lci++){
+                    if(lyricLines[_lci].tick >= timerange[i][0] && lyricLines[_lci].tick <= timerange[i][1]){
+                        txtContent.push(lyricLines[_lci].cmd);
+                    }
+                }
+                var _musicContent = contents[i].trim().split('\n').map((c)=>commandVersion.value=="execute-playsound"?`execute as ${c.match(/(@a\[.+\])/)[1]} at @s run ${c.replace(/@a\[.+\]/g, '@s')}`:c).join('\n');
+                txtContent.push(_musicContent);
+            }
+            saveAs(new Blob([txtContent.join('\n')], {type:"text/plain;charset=utf-8"}), `${fileName.replace(/\.midi?$/i,'')}.txt`);
+            return;
+        }
         let easyPlay='scoreboard players add @a ' + document.getElementById('scoreboard').value + ' 1'
         for(let i in contents){
             // 将歌词命令按 tick 插入对应文件头部（不通过 execute-playsound map 处理）
@@ -669,7 +698,7 @@
             if (commandVersion.value=="execute-function") easyPlay+=`execute at @a[scores={${document.getElementById('scoreboard').value}=${timerange[i][0]}..${timerange[i][1]}}] run function N${i}`
         }
         if (commandVersion.value=="execute-function") functions.file("play.mcfunction", easyPlay);
-        functions.file("init.mcfunction", `scoreboard objectives add ${document.getElementById('scoreboard').value} dummy\nscoreboard objectives setdisplay sidebar ${document.getElementById('scoreboard').value}\nscoreboard players set @s ${document.getElementById('scoreboard').value} -1`);
+        if(convertResult.value=="mcpack") functions.file("init.mcfunction", `scoreboard objectives add ${document.getElementById('scoreboard').value} dummy\nscoreboard objectives setdisplay sidebar ${document.getElementById('scoreboard').value}\nscoreboard players set @s ${document.getElementById('scoreboard').value} -1`);
         manifestBE.format_version=2;
         manifestBE.header.name=fileName;
         manifestBE.header.uuid=Math.uuid();
