@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>原始JSON文本可视化编辑器 | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HJVLPQTQE6');</script>
+    <script>
+        var _hmt = _hmt || [];
+        (function() {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7210376314498048"
+         crossorigin="anonymous"></script>
+    <style>
+        @font-face {
+            font-family: "Minecraft";
+            src: url("/fonts/Mojangles.ttf");
+        }
+        @font-face {
+            font-family: "Unifont";
+            src: url("/fonts/unifont-15.1.04.otf");
+        }
+
+        /* --- 布局 --- */
+        .rje-container {
+            width: 100%;
+            max-width: 1080px;
+            margin: 0 auto;
+        }
+        .rje-wrap {
+            display: flex;
+            gap: 1.25rem;
+            align-items: flex-start;
+        }
+        .rje-palette {
+            width: 240px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .rje-palette .card-body {
+            padding: 0.9rem;
+        }
+        .rje-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* --- 积木库 --- */
+        .pal-group-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--color-text-secondary);
+            margin: 0.6rem 0 0.4rem;
+        }
+        .pal-group-title:first-child { margin-top: 0; }
+        .pal-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .pal-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            cursor: grab;
+            user-select: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .pal-item:hover {
+            border-color: var(--color-primary);
+            box-shadow: var(--shadow-sm);
+        }
+        .pal-item:active { cursor: grabbing; }
+        .pal-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .pal-name {
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .pal-code {
+            margin-left: auto;
+            font-family: var(--font-mono);
+            font-size: 0.66rem;
+            color: var(--color-text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100px;
+        }
+        .pal-colors {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px;
+        }
+        .pal-color {
+            height: 26px;
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(0,0,0,0.15);
+            cursor: grab;
+            user-select: none;
+            position: relative;
+            transition: transform 0.1s;
+        }
+        .pal-color:hover { transform: scale(1.1); }
+        .pal-color span {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.62rem;
+            color: rgba(255,255,255,0.9);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+        }
+
+        /* --- 画布 --- */
+        .rje-canvas {
+            background: #1d1f24;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+        }
+        .rje-preview-label {
+            font-size: 0.7rem;
+            color: #8a93a5;
+            margin-bottom: 2px;
+        }
+        .rje-preview {
+            font-family: "Minecraft";
+            font-size: 20px;
+            line-height: 1.5;
+            color: #fff;
+            text-shadow: 0 3px 0 rgba(0,0,0,0.4);
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 32px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed rgba(255,255,255,0.15);
+            margin-bottom: 12px;
+        }
+        .rje-strip {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+            min-height: 56px;
+        }
+        .rje-empty {
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.45);
+            font-size: 0.85rem;
+            padding: 14px 0;
+        }
+        .rje-slot {
+            display: inline-block;
+            width: 46px;
+            height: 24px;
+            border: 1.5px dashed rgba(255,255,255,0.3);
+            border-radius: 7px;
+            background: rgba(255,255,255,0.04);
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.12s;
+        }
+        .rje-slot:hover {
+            border-color: rgba(255,255,255,0.55);
+        }
+        .rje-slot.drag-over {
+            border-color: #46c0ff;
+            background: rgba(70,192,255,0.25);
+            box-shadow: 0 0 0 2px rgba(70,192,255,0.25);
+        }
+
+        /* --- 芯片 --- */
+        .chip {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: 8px;
+            font-family: "Minecraft";
+            font-size: 15px;
+            color: #fff;
+            cursor: pointer;
+            user-select: none;
+            line-height: 1.6;
+            max-width: 100%;
+        }
+        .chip-text    { background: rgba(139,195,74,0.16);  border: 1px solid rgba(139,195,74,0.55); }
+        .chip-string  { background: rgba(161,136,127,0.18); border: 1px solid rgba(161,136,127,0.55); }
+        .chip-score   { background: rgba(100,181,246,0.16); border: 1px solid rgba(100,181,246,0.55); }
+        .chip-selector{ background: rgba(186,104,200,0.16); border: 1px solid rgba(186,104,200,0.55); }
+        .chip-translate,
+        .chip-rawtext {
+            background: rgba(255,183,77,0.12);
+            border: 1px solid rgba(255,183,77,0.5);
+            flex-direction: column;
+            align-items: stretch;
+            gap: 4px;
+        }
+        .chip-rawtext {
+            background: rgba(144,164,174,0.12);
+            border-color: rgba(144,164,174,0.5);
+        }
+        .chip-head {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .chip-body {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .chip-badge {
+            font-family: var(--font-sans);
+            font-size: 0.66rem;
+            background: rgba(255,255,255,0.14);
+            border-radius: 4px;
+            padding: 0 5px;
+            line-height: 1.5;
+            flex-shrink: 0;
+        }
+        .chip-with {
+            font-family: var(--font-mono);
+            font-size: 0.64rem;
+            color: rgba(255,255,255,0.5);
+        }
+        .chip-toggle {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.25);
+            color: rgba(255,255,255,0.7);
+            border-radius: 4px;
+            font-size: 0.66rem;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1.5;
+        }
+        .chip-toggle:hover { border-color: #46c0ff; color: #46c0ff; }
+        .chip-children {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+            border-left: 2px solid rgba(255,255,255,0.25);
+            padding: 2px 0 2px 8px;
+        }
+        .chip-mini {
+            width: 76px;
+            background: rgba(0,0,0,0.35);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 5px;
+            color: #fff;
+            font-size: 12px;
+            padding: 1px 5px;
+            outline: none;
+            user-select: text;
+        }
+        .chip-mini::placeholder { color: rgba(255,255,255,0.35); }
+        .chip-mini:focus { border-color: #46c0ff; }
+        .chip-nl { color: rgba(255,255,255,0.4); }
+        .chip-empty { color: rgba(255,255,255,0.35); font-style: italic; }
+        .chip-del {
+            display: none;
+            position: absolute;
+            top: -7px;
+            right: -7px;
+            width: 16px;
+            height: 16px;
+            line-height: 14px;
+            text-align: center;
+            background: #ef4444;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 11px;
+            font-family: var(--font-sans);
+            cursor: pointer;
+            z-index: 2;
+        }
+        .chip:hover .chip-del { display: block; }
+        .chip.selected { box-shadow: 0 0 0 2px #46c0ff; }
+        .chip.dragging { opacity: 0.4; }
+
+        /* --- 编辑行 --- */
+        .rje-editrow {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .rje-editrow .er-label {
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .rje-editrow input[type="text"] { flex: 1; min-width: 140px; }
+
+        /* --- 顶栏小按钮 --- */
+        .btn-mini {
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 2px 10px;
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            border: 1px solid var(--color-border-strong);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-mini:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+        .btn-mini.danger:hover {
+            border-color: var(--color-error);
+            color: var(--color-error);
+        }
+        .hdr-btns {
+            margin-left: auto;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* --- 折叠面板 --- */
+        details.card > summary {
+            list-style: none;
+            cursor: pointer;
+        }
+        details.card > summary::-webkit-details-marker { display: none; }
+        details.card > summary::after {
+            content: "▾";
+            margin-left: auto;
+            color: var(--color-text-muted);
+            font-size: 0.8rem;
+        }
+        details.card[open] > summary::after { content: "▴"; }
+
+        .note {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+            margin-top: 8px;
+        }
+        .io-area {
+            width: 100%;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            resize: vertical;
+        }
+
+        /* --- 移动端 --- */
+        @media (max-width: 860px) {
+            .rje-wrap { flex-direction: column; }
+            .rje-main { order: 1; width: 100%; }
+            .rje-palette {
+                position: static;
+                width: 100%;
+                order: 2;
+            }
+            .pal-list {
+                flex-direction: row;
+                overflow-x: auto;
+                padding-bottom: 4px;
+            }
+            .pal-item { flex-shrink: 0; }
+            .pal-code { display: none; }
+            .pal-colors { grid-template-columns: repeat(9, 1fr); }
+        }
+    </style>
+    <script src="/javascript/error-handler.js"></script>
+</head>
+<body>
+<div class="rje-container">
+    <div class="page-header">
+        <a class="back-home" href="/">← 返回主页</a>
+        <h1>原始JSON文本可视化编辑器</h1>
+        <div class="subtitle">拖放积木拼装 rawtext，以显示内容为导向 · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <div class="rje-wrap">
+        <aside class="card rje-palette">
+            <div class="card-header">积木库</div>
+            <div class="card-body">
+                <div class="pal-group-title">内容</div>
+                <div class="pal-list" id="palContent"></div>
+                <div class="pal-group-title">样式</div>
+                <div class="pal-list" id="palStyle"></div>
+                <div class="pal-group-title">颜色</div>
+                <div class="pal-colors" id="palColors"></div>
+            </div>
+        </aside>
+
+        <div class="rje-main">
+            <div class="card">
+                <div class="card-header">编辑画布
+                    <span class="hdr-btns">
+                        <button type="button" class="btn-mini" id="btnUndo" title="Ctrl+Z">撤销</button>
+                        <button type="button" class="btn-mini danger" id="btnClear">清空</button>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="rje-canvas">
+                        <div class="rje-preview-label">最终效果</div>
+                        <div class="rje-preview" id="previewLine"></div>
+                        <div class="rje-strip" id="strip"></div>
+                    </div>
+                    <div class="rje-editrow" id="editRow" hidden>
+                        <span class="er-label" id="editType"></span>
+                        <input type="text" id="editInput" placeholder="输入内容">
+                        <button type="button" class="btn-mini danger" id="editDel">删除</button>
+                    </div>
+                    <p class="note">提示：把积木拖到虚线槽位（手机端直接点击积木即可插入）；点击画布中的积木选中后可在下方编辑内容；样式/颜色积木会插入到选中积木之后；Ctrl+Z 撤销。随机文本(§k)以淡色透明表示。</p>
+                </div>
+            </div>
+
+            <div class="status-bar" id="status"></div>
+
+            <details class="card" style="margin-top:1.25rem;">
+                <summary class="card-header">测试值（仅影响预览显示）</summary>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="label-auto"><b>选择器</b></label>
+                        <button type="button" class="btn-mini" id="btnAddSel">+ 添加</button>
+                    </div>
+                    <table>
+                        <thead><tr><th>选择器</th><th>显示为</th><th></th></tr></thead>
+                        <tbody id="selTbody"></tbody>
+                    </table>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label class="label-auto"><b>计分板</b></label>
+                        <button type="button" class="btn-mini" id="btnAddScore">+ 添加</button>
+                    </div>
+                    <table>
+                        <thead><tr><th>目标</th><th>名字</th><th>显示值</th><th></th></tr></thead>
+                        <tbody id="scoreTbody"></tbody>
+                    </table>
+                </div>
+            </details>
+
+            <div class="card">
+                <div class="card-header">导出 / 导入</div>
+                <div class="card-body">
+                    <textarea id="jsonOut" class="io-area" rows="4" placeholder='{"rawtext":[...]}'></textarea>
+                    <div class="form-group" style="margin-top:0.75rem;">
+                        <label for="cmdType">命令</label>
+                        <select id="cmdType">
+                            <option value="tellraw">tellraw</option>
+                            <option value="title">titleraw title</option>
+                            <option value="actionbar">titleraw actionbar</option>
+                            <option value="subtitle">titleraw subtitle</option>
+                        </select>
+                        <input type="text" id="cmdTarget" value="@s" style="width:6rem;">
+                    </div>
+                    <textarea id="cmdOut" class="io-area" rows="2" readonly></textarea>
+                    <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-primary" id="btnCopyCmd">复制命令</button>
+                        <button type="button" class="btn btn-primary" id="btnCopyJson">复制 JSON</button>
+                        <button type="button" class="btn" id="btnImport">导入上方 JSON</button>
+                    </div>
+                    <p class="note">导入支持粘贴 /tellraw、/titleraw 命令或任意含 JSON 的文本，也兼容 Java 版 color/bold 等写法（自动转为 § 码）。</p>
+                </div>
+            </div>
+
+            <div class="page-footer">
+                <span>Made by DislinkSforza</span>
+                <div class="footer-links">
+                    <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                        <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+                    </a>
+                    <a href="https://space.bilibili.com/490775607" target="_blank">
+                        <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+                    </a>
+                    <a href="https://github.com/Dislink" target="_blank">
+                        <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* ============ 常量 ============ */
+    // § 颜色映射（与 rawJSONEditor 保持一致；§n 在 BE 是颜色不是下划线）
+    const SECTION_COLORS = {
+        '0':'#000000','1':'#0000aa','2':'#00aa00','3':'#00aaaa','4':'#aa0000','5':'#aa00aa',
+        '6':'#ffaa00','7':'#aaaaaa','8':'#555555','9':'#5555ff',
+        'a':'#55ff55','b':'#55ffff','c':'#ff5555','d':'#ff55ff','e':'#ffff55','f':'#ffffff',
+        'g':'#ddd605','h':'#e3d4d1','i':'#cecaca','j':'#443a3b','m':'#971607','n':'#b4684d',
+        'p':'#deb12d','q':'#11a036','s':'#2cbaa8','t':'#21497b','u':'#9a5cc6'
+    };
+    const JAVA_COLORS = {
+        'black':'§0','dark_blue':'§1','dark_green':'§2','dark_aqua':'§3','dark_red':'§4',
+        'dark_purple':'§5','gold':'§6','gray':'§7','dark_gray':'§8','blue':'§9',
+        'green':'§a','aqua':'§b','red':'§c','light_purple':'§d','yellow':'§e','white':'§f',
+        'minecoin_gold':'§g'
+    };
+    const TYPE_LABEL = { text:'文本', string:'字符串', translate:'翻译', score:'分数', selector:'选择器', rawtext:'嵌套组' };
+
+    // 调色板模板
+    const PALETTE = [
+        { id:'text',      name:'文本',              dot:'#8bc34a', code:'{"text":"…"}',      make:()=>({t:'text', s:''}),                                              group:'content' },
+        { id:'nl',        name:'换行',              dot:'#8bc34a', code:'{"text":"\\n"}',    make:()=>({t:'text', s:'\n'}),                                            group:'content' },
+        { id:'translate', name:'翻译',              dot:'#ffb74d', code:'{"translate":"…"}', make:()=>({t:'translate', key:'', withKind:'array', children:[]}),        group:'content' },
+        { id:'translateR',name:'翻译(rawtext参数)', dot:'#ffb74d', code:'{"with":{"rawtext":[]}}', make:()=>({t:'translate', key:'', withKind:'rawtext', children:[]}),group:'content' },
+        { id:'score',     name:'分数',              dot:'#64b5f6', code:'{"score":{…}}',     make:()=>({t:'score', name:'*', obj:''}),                                 group:'content' },
+        { id:'selector',  name:'选择器',            dot:'#ba68c8', code:'{"selector":"@s"}', make:()=>({t:'selector', s:'@s'}),                                        group:'content' },
+        { id:'group',     name:'嵌套组',            dot:'#90a4ae', code:'{"rawtext":[…]}',   make:()=>({t:'rawtext', children:[]}),                                    group:'content' },
+        { id:'string',    name:'纯字符串',          dot:'#a1887f', code:'"…"',               make:()=>({t:'string', s:''}),                                            group:'content' },
+    ];
+    const STYLE_ITEMS = [
+        { id:'style:l', name:'加粗 §l', make:()=>({t:'text', s:'§l'}) },
+        { id:'style:o', name:'斜体 §o', make:()=>({t:'text', s:'§o'}) },
+        { id:'style:k', name:'乱码 §k', make:()=>({t:'text', s:'§k'}) },
+        { id:'style:r', name:'重置 §r', make:()=>({t:'text', s:'§r'}) },
+    ];
+    const COLOR_ITEMS = [
+        ['0','#000000'],['1','#0000aa'],['2','#00aa00'],['3','#00aaaa'],['4','#aa0000'],['5','#aa00aa'],
+        ['6','#ffaa00'],['7','#aaaaaa'],['8','#555555'],['9','#5555ff'],
+        ['a','#55ff55'],['b','#55ffff'],['c','#ff5555'],['d','#ff55ff'],['e','#ffff55'],['f','#ffffff'],
+        ['g','#ddd605']
+    ].map(([c,hex]) => ({ id:'color:'+c, code:c, hex, make:()=>({t:'text', s:'§'+c}) }));
+
+    // 所有可拖入模板的总表
+    const PALETTE_MAP = {};
+    [...PALETTE, ...STYLE_ITEMS, ...COLOR_ITEMS].forEach(item => { PALETTE_MAP[item.id] = item; });
+
+    const STORE_KEY = 'rvje.doc';
+
+    /* ============ 状态 ============ */
+    let nodes = [];          // 根级节点树
+    let test = { sel:[{sel:'@s', name:'玩家'}], score:[] };  // 测试值
+    let selectedKey = null;  // 选中节点路径 "0-2-1"
+    const undoStack = [];
+    let saveTimer = null;
+
+    /* ============ 工具函数 ============ */
+    const $ = id => document.getElementById(id);
+    function el(tag, cls, text) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+    }
+    function showStatus(msg, isError) {
+        const s = $('status');
+        s.innerText = msg;
+        s.className = 'status-bar' + (isError ? ' error' : ' info');
+        if (!isError) { clearTimeout(showStatus._t); showStatus._t = setTimeout(() => { s.innerText = ''; s.className = 'status-bar'; }, 3000); }
+    }
+    function copyText(text, label) {
+        const done = () => showStatus(label + '已复制');
+        const fallback = () => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); done(); }
+            catch (e) { showStatus('复制失败', true); window.reportError(e); }
+            ta.remove();
+        };
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(fallback);
+        else fallback();
+    }
+
+    /* ============ 求值（移植自 rawJSONEditor，保证预览语义一致） ============ */
+    function evaluate(rawJSON, scores={}, selectors={}) {
+        if (typeof rawJSON == "string") return [rawJSON]; // 纯字符串组件
+        var rawtext=[];
+        if(rawJSON.translate){
+            var translate=rawJSON.translate.replaceAll(/%(.)/g,"$1");
+            var index=0;
+            var replacer;
+            if(Array.isArray(rawJSON.with)){
+                replacer=rawJSON.with.filter(function(item){ return typeof item=="string"; });
+            }else if(typeof rawJSON.with=="object"){
+                replacer=evaluate(rawJSON.with, scores, selectors);
+            }
+            if(!replacer?.length){ replacer=undefined; }
+            while(/%[sd0-9]/.test(translate)&&replacer){
+                while(/%[sd]/.test(translate)&&replacer){
+                    translate=translate.replace(/%[sd]/,replacer[index]===undefined?"":replacer[index])
+                    index++;
+                }
+                while(/%[0-9]/.test(translate)&&replacer){
+                    var tindex=translate.match(/%([0-9])/)[1]-1;
+                    translate=translate.replace(/%([0-9])/,replacer[tindex+index]===undefined?"":replacer[tindex+index])
+                }
+            }
+            rawtext.push(translate);
+        }
+        if(rawJSON.text&&!rawJSON.translate){ rawtext.push(rawJSON.text); }
+        if(rawJSON.selector&&!rawJSON.translate&&!rawJSON.text){
+            if(selectors[rawJSON.selector]!==undefined) rawtext.push(selectors[rawJSON.selector]);
+        }
+        if(rawJSON.score&&!rawJSON.translate&&!rawJSON.text&&!rawJSON.selector){
+            if(scores[rawJSON.score.objective]?.[rawJSON.score.name]!==undefined) rawtext.push(scores[rawJSON.score.objective]?.[rawJSON.score.name]);
+        }
+        if(rawJSON.rawtext){
+            for(var i=0;i<rawJSON.rawtext.length;i++){ rawtext.push(...evaluate(rawJSON.rawtext[i], scores, selectors)); }
+        }
+        return rawtext;
+    }
+
+    /* ============ § 分词渲染（textContent 赋值，防注入） ============ */
+    function renderStyledSpans(text, container, baseColor='#fff') {
+        let color = baseColor, bold = false, italic = false, dim = false;
+        const push = str => {
+            if (!str) return;
+            const sp = document.createElement('span');
+            sp.textContent = str;
+            sp.style.color = dim ? 'rgba(255,255,255,0.15)' : color;
+            if (bold) sp.style.fontWeight = 'bold';
+            if (italic) sp.style.fontStyle = 'italic';
+            container.appendChild(sp);
+        };
+        const re = /§(.)/g;
+        let last = 0, m;
+        while ((m = re.exec(text))) {
+            push(text.slice(last, m.index));
+            const c = m[1].toLowerCase();
+            if (c === 'k') { dim = true; }
+            else if (c === 'l') { bold = true; }
+            else if (c === 'o') { italic = true; }
+            else if (c === 'r') { color = baseColor; bold = false; italic = false; dim = false; }
+            else if (SECTION_COLORS[c] !== undefined) { color = SECTION_COLORS[c]; dim = false; }
+            // 未知代码：丢弃（与 rawJSONEditor 预览行为一致）
+            last = re.lastIndex;
+        }
+        push(text.slice(last));
+    }
+    // 字体切换启发式：超出 Mojangles 覆盖范围时用 Unifont
+    function applyFont(elm, str) {
+        elm.style.fontFamily = /[က-￿]/.test(str) ? 'Unifont' : 'Minecraft';
+    }
+
+    /* ============ 节点树操作 ============ */
+    function getList(parentPath) {
+        let list = nodes;
+        for (const i of parentPath) list = list[i].children;
+        return list;
+    }
+    function getNode(path) {
+        if (!path || !path.length) return null;
+        try {
+            let list = nodes, node = null;
+            for (const i of path) { node = list[i]; if (!node) return null; list = node.children || []; }
+            return node;
+        } catch (e) { return null; }
+    }
+    function removeNode(path) {
+        const parent = getList(path.slice(0, -1));
+        parent.splice(path[path.length - 1], 1);
+        if (selectedKey && selectedKey.split('-').map(Number).join('-') === path.join('-')) selectedKey = null;
+    }
+    // 能否把 from 节点移动到 parentPath 槽位（不能移入自身子树）
+    function canPlace(from, parentPath) {
+        if (parentPath.length >= from.length && from.every((v, i) => parentPath[i] === v)) return false;
+        return true;
+    }
+    function moveNode(from, parentPath, index) {
+        const srcList = getList(from.slice(0, -1));
+        const oldIdx = from[from.length - 1];
+        const [node] = srcList.splice(oldIdx, 1);
+        let idx = index;
+        if (from.length - 1 === parentPath.length && from.slice(0, -1).every((v, i) => parentPath[i] === v) && oldIdx < index) idx--;
+        getList(parentPath).splice(idx, 0, node);
+    }
+    // 点击插入：有选中则插到其后（同一父列表），否则追加到根末尾；返回新路径 key
+    function insertAfterSelected(node) {
+        pushUndo();
+        let parentPath = [], idx = nodes.length;
+        if (selectedKey) {
+            const p = selectedKey.split('-').map(Number);
+            parentPath = p.slice(0, -1);
+            idx = p[p.length - 1] + 1;
+        }
+        getList(parentPath).splice(idx, 0, node);
+        return parentPath.length ? parentPath.join('-') + '-' + idx : String(idx);
+    }
+    function pushUndo() {
+        undoStack.push(JSON.stringify(nodes));
+        if (undoStack.length > 50) undoStack.shift();
+    }
+    function undo() {
+        const snap = undoStack.pop();
+        if (!snap) { showStatus('没有可撤销的操作'); return; }
+        try { nodes = JSON.parse(snap); selectedKey = null; renderAll(); }
+        catch (e) { showStatus('撤销失败', true); window.reportError(e); }
+    }
+
+    /* ============ 持久化 ============ */
+    function save() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveNow, 400);
+    }
+    function saveNow() {
+        clearTimeout(saveTimer);
+        try { localStorage.setItem(STORE_KEY, JSON.stringify({ v:1, nodes, test })); } catch (e) { /* 隐私模式等场景静默降级 */ }
+    }
+    function load() {
+        try {
+            const s = localStorage.getItem(STORE_KEY);
+            if (!s) return false;
+            const d = JSON.parse(s);
+            if (d && Array.isArray(d.nodes)) {
+                nodes = d.nodes;
+                if (d.test && Array.isArray(d.test.sel) && Array.isArray(d.test.score)) test = d.test;
+                return true;
+            }
+        } catch (e) { /* 损坏数据当作无存档 */ }
+        return false;
+    }
+
+    /* ============ 模型 ⇄ JSON ============ */
+    function nodeToJSON(n) {
+        switch (n.t) {
+            case 'text': return { text: n.s };
+            case 'string': return n.s;
+            case 'selector': return { selector: n.s };
+            case 'score': return { score: { name: n.name, objective: n.obj } };
+            case 'translate':
+                return { translate: n.key, with: n.withKind === 'rawtext' ? { rawtext: n.children.map(nodeToJSON) } : n.children.map(nodeToJSON) };
+            case 'rawtext': return { rawtext: n.children.map(nodeToJSON) };
+        }
+    }
+    function jsonToNodes(list) {
+        const out = [];
+        for (const o of list) out.push(...convertOne(o));
+        return out;
+    }
+    function convertOne(o) {
+        if (typeof o === 'string') return [{ t:'string', s:o }];
+        if (Array.isArray(o)) return jsonToNodes(o);
+        if (!o || typeof o !== 'object') return [{ t:'string', s:String(o) }];
+        // Java 版样式键 → § 码前缀
+        let prefix = '';
+        if (typeof o.color === 'string') { const c = JAVA_COLORS[o.color.toLowerCase()]; if (c) prefix += c; }
+        if (o.bold === true) prefix += '§l';
+        if (o.italic === true) prefix += '§o';
+        if (o.obfuscated === true) prefix += '§k';
+        const out = [];
+        if (o.rawtext) {
+            if (prefix) out.push({ t:'text', s:prefix });
+            out.push({ t:'rawtext', children: jsonToNodes(Array.isArray(o.rawtext) ? o.rawtext : []) });
+            return out;
+        }
+        if (prefix) out.push({ t:'text', s:prefix });
+        if (o.translate !== undefined) {
+            let kind = 'array', children = [];
+            if (Array.isArray(o.with)) { kind = 'array'; children = jsonToNodes(o.with); }
+            else if (o.with && typeof o.with === 'object') { kind = 'rawtext'; children = jsonToNodes(Array.isArray(o.with.rawtext) ? o.with.rawtext : []); }
+            out.push({ t:'translate', key:String(o.translate), withKind:kind, children });
+        } else if (typeof o.text === 'string') {
+            out.push({ t:'text', s:o.text });
+        } else if (o.selector !== undefined) {
+            out.push({ t:'selector', s:String(o.selector) });
+        } else if (o.score && typeof o.score === 'object') {
+            out.push({ t:'score', name:String(o.score.name ?? ''), obj:String(o.score.objective ?? '') });
+        } else {
+            out.push({ t:'string', s:JSON.stringify(o) });
+        }
+        if (Array.isArray(o.extra)) out.push(...jsonToNodes(o.extra));
+        return out;
+    }
+    function extractJSONPayload(s) {
+        const a = s.indexOf('{'), b = s.lastIndexOf('}');
+        if (a === -1 || b === -1 || b <= a) throw new Error('未找到 JSON 内容');
+        return s.slice(a, b + 1);
+    }
+
+    /* ============ 渲染 ============ */
+    const dragState = { kind: null }; // 'tpl' | 'move'
+
+    function makeSlot(parentKey, index) {
+        const s = el('span', 'rje-slot');
+        s.dataset.parent = parentKey;
+        s.dataset.index = index;
+        s.title = '拖放积木到此处';
+        s.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = dragState.kind === 'move' ? 'move' : 'copy';
+            s.classList.add('drag-over');
+        });
+        s.addEventListener('dragleave', () => s.classList.remove('drag-over'));
+        s.addEventListener('drop', onSlotDrop);
+        return s;
+    }
+    function onSlotDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const slot = e.currentTarget;
+        slot.classList.remove('drag-over');
+        const data = e.dataTransfer.getData('text/plain');
+        if (!data) return;
+        const parentKey = slot.dataset.parent;
+        const index = +slot.dataset.index;
+        const parentPath = parentKey ? parentKey.split('-').map(Number) : [];
+        try {
+            if (data.startsWith('tpl:')) {
+                const item = PALETTE_MAP[data.slice(4)];
+                if (!item) return;
+                pushUndo();
+                getList(parentPath).splice(index, 0, item.make());
+            } else if (data.startsWith('move:')) {
+                const from = data.slice(5).split('-').map(Number);
+                if (!canPlace(from, parentPath)) { showStatus('不能移动到自身内部'); return; }
+                pushUndo();
+                moveNode(from, parentPath, index);
+                selectedKey = null;
+            } else return;
+            renderAll();
+        } catch (err) { showStatus(err.toString().split('\n')[0], true); window.reportError(err); }
+    }
+    function fillChipBody(body, node) {
+        body.textContent = '';
+        if (node.t === 'text' && node.s === '\n') {
+            body.textContent = '⏎';
+            body.classList.add('chip-nl');
+            return;
+        }
+        if (node.s === '') {
+            body.textContent = node.t === 'string' ? '空字符串' : '空文本';
+            body.classList.add('chip-empty');
+            return;
+        }
+        renderStyledSpans(node.s, body);
+        applyFont(body, node.s);
+        // 纯 § 码（如仅 §l）经分词后无可见字符，回退显示原文便于查看编辑
+        if (!body.textContent) { body.textContent = node.s; body.classList.remove('chip-nl'); }
+    }
+    function makeChip(node, pathKey) {
+        const chip = el('div', 'chip chip-' + node.t);
+        chip.dataset.path = pathKey;
+        chip.draggable = true;
+        chip.title = TYPE_LABEL[node.t] || '';
+        const del = el('span', 'chip-del', '×');
+        del.title = '删除';
+        del.addEventListener('click', e => {
+            e.stopPropagation();
+            pushUndo();
+            removeNode(pathKey.split('-').map(Number));
+            renderAll();
+        });
+        chip.appendChild(del);
+
+        if (node.t === 'text' || node.t === 'string') {
+            const body = el('span', 'chip-body');
+            fillChipBody(body, node);
+            chip.appendChild(body);
+        } else if (node.t === 'translate') {
+            const head = el('span', 'chip-head');
+            head.appendChild(el('span', 'chip-badge', '译'));
+            const key = el('span', 'chip-body');
+            if (node.key) { renderStyledSpans(node.key, key); applyFont(key, node.key); }
+            else { key.textContent = '翻译键'; key.classList.add('chip-empty'); }
+            head.appendChild(key);
+            head.appendChild(el('span', 'chip-with', node.withKind === 'rawtext' ? 'with{rawtext}' : 'with[]'));
+            const tog = el('button', 'chip-toggle', '⇄');
+            tog.type = 'button';
+            tog.title = '切换 with 类型（数组 / rawtext）';
+            tog.addEventListener('click', e => {
+                e.stopPropagation();
+                pushUndo();
+                node.withKind = node.withKind === 'array' ? 'rawtext' : 'array';
+                renderAll();
+            });
+            head.appendChild(tog);
+            chip.appendChild(head);
+            const kids = el('span', 'chip-children');
+            chip.appendChild(kids);
+            renderList(node.children, kids, pathKey);
+        } else if (node.t === 'score') {
+            const head = el('span', 'chip-head');
+            head.appendChild(el('span', 'chip-badge', '分'));
+            const nIn = el('input', 'chip-mini');
+            nIn.type = 'text'; nIn.placeholder = '名字*'; nIn.value = node.name;
+            nIn.addEventListener('input', () => { node.name = nIn.value; refreshOutputs(); });
+            nIn.addEventListener('change', save);
+            head.appendChild(nIn);
+            const oIn = el('input', 'chip-mini');
+            oIn.type = 'text'; oIn.placeholder = '目标'; oIn.value = node.obj;
+            oIn.addEventListener('input', () => { node.obj = oIn.value; refreshOutputs(); });
+            oIn.addEventListener('change', save);
+            head.appendChild(oIn);
+            chip.appendChild(head);
+        } else if (node.t === 'selector') {
+            const head = el('span', 'chip-head');
+            head.appendChild(el('span', 'chip-badge', '选'));
+            const sIn = el('input', 'chip-mini');
+            sIn.type = 'text'; sIn.placeholder = '@s'; sIn.value = node.s; sIn.style.width = '100px';
+            sIn.addEventListener('input', () => { node.s = sIn.value; refreshOutputs(); });
+            sIn.addEventListener('change', save);
+            head.appendChild(sIn);
+            chip.appendChild(head);
+        } else if (node.t === 'rawtext') {
+            const head = el('span', 'chip-head');
+            head.appendChild(el('span', 'chip-badge', '组'));
+            chip.appendChild(head);
+            const kids = el('span', 'chip-children');
+            chip.appendChild(kids);
+            renderList(node.children, kids, pathKey);
+        }
+
+        chip.addEventListener('click', e => {
+            if (e.target.closest('input,button')) return;
+            select(pathKey);
+        });
+        chip.addEventListener('dragstart', e => {
+            if (e.target.closest('input,button')) { e.preventDefault(); return; }
+            dragState.kind = 'move';
+            chip.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', 'move:' + pathKey);
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
+        return chip;
+    }
+    function renderList(list, container, parentKey) {
+        container.appendChild(makeSlot(parentKey, 0));
+        list.forEach((n, i) => {
+            const key = parentKey ? parentKey + '-' + i : String(i);
+            container.appendChild(makeChip(n, key));
+            container.appendChild(makeSlot(parentKey, i + 1));
+        });
+    }
+    function renderAll() {
+        // 清掉失效的选中态
+        if (selectedKey && !getNode(selectedKey.split('-').map(Number))) selectedKey = null;
+        const strip = $('strip');
+        strip.textContent = '';
+        if (!nodes.length) {
+            strip.appendChild(el('div', 'rje-empty', '从左侧积木库拖动积木到槽位开始拼装（手机端直接点击积木）'));
+        }
+        renderList(nodes, strip, '');
+        if (selectedKey) {
+            const cur = strip.querySelector(`[data-path="${selectedKey}"]`);
+            if (cur) cur.classList.add('selected');
+        }
+        updateEditRow();
+        refreshOutputs();
+        save();
+    }
+    function select(pathKey) {
+        selectedKey = pathKey;
+        document.querySelectorAll('#strip .chip.selected').forEach(c => c.classList.remove('selected'));
+        const cur = document.querySelector(`#strip [data-path="${pathKey}"]`);
+        if (cur) cur.classList.add('selected');
+        updateEditRow();
+    }
+    function updateChipBody(pathKey) {
+        const node = getNode(pathKey.split('-').map(Number));
+        if (!node) return;
+        const chip = document.querySelector(`#strip [data-path="${pathKey}"]`);
+        if (!chip) return;
+        const body = chip.querySelector('.chip-body');
+        if (body && (node.t === 'text' || node.t === 'string' || node.t === 'translate')) {
+            if (node.t === 'translate') {
+                body.textContent = '';
+                if (node.key) { renderStyledSpans(node.key, body); applyFont(body, node.key); }
+                else { body.textContent = '翻译键'; body.classList.add('chip-empty'); }
+            } else fillChipBody(body, node);
+        }
+    }
+
+    /* ============ 编辑行 ============ */
+    function updateEditRow() {
+        const row = $('editRow');
+        const node = selectedKey ? getNode(selectedKey.split('-').map(Number)) : null;
+        if (!node) { row.hidden = true; return; }
+        row.hidden = false;
+        $('editType').textContent = TYPE_LABEL[node.t] || node.t;
+        const input = $('editInput');
+        if (node.t === 'text' || node.t === 'string') {
+            input.disabled = false; input.value = node.s;
+            input.placeholder = node.t === 'string' ? '字符串内容（原样输出）' : '文本内容，可用 § 样式码';
+        } else if (node.t === 'translate') {
+            input.disabled = false; input.value = node.key;
+            input.placeholder = '翻译键，如 %s你好（%% 转义）';
+        } else if (node.t === 'rawtext') {
+            input.disabled = true; input.value = '';
+            input.placeholder = '组内直接拖入积木';
+        } else {
+            input.disabled = true; input.value = '';
+            input.placeholder = '在画布积木内直接编辑';
+        }
+    }
+    $('editInput').addEventListener('input', () => {
+        const node = selectedKey ? getNode(selectedKey.split('-').map(Number)) : null;
+        if (!node) return;
+        if (node.t === 'text' || node.t === 'string') node.s = $('editInput').value;
+        else if (node.t === 'translate') node.key = $('editInput').value;
+        else return;
+        updateChipBody(selectedKey);
+        refreshOutputs();
+        save();
+    });
+    $('editInput').addEventListener('blur', renderAll);
+    $('editInput').addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const node = selectedKey ? getNode(selectedKey.split('-').map(Number)) : null;
+        if (node && (node.t === 'text' || node.t === 'string')) {
+            // 回车：在其后插入新的文本积木，方便连续输入
+            const key = insertAfterSelected({ t:'text', s:'' });
+            renderAll();
+            select(key);
+            $('editInput').focus();
+        } else $('editInput').blur();
+    });
+    $('editDel').addEventListener('click', () => {
+        if (!selectedKey) return;
+        pushUndo();
+        removeNode(selectedKey.split('-').map(Number));
+        renderAll();
+    });
+
+    /* ============ 积木库 ============ */
+    function buildPalette() {
+        const contentBox = $('palContent');
+        PALETTE.forEach(item => contentBox.appendChild(makePaletteCard(item)));
+        const styleBox = $('palStyle');
+        STYLE_ITEMS.forEach(item => styleBox.appendChild(makePaletteCard(item)));
+        const colorBox = $('palColors');
+        COLOR_ITEMS.forEach(item => {
+            const b = el('span', 'pal-color');
+            b.style.background = item.hex;
+            b.title = '§' + item.code;
+            b.draggable = true;
+            b.dataset.tpl = item.id;
+            const t = el('span', '', '§' + item.code);
+            b.appendChild(t);
+            b.addEventListener('dragstart', e => {
+                dragState.kind = 'tpl';
+                e.dataTransfer.setData('text/plain', 'tpl:' + item.id);
+                e.dataTransfer.effectAllowed = 'copy';
+            });
+            b.addEventListener('click', () => paletteClick(item));
+            colorBox.appendChild(b);
+        });
+    }
+    function makePaletteCard(item) {
+        const card = el('div', 'pal-item');
+        card.draggable = true;
+        card.dataset.tpl = item.id;
+        const dot = el('span', 'pal-dot');
+        dot.style.background = item.dot || '#94a3b8';
+        card.appendChild(dot);
+        card.appendChild(el('span', 'pal-name', item.name));
+        if (item.code) card.appendChild(el('span', 'pal-code', item.code));
+        card.addEventListener('dragstart', e => {
+            dragState.kind = 'tpl';
+            e.dataTransfer.setData('text/plain', 'tpl:' + item.id);
+            e.dataTransfer.effectAllowed = 'copy';
+        });
+        card.addEventListener('click', () => paletteClick(item));
+        return card;
+    }
+    function paletteClick(item) {
+        try {
+            const key = insertAfterSelected(item.make());
+            renderAll();
+            select(key);
+            const node = getNode(key.split('-').map(Number));
+            if (node && (node.t === 'text' || node.t === 'string' || node.t === 'translate')) $('editInput').focus();
+        } catch (err) { showStatus(err.toString().split('\n')[0], true); window.reportError(err); }
+    }
+    // 拖拽结束后清理残留高亮
+    document.addEventListener('dragend', () => {
+        dragState.kind = null;
+        document.querySelectorAll('.rje-slot.drag-over').forEach(s => s.classList.remove('drag-over'));
+    });
+    document.addEventListener('drop', e => {
+        if (e.target.closest('#strip')) return;
+        e.preventDefault(); // 防止把积木拖到页面其他位置触发浏览器默认行为
+    });
+    document.addEventListener('dragover', e => {
+        if (!e.target.closest('#strip')) e.preventDefault();
+    });
+
+    /* ============ 测试值 ============ */
+    function buildTestMaps() {
+        const scores = {}, selectors = {};
+        test.sel.forEach(r => { if (r.sel) selectors[r.sel] = r.name; });
+        test.score.forEach(r => {
+            if (r.obj && r.name) {
+                if (!scores[r.obj]) scores[r.obj] = {};
+                scores[r.obj][r.name] = r.val;
+            }
+        });
+        return { scores, selectors };
+    }
+    function renderTestTables() {
+        const selTb = $('selTbody');
+        selTb.textContent = '';
+        test.sel.forEach((r, i) => {
+            const tr = document.createElement('tr');
+            const td1 = document.createElement('td'), td2 = document.createElement('td'), td3 = document.createElement('td');
+            const i1 = document.createElement('input'); i1.type = 'text'; i1.value = r.sel; i1.placeholder = '@s';
+            i1.addEventListener('input', () => { r.sel = i1.value; refreshOutputs(); save(); });
+            const i2 = document.createElement('input'); i2.type = 'text'; i2.value = r.name; i2.placeholder = '玩家';
+            i2.addEventListener('input', () => { r.name = i2.value; refreshOutputs(); save(); });
+            const del = document.createElement('button'); del.type = 'button'; del.className = 'btn-mini danger'; del.textContent = '×';
+            del.addEventListener('click', () => { test.sel.splice(i, 1); renderTestTables(); refreshOutputs(); save(); });
+            td1.appendChild(i1); td2.appendChild(i2); td3.appendChild(del);
+            tr.append(td1, td2, td3);
+            selTb.appendChild(tr);
+        });
+        const scTb = $('scoreTbody');
+        scTb.textContent = '';
+        test.score.forEach((r, i) => {
+            const tr = document.createElement('tr');
+            const tds = [0, 1, 2, 3].map(() => document.createElement('td'));
+            const i1 = document.createElement('input'); i1.type = 'text'; i1.value = r.obj; i1.placeholder = 'objective';
+            i1.addEventListener('input', () => { r.obj = i1.value; refreshOutputs(); save(); });
+            const i2 = document.createElement('input'); i2.type = 'text'; i2.value = r.name; i2.placeholder = '名字*';
+            i2.addEventListener('input', () => { r.name = i2.value; refreshOutputs(); save(); });
+            const i3 = document.createElement('input'); i3.type = 'text'; i3.value = r.val; i3.placeholder = '114514';
+            i3.addEventListener('input', () => { r.val = i3.value; refreshOutputs(); save(); });
+            const del = document.createElement('button'); del.type = 'button'; del.className = 'btn-mini danger'; del.textContent = '×';
+            del.addEventListener('click', () => { test.score.splice(i, 1); renderTestTables(); refreshOutputs(); save(); });
+            tds[0].appendChild(i1); tds[1].appendChild(i2); tds[2].appendChild(i3); tds[3].appendChild(del);
+            tr.append(...tds);
+            scTb.appendChild(tr);
+        });
+    }
+
+    /* ============ 输出 ============ */
+    function refreshOutputs() {
+        const json = JSON.stringify({ rawtext: nodes.map(nodeToJSON) });
+        $('jsonOut').value = json;
+        updateCommand();
+        const { scores, selectors } = buildTestMaps();
+        let text = '';
+        try { text = evaluate(JSON.parse(json), scores, selectors).join(''); }
+        catch (e) { /* 理论上不会失败 */ }
+        const line = $('previewLine');
+        line.textContent = '';
+        if (text) renderStyledSpans(text, line);
+        else {
+            const ph = el('span', '', '（空）');
+            ph.style.color = 'rgba(255,255,255,0.3)';
+            line.appendChild(ph);
+        }
+        applyFont(line, text || ' ');
+    }
+    function updateCommand() {
+        const v = $('cmdType').value, t = $('cmdTarget').value || '@s';
+        const json = $('jsonOut').value || '{}';
+        $('cmdOut').value = v === 'tellraw' ? `/tellraw ${t} ${json}` : `/titleraw ${t} ${v} ${json}`;
+    }
+
+    /* ============ 导入 ============ */
+    function doImport() {
+        try {
+            const obj = JSON.parse(extractJSONPayload($('jsonOut').value));
+            const list = obj && obj.rawtext ? obj.rawtext : (Array.isArray(obj) ? obj : [obj]);
+            const imported = jsonToNodes(list);
+            if (!imported.length) throw new Error('没有可识别的内容');
+            pushUndo();
+            nodes = imported;
+            selectedKey = null;
+            renderAll();
+            showStatus('导入成功');
+        } catch (e) {
+            showStatus('导入失败: ' + (e.message || e), true);
+            window.reportError(e);
+        }
+    }
+
+    /* ============ 初始化 ============ */
+    buildPalette();
+    if (!load()) {
+        // 首次使用给出一个示例
+        nodes = [
+            { t:'text', s:'§e你好，' },
+            { t:'selector', s:'@s' },
+            { t:'text', s:'§r！\n§b分数：' },
+            { t:'score', name:'*', obj:'score' },
+        ];
+        test = { sel:[{sel:'@s', name:'玩家'}], score:[{obj:'score', name:'*', val:'114514'}] };
+    }
+    renderTestTables();
+    renderAll();
+
+    $('btnUndo').addEventListener('click', undo);
+    $('btnClear').addEventListener('click', () => {
+        if (!nodes.length || !confirm('清空当前内容？')) return;
+        pushUndo();
+        nodes = [];
+        selectedKey = null;
+        renderAll();
+    });
+    $('btnCopyJson').addEventListener('click', () => copyText($('jsonOut').value, 'JSON '));
+    $('btnCopyCmd').addEventListener('click', () => copyText($('cmdOut').value, '命令 '));
+    $('btnImport').addEventListener('click', doImport);
+    $('cmdType').addEventListener('change', updateCommand);
+    $('cmdTarget').addEventListener('change', updateCommand);
+    $('btnAddSel').addEventListener('click', () => { test.sel.push({ sel:'@s', name:'' }); renderTestTables(); save(); });
+    $('btnAddScore').addEventListener('click', () => { test.score.push({ obj:'', name:'', val:'' }); renderTestTables(); save(); });
+
+    // 点击画布空白处取消选中
+    $('strip').addEventListener('click', e => {
+        if (e.target === $('strip')) { selectedKey = null; select(null); }
+    });
+
+    // 键盘快捷键
+    function isEditableEl(elm) {
+        return elm && (elm.tagName === 'INPUT' || elm.tagName === 'TEXTAREA' || elm.tagName === 'SELECT' || elm.isContentEditable);
+    }
+    document.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !isEditableEl(document.activeElement)) {
+            e.preventDefault();
+            undo();
+        } else if (e.key === 'Escape' && !isEditableEl(document.activeElement) && selectedKey) {
+            selectedKey = null;
+            select(null);
+        }
+    });
+
+    // 关页前落盘
+    window.addEventListener('beforeunload', saveNow);
+</script>
+</body>
+</html>
