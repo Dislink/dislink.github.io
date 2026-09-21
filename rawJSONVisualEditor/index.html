@@ -172,7 +172,7 @@
             padding: 14px 0;
         }
         .rje-slot {
-            display: inline-block;
+            display: none;
             width: 46px;
             height: 24px;
             border: 1.5px dashed rgba(255,255,255,0.3);
@@ -182,6 +182,10 @@
             flex-shrink: 0;
             transition: all 0.12s;
         }
+        /* 空列表的槽位常显，作为必选占位符 */
+        .rje-slot.slot-required { display: inline-block; }
+        /* 拖动积木时显示全部槽位 */
+        body.rje-dragging .rje-slot { display: inline-block; }
         .rje-slot:hover {
             border-color: rgba(255,255,255,0.55);
         }
@@ -431,7 +435,7 @@
                         <input type="text" id="editInput" placeholder="输入内容">
                         <button type="button" class="btn-mini danger" id="editDel">删除</button>
                     </div>
-                    <p class="note">提示：把积木拖到虚线槽位（手机端直接点击积木即可插入）；点击画布中的积木选中后可在下方编辑内容；样式/颜色积木会插入到选中积木之后；Ctrl+Z 撤销。随机文本(§k)以淡色透明表示。</p>
+                    <p class="note">提示：拖动积木时槽位会出现（手机端直接点击积木即可插入）；点击画布中的积木选中后可在下方编辑内容；样式/颜色积木会插入到选中积木之后；Ctrl+Z 撤销。随机文本(§k)以淡色透明表示。</p>
                 </div>
             </div>
 
@@ -794,8 +798,9 @@
     /* ============ 渲染 ============ */
     const dragState = { kind: null }; // 'tpl' | 'move'
 
-    function makeSlot(parentKey, index) {
+    function makeSlot(parentKey, index, required) {
         const s = el('span', 'rje-slot');
+        if (required) s.classList.add('slot-required');
         s.dataset.parent = parentKey;
         s.dataset.index = index;
         s.title = '拖放积木到此处';
@@ -806,6 +811,7 @@
         });
         s.addEventListener('dragleave', () => s.classList.remove('drag-over'));
         s.addEventListener('drop', onSlotDrop);
+        s.addEventListener('drop', () => document.body.classList.remove('rje-dragging'));
         return s;
     }
     function onSlotDrop(e) {
@@ -932,6 +938,7 @@
             if (e.target.closest('input,button')) { e.preventDefault(); return; }
             dragState.kind = 'move';
             chip.classList.add('dragging');
+            document.body.classList.add('rje-dragging');
             e.dataTransfer.setData('text/plain', 'move:' + pathKey);
             e.dataTransfer.effectAllowed = 'move';
         });
@@ -939,11 +946,11 @@
         return chip;
     }
     function renderList(list, container, parentKey) {
-        container.appendChild(makeSlot(parentKey, 0));
+        container.appendChild(makeSlot(parentKey, 0, !list.length));
         list.forEach((n, i) => {
             const key = parentKey ? parentKey + '-' + i : String(i);
             container.appendChild(makeChip(n, key));
-            container.appendChild(makeSlot(parentKey, i + 1));
+            container.appendChild(makeSlot(parentKey, i + 1, false));
         });
     }
     function renderAll() {
@@ -1054,6 +1061,7 @@
             b.appendChild(t);
             b.addEventListener('dragstart', e => {
                 dragState.kind = 'tpl';
+                document.body.classList.add('rje-dragging');
                 e.dataTransfer.setData('text/plain', 'tpl:' + item.id);
                 e.dataTransfer.effectAllowed = 'copy';
             });
@@ -1072,6 +1080,7 @@
         if (item.code) card.appendChild(el('span', 'pal-code', item.code));
         card.addEventListener('dragstart', e => {
             dragState.kind = 'tpl';
+            document.body.classList.add('rje-dragging');
             e.dataTransfer.setData('text/plain', 'tpl:' + item.id);
             e.dataTransfer.effectAllowed = 'copy';
         });
@@ -1090,6 +1099,7 @@
     // 拖拽结束后清理残留高亮
     document.addEventListener('dragend', () => {
         dragState.kind = null;
+        document.body.classList.remove('rje-dragging');
         document.querySelectorAll('.rje-slot.drag-over').forEach(s => s.classList.remove('drag-over'));
     });
     document.addEventListener('drop', e => {
