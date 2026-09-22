@@ -375,7 +375,12 @@
             overflow-wrap: normal;
             overflow-x: auto;
         }
-
+        .rje-editrow .er-hint {
+            font-size: 0.72rem;
+            color: var(--color-text-muted);
+            flex-basis: 100%;
+            margin: 0;
+        }
         /* --- 顶栏小按钮 --- */
         .btn-mini {
             font-family: var(--font-sans);
@@ -489,8 +494,9 @@
                         <span class="er-label" id="editType"></span>
                         <textarea id="editInput" rows="2" placeholder="输入内容"></textarea>
                         <button type="button" class="btn-mini danger" id="editDel">删除</button>
+                        <p class="er-hint">回车：换行 · Ctrl+回车：新建积木并继续输入 · Shift+回车：换行（兼容）· Esc：完成</p>
                     </div>
-                    <p class="note">提示：拖动积木时槽位会出现（手机端直接点击积木即可插入）；点击画布中的积木选中后可在下方编辑内容；样式/颜色积木会插入到选中积木之后；Ctrl+Z 撤销。随机文本(§k)以淡色透明表示。</p>
+                    <p class="note">提示：拖动积木时槽位会出现（手机端直接点击积木即可插入）；点击画布中的积木选中后可在下方编辑内容；样式/颜色积木会插入到选中积木之后；编辑框内回车换行、Ctrl+回车新建文本积木；Ctrl+Z 撤销。随机文本(§k)以淡色透明表示。</p>
                 </div>
             </div>
 
@@ -696,6 +702,8 @@
                     const nl = el('span', 'pv-nl', '⏎');
                     nl.title = '换行';
                     container.appendChild(nl);
+                    // 保留真实换行字符，预览（pre-wrap）据此真正折行
+                    container.appendChild(document.createTextNode('\n'));
                 }
                 if (!ln) return;
                 const sp = document.createElement('span');
@@ -1123,7 +1131,7 @@
         if (node.t === 'text' || node.t === 'string') {
             input.disabled = false; input.value = node.s;
             input.rows = fit(node.s);
-            input.placeholder = node.t === 'string' ? '字符串内容（原样输出）' : '文本内容，可用 § 样式码，回车换行';
+            input.placeholder = node.t === 'string' ? '字符串内容（原样输出）' : '文本内容，可用 § 样式码，回车换行，Ctrl+回车新建积木';
         } else if (node.t === 'translate') {
             input.disabled = false; input.value = node.key;
             input.rows = fit(node.key);
@@ -1151,16 +1159,27 @@
     $('editInput').addEventListener('blur', renderAll);
     $('editInput').addEventListener('keydown', e => {
         if (e.key === 'Escape') { e.preventDefault(); $('editInput').blur(); return; }
-        if (e.key !== 'Enter' || e.shiftKey) return; // Shift+回车插入换行
-        e.preventDefault();
+        if (e.key !== 'Enter') return;
         const node = selectedKey ? getNode(selectedKey.split('-').map(Number)) : null;
-        if (node && (node.t === 'text' || node.t === 'string')) {
-            // 回车：在其后插入新的文本积木，方便连续输入
-            const key = insertAfterSelected({ t:'text', s:'' });
-            renderAll();
-            select(key);
-            $('editInput').focus();
-        } else $('editInput').blur();
+        if (!node || !(node.t === 'text' || node.t === 'string')) {
+            if (!e.ctrlKey) { e.preventDefault(); $('editInput').blur(); }
+            return;
+        }
+        if (!e.ctrlKey) {
+            // 回车 / Shift+回车：插入换行（换行在文本积木内生效，画布/预览拆行）
+            e.preventDefault();
+            const inp = $('editInput');
+            const s = inp.selectionStart, t = inp.selectionEnd;
+            inp.setRangeText('\n', s, t, 'end');
+            inp.dispatchEvent(new Event('input'));
+            return;
+        }
+        // Ctrl+回车：在其后插入新的文本积木并聚焦，方便连续输入
+        e.preventDefault();
+        const key = insertAfterSelected({ t:'text', s:'' });
+        renderAll();
+        select(key);
+        $('editInput').focus();
     });
     $('editDel').addEventListener('click', () => {
         if (!selectedKey) return;
@@ -1349,6 +1368,18 @@
     }
     bindHoverHL($('strip'));
     bindHoverHL($('previewLine'));
+    // 点击预览文本段：选中对应积木并聚焦到编辑框（滚动到画布中的积木）
+    $('previewLine').addEventListener('click', e => {
+        const t = e.target.closest('[data-path]');
+        if (!t) return;
+        const pathKey = t.dataset.path;
+        const node = getNode(pathKey.split('-').map(Number));
+        if (!node) return;
+        select(pathKey);
+        const chips = document.querySelectorAll(`#strip [data-path="${pathKey}"]`);
+        if (chips.length) chips[0].scrollIntoView({ block: 'nearest' });
+        if (node.t === 'text' || node.t === 'string' || node.t === 'translate') $('editInput').focus();
+    });
     function updateCommand() {
         const v = $('cmdType').value, t = $('cmdTarget').value || '@s';
         const json = $('jsonOut').value || '{}';
