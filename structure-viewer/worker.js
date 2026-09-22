@@ -117,7 +117,8 @@ function collectGeometry(core){
     const F32 = core.HEAPF32, U32 = core.HEAPU32;
     const posP = core._core_positions_ptr(), uvP = core._core_uvs_ptr(),
           idxP = core._core_indices_ptr(), rgbP = core._core_palette_rgb_ptr();
-    // 每个分组是一段连续的顶点/索引区间,主线程用 subarray 直接建几何
+    // 每个分组是一段连续的顶点/索引区间;同一 (mid,face) 键的多个区间在 worker 内
+    // 合并成一个拼接好的索引数组,主线程只做 BufferAttribute 包装,不再分桶。
     const gc = core._core_group_count();
     const groups = new Int32Array(gc * 6);
     const gi = core._malloc(24);
@@ -132,18 +133,36 @@ function collectGeometry(core){
     const idx = new Uint32Array(U32.buffer.slice(idxP, idxP + ic*4));
     const pal = core._core_palette_size();
     const palRgb = F32.slice(rgbP>>2, (rgbP>>2) + pal*3);
-    // 包围盒(C++ 侧坐标已平移到 0 基,这里直接扫一遍)
-    const mn = [1e9,1e9,1e9], mx = [-1e9,-1e9,-1e9];
-    for (let v = 0; v < vc; v++){
-        const x = pos[v*3], y = pos[v*3+1], z = pos[v*3+2];
-        if (x < mn[0]) mn[0]=x; if (x > mx[0]) mx[0]=x;
-        if (y < mn[1]) mn[1]=y; if (y > mx[1]) mx[1]=y;
-        if (z < mn[2]) mn[2]=z; if (z > mx[2]) mx[2]=z;
+    // 合并同 (mid,face) 键的索引区间。两遍:先数每个键的 icount 总量,再一次性
+    // 拷贝到预分配的 Uint32Array(避免 JS number[] 百万级 push/装箱)。
+    const keys = new Map();   // key = mid*16+face -> {m, face, icount}
+    for (let i = 0; i < groups.length; i += 6){
+        const icount = groups[i+5];
+        if (icount <= 0) continue;
+        const key = groups[i] * 16 + groups[i+1];
+        let g = keys.get(key);
+        if (!g) keys.set(key, g = { m: groups[i], face: groups[i+1], icount: 0 });
+        g.icount += icount;
+    }
+    const merged = new Map();
+    for (const [key, g] of keys) merged.set(key, { g, ix: new Uint32Array(g.icount), off: 0 });
+    for (let i = 0; i < groups.length; i += 6){
+        const icount = groups[i+5];
+        if (icount <= 0) continue;
+        const e = merged.get(groups[i] * 16 + groups[i+1]);
+        e.ix.set(idx.subarray(groups[i+4], groups[i+4] + icount), e.off);
+        e.off += icount;
     }
     const info = core._malloc(24);
     core._core_region_info(info);
     const info6 = new Int32Array(core.HEAPU32.buffer, info, 6).slice();
     core._free(info);
+    // 包围盒直接从 wasm 取(C++ 网格化时已算好 mn 并把坐标平移到 0 基)
+    const bb = core._malloc(24);
+    core._core_bbox(bb);
+    const bbox6 = new Float32Array(core.HEAPF32.buffer, bb, 6).slice();
+    core._free(bb);
+    const mn = [bbox6[0], bbox6[1], bbox6[2]], mx = [bbox6[3], bbox6[4], bbox6[5]];
     // 调色板名
     const names = [];
     const keyPtr = core._malloc(256);
@@ -158,7 +177,7 @@ function collectGeometry(core){
     core._free(keyPtr);
     return { vc, ic, groups, pos, uv, idx, palRgb, pal, names, info6,
              blocksTotal: core._core_blocks_total(), blocksNonair: core._core_blocks_nonair(),
-             regions: core._core_region_count(), mn, mx };
+             regions: core._core_region_count(), merged, mn, mx };
 }
 
 self.onmessage = async (ev) => {
@@ -176,9 +195,14 @@ self.onmessage = async (ev) => {
             }
             postMessage({ type: 'progress', stage: 'geometry' });
             const g = collectGeometry(Core);
-            postMessage({ type: 'geometry', ...g }, [
-                g.pos.buffer, g.uv.buffer, g.idx.buffer, g.palRgb.buffer, g.groups.buffer,
-            ]);
+            // 合并后的索引数组逐键转移;原始 idx 不再需要,不回传主线程
+            const transfers = [g.pos.buffer, g.uv.buffer, g.palRgb.buffer, g.groups.buffer];
+            const mergedArr = [];
+            for (const [, e] of g.merged){ mergedArr.push([e.g.m, e.g.face, e.ix]); transfers.push(e.ix.buffer); }
+            postMessage({ type: 'geometry', vc: g.vc, ic: g.ic, groups: g.groups,
+                          pos: g.pos, uv: g.uv, palRgb: g.palRgb, pal: g.pal, names: g.names,
+                          info6: g.info6, blocksTotal: g.blocksTotal, blocksNonair: g.blocksNonair,
+                          regions: g.regions, mn: g.mn, mx: g.mx, merged: mergedArr }, transfers);
         } else if (msg.type === 'slice'){
             if (!Core){ postMessage({ type: 'slice', level: msg.level, vc: 0, ic: 0 }); return; }
             const vc = Core._core_slice(msg.level);

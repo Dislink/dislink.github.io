@@ -580,7 +580,7 @@ function buildFromGeometry(m){
         return;
     }
 
-    const pos = m.pos, uv = m.uv, idx = m.idx, groups = m.groups;
+    const pos = m.pos, uv = m.uv;
     const F32 = m.palRgb;
     const names = m.names;
     const pal = m.pal;
@@ -592,33 +592,20 @@ function buildFromGeometry(m){
     scene.add(meshGroup);
     allMeshes = [];
 
-    // 合并同 (mid,face) 区间:每个键收集索引子区间,共享 position/uv attribute
-    // (区间数量可达百万级,但键通常只有几百个;索引值是全局的,直接拼接即可)
-    const keys = new Map();   // key = mid*16+face -> {m, face, ix: number[], icount}
-    for (let i = 0; i < groups.length; i += 6){
-        const mid = groups[i], face = groups[i+1];
-        const istart = groups[i+4], icount = groups[i+5];
-        if (icount <= 0) continue;
-        const key = mid * 16 + face;
-        let g = keys.get(key);
-        if (!g){ g = { m: mid, face: face, ix: [], icount: 0 }; keys.set(key, g); }
-        for (let t = istart; t < istart + icount; t++) g.ix.push(idx[t]);
-        g.icount += icount;
-    }
-
+    // worker 已按 (mid,face) 键合并好索引数组([mid,face,Uint32Array] 列表),
+    // 主线程只做 BufferAttribute 包装,零逐索引工作。
     clipYEl.max = String(Math.max(0, Math.round(mx[1] - mn[1])));
     clipYEl.value = clipYEl.max;
 
     const posAttr = new THREE.BufferAttribute(pos, 3);
     const uvAttr = new THREE.BufferAttribute(uv, 2);
-    for (const [, g] of keys){
-        const m2 = g.m;
+    for (const [m2, face, ix] of m.merged){
         const cr = F32[m2*3] || .7, cg = F32[m2*3+1] || .7, cb = F32[m2*3+2] || .7;
         const nm = names[m2] || ('block'+m2);
         const isTrans = /(water|glass|leaves|ice|lava|slime|honey|vine|flowing)/i.test(nm);
         let baseColor = new THREE.Color(cr, cg, cb);
         if (/leaves|vine/.test(nm)) baseColor = new THREE.Color(0.30, 0.64, 0.30);
-        else if (/grass_block/.test(nm)) baseColor = (g.face === 2)
+        else if (/grass_block/.test(nm)) baseColor = (face === 2)
             ? new THREE.Color(0.42, 0.72, 0.30)   // 顶面绿
             : new THREE.Color(0.53, 0.40, 0.27);  // 其余泥土色
         const mat = new THREE.MeshBasicMaterial(
@@ -629,10 +616,10 @@ function buildFromGeometry(m){
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', posAttr);
         geo.setAttribute('uv', uvAttr);
-        geo.setIndex(new THREE.BufferAttribute(new Uint32Array(g.ix), 1));
+        geo.setIndex(new THREE.BufferAttribute(ix, 1));
         const mesh = new THREE.Mesh(geo, mat);
         meshGroup.add(mesh);
-        allMeshes.push({ mesh: mesh, nm: nm, face: g.face });
+        allMeshes.push({ mesh: mesh, nm: nm, face: face });
         texQueue.push(allMeshes[allMeshes.length-1]);
     }
 
