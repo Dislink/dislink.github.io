@@ -318,6 +318,14 @@
         .chip.selected { box-shadow: 0 0 0 2px #46c0ff; }
         .chip.hl { box-shadow: 0 0 0 2px #ffb74d; }
         .chip.dragging { opacity: 0.4; }
+        /* 类型不符警示：translate 的 with[] 数组内仅支持文本积木 */
+        .chip-invalid {
+            background: rgba(239,68,68,0.18) !important;
+            border: 1px solid rgba(239,68,68,0.8) !important;
+        }
+        .chip-children-invalid {
+            border-left-color: rgba(239,68,68,0.8);
+        }
         /* 换行标记徽章（拆行衔接处） */
         .chip-brk {
             display: inline-flex;
@@ -332,9 +340,15 @@
             cursor: default;
         }
         .pv-seg { border-radius: 4px; }
+        /* with[] 数组内类型不符积木的预览段：红色描边 */
+        .pv-seg.pv-invalid { box-shadow: 0 0 0 2px rgba(239,68,68,0.55); }
         .pv-seg.hl {
             background: rgba(255,183,77,0.16);
             box-shadow: 0 0 0 2px rgba(255,183,77,0.4);
+        }
+        /* 类型不符的预览段被悬停时保持红色 */
+        .pv-seg.pv-invalid.hl {
+            box-shadow: 0 0 0 2px rgba(239,68,68,0.8);
         }
         /* 预览中的换行符可视化 */
         .pv-nl {
@@ -503,7 +517,7 @@
                         <button type="button" class="btn-mini danger" id="editDel">删除</button>
                         <p class="er-hint" id="erHint">回车：换行 · Ctrl+回车：新建积木并继续输入 · Shift+回车：换行（兼容）· Esc：完成</p>
                     </div>
-                    <p class="note">提示：拖动积木时槽位会出现（手机端直接点击积木即可插入）；点击画布中的积木选中后可在下方编辑内容；样式/颜色积木会插入到选中积木之后；编辑框内回车换行、Ctrl+回车新建文本积木；Ctrl+Z 撤销。随机文本(§k)以淡色透明表示。</p>
+                    <p class="note">提示：拖动积木时槽位会出现（手机端直接点击积木即可插入）；点击画布中的积木选中后可在下方编辑内容；样式/颜色积木会插入到选中积木之后；编辑框内回车换行、Ctrl+回车新建文本积木；Ctrl+Z 撤销。随机文本(§k)以淡色透明表示。translate 的 with[] 数组内仅支持文本积木，其他类型积木拖入后标红警告。</p>
                 </div>
             </div>
 
@@ -551,7 +565,7 @@
                         <button type="button" class="btn btn-primary" id="btnCopyJson">复制 JSON</button>
                         <button type="button" class="btn" id="btnImport">导入上方 JSON</button>
                     </div>
-                    <p class="note">导入支持粘贴 /tellraw、/titleraw 命令或任意含 JSON 的文本，也兼容 Java 版 color/bold 等写法（自动转为 § 码）。</p>
+                    <p class="note">导入支持粘贴 /tellraw、/titleraw 命令或任意含 JSON 的文本，也兼容 Java 版 color/bold 等写法（自动转为 § 码）。translate 的 with[] 数组内仅支持文本积木（如 ["123","456"]），拖入/导入其他类型会标红并警告。</p>
                 </div>
             </div>
 
@@ -785,6 +799,23 @@
         getList(parentPath).splice(idx, 0, node);
         return parentPath.length ? parentPath.join('-') + '-' + idx : String(idx);
     }
+    // 判断列表路径是否为 translate 的 with[] 数组子槽位（withKind 为 array 的 translate 子列表）
+    // parentPath = 子列表的父路径（即 translate 节点的路径，奇数段：[0]、[0,2]…）
+    function isWithArrayList(parentPath) {
+        const parent = getNode(parentPath);
+        return !!parent && parent.t === 'translate' && parent.withKind === 'array';
+    }
+    // 该路径是否位于 translate 的 with[] 数组子槽位内
+    function inTranslateWithArray(path) {
+        return path.length >= 1 && isWithArrayList(path.slice(0, -1));
+    }
+    // with[] 数组内仅允许文本积木（text/string）——用于标红提示
+    function isWithArrayOK(pathKey) {
+        const path = pathKey.split('-').map(Number);
+        if (!inTranslateWithArray(path)) return true;
+        const node = getNode(path);
+        return !!node && (node.t === 'text' || node.t === 'string');
+    }
     function pushUndo() {
         undoStack.push(JSON.stringify(nodes));
         if (undoStack.length > 50) undoStack.shift();
@@ -827,7 +858,9 @@
             case 'selector': return { selector: n.s };
             case 'score': return { score: { name: n.name, objective: n.obj } };
             case 'translate':
-                return { translate: n.key, with: n.withKind === 'rawtext' ? { rawtext: n.children.map(nodeToJSON) } : n.children.map(nodeToJSON) };
+                if (n.withKind === 'rawtext') return { translate: n.key, with: { rawtext: n.children.map(nodeToJSON) } };
+                // with[] 数组参数需为纯字符串（如 ["123","456"]）：文本/字符串积木直接输出其内容，其余类型保留原样以便游戏容错
+                return { translate: n.key, with: n.children.map(c => (c.t === 'text' || c.t === 'string') ? c.s : nodeToJSON(c)) };
             case 'rawtext': return { rawtext: n.children.map(nodeToJSON) };
         }
     }
@@ -855,8 +888,11 @@
         if (prefix) out.push({ t:'text', s:prefix });
         if (o.translate !== undefined) {
             let kind = 'array', children = [];
-            if (Array.isArray(o.with)) { kind = 'array'; children = jsonToNodes(o.with); }
-            else if (o.with && typeof o.with === 'object') { kind = 'rawtext'; children = jsonToNodes(Array.isArray(o.with.rawtext) ? o.with.rawtext : []); }
+            if (Array.isArray(o.with)) {
+                kind = 'array';
+                // 数组参数应为纯字符串（如 ["123","456"]）；字符串→string 积木，文本→文本积木（导出还原为纯字符串），其余保留结构以便标红提示类型不符
+                children = o.with.flatMap(c => typeof c === 'string' ? [{ t:'string', s:c }] : convertOne(c));
+            } else if (o.with && typeof o.with === 'object') { kind = 'rawtext'; children = jsonToNodes(Array.isArray(o.with.rawtext) ? o.with.rawtext : []); }
             out.push({ t:'translate', key:String(o.translate), withKind:kind, children });
         } else if (typeof o.text === 'string') {
             out.push({ t:'text', s:o.text });
@@ -909,17 +945,30 @@
             if (data.startsWith('tpl:')) {
                 const item = PALETTE_MAP[data.slice(4)];
                 if (!item) return;
+                // translate 的 with[] 数组参数只支持文本积木：拖入其他类型则标红并弹窗警告
+                const probe = item.make();
+                const warnDrop = probe.t !== 'text' && probe.t !== 'string' && isWithArrayList(parentPath);
                 pushUndo();
-                getList(parentPath).splice(index, 0, item.make());
+                getList(parentPath).splice(index, 0, probe);
+                if (warnDrop) warnWithArrayInvalid();
             } else if (data.startsWith('move:')) {
                 const from = data.slice(5).split('-').map(Number);
                 if (!canPlace(from, parentPath)) { showStatus('不能移动到自身内部'); return; }
+                const moving = getNode(from);
+                const wasValid = !moving || isWithArrayOK(from.join('-'));
+                const willBeInvalid = moving && moving.t !== 'text' && moving.t !== 'string' && isWithArrayList(parentPath);
                 pushUndo();
                 moveNode(from, parentPath, index);
                 selectedKey = null;
+                if (wasValid && willBeInvalid) warnWithArrayInvalid();
             } else return;
             renderAll();
         } catch (err) { showStatus(err.toString().split('\n')[0], true); window.reportError(err); }
+    }
+    // with[] 数组参数类型不符：状态栏 + 弹窗警告
+    function warnWithArrayInvalid() {
+        showStatus('警告：with[] 数组内仅支持文本积木，该积木已标红', true);
+        alert('with[] 数组内仅支持文本积木（如 {"text":"123"} 或纯字符串），请改用文本积木，或点击 ⇄ 切换为 with{rawtext}。');
     }
     // 文本按换行拆成渲染片段：'a\nb' → ['a','\n','b']（换行本身是独立项）；纯换行 '\n' → ['','\n','']
     function splitNewlineParts(s) {
@@ -945,6 +994,12 @@
         chip.dataset.path = pathKey;
         chip.draggable = true;
         chip.title = TYPE_LABEL[node.t] || '';
+        // translate 的 with[] 数组参数只支持文本积木（t 为 text/string）：其余类型标红警示
+        if (node.t !== 'text' && node.t !== 'string' && !isWithArrayOK(pathKey)) {
+            chip.classList.add('chip-invalid');
+            chip.title += '（with[] 数组内仅支持文本积木）';
+        }
+
         const del = el('span', 'chip-del', '×');
         del.title = '删除';
         del.addEventListener('click', e => {
@@ -999,6 +1054,10 @@
             head.appendChild(tog);
             chip.appendChild(head);
             const kids = el('span', 'chip-children');
+            if (node.withKind === 'array' && node.children.some(c => c.t !== 'text' && c.t !== 'string')) {
+                // with[] 数组内混入了非文本积木：子槽位边框标红提醒
+                kids.classList.add('chip-children-invalid');
+            }
             chip.appendChild(kids);
             renderList(node.children, kids, pathKey);
         } else if (node.t === 'score') {
@@ -1133,6 +1192,8 @@
         if (!node) { row.hidden = true; return; }
         row.hidden = false;
         $('editType').textContent = TYPE_LABEL[node.t] || node.t;
+        // with[] 数组内类型不符的积木在类型标签上追加警示
+        if (!isWithArrayOK(selectedKey)) $('editType').textContent += '（类型不符）';
         const input = $('editInput');
         // 自适应行数：按内容行数撑开，最多 8 行
         const fit = str => Math.min(8, Math.max(2, (str.match(/\n/g)?.length || 0) + 1));
@@ -1268,9 +1329,15 @@
     }
     function paletteClick(item) {
         try {
-            const key = insertAfterSelected(item.make());
+            const probe = item.make();
+            // 点击插入的目标列表 = 选中积木所在列表（无选中则根列表）
+            const targetPath = selectedKey ? selectedKey.split('-').map(Number).slice(0, -1) : [];
+            // with[] 数组内点击插入非文本积木：同样标红 + 弹窗警告
+            const warnClick = probe.t !== 'text' && probe.t !== 'string' && isWithArrayList(targetPath);
+            const key = insertAfterSelected(probe);
             renderAll();
             select(key);
+            if (warnClick) warnWithArrayInvalid();
             const node = getNode(key.split('-').map(Number));
             if (node && (node.t === 'text' || node.t === 'string' || node.t === 'translate' || node.t === 'selector' || node.t === 'score')) $('editInput').focus();
         } catch (err) { showStatus(err.toString().split('\n')[0], true); window.reportError(err); }
@@ -1364,6 +1431,8 @@
                 try { own = evaluate(nodeToJSON(node), scores, selectors).join(''); }
                 catch (e) { /* 理论上不会失败 */ }
                 if (own) { renderStyledSpans(own, seg, '#fff', segState, true); hasText = true; }
+                // with[] 数组内的非文本积木不参与 %s 替换（evaluate 只取字符串），预览段落标红提示
+                if (!isWithArrayOK(pathKey)) seg.classList.add('pv-invalid');
             }
             parent.appendChild(seg);
         };
@@ -1438,6 +1507,18 @@
             selectedKey = null;
             renderAll();
             showStatus('导入成功');
+            // 导入后扫描 with[] 数组内是否有类型不符的积木，统一提示
+            const bad = [];
+            const scan = (list, prefix) => list.forEach((n, i) => {
+                const key = prefix ? prefix + '-' + i : String(i);
+                if (!isWithArrayOK(key)) bad.push(key);
+                if (n.children) scan(n.children, key);
+            });
+            scan(nodes, '');
+            if (bad.length) {
+                showStatus('警告：with[] 数组内仅支持文本积木，' + bad.length + ' 个积木已标红', true);
+                alert('导入的 with[] 数组内有 ' + bad.length + ' 个非文本积木，已标红。\nwith[] 数组内仅支持文本积木（如 {"text":"123"} 或纯字符串），请改用文本积木，或点击 ⇄ 切换为 with{rawtext}。');
+            }
         } catch (e) {
             showStatus('导入失败: ' + (e.message || e), true);
             window.reportError(e);
