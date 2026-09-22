@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>结构 3D 查看器 | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-HJVLPQTQE6');
+    </script>
+    <script>
+        var _hmt = _hmt || [];
+        (function() {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7210376314498048"
+         crossorigin="anonymous"></script>
+    <!-- BDX 桥接依赖:BDX(Brotli 压缩)→ NBT(mcstructure 形态)→ wasm 核心 -->
+    <!-- bdx.js 为本目录修补版:修复命令 41 的 NBT 读取(原版从缓冲区起始解析导致报错) -->
+    <script src="/javascript/Brotli.decompress.js" type="text/javascript"></script>
+    <script src="/javascript/brotli.min.js" type="text/javascript"></script>
+    <script src="./bdx.js" type="text/javascript"></script>
+    <script src="/javascript/matrix.js" type="text/javascript"></script>
+    <script src="/javascript/nbt.js" type="text/javascript"></script>
+    <script src="core.js"></script>
+    <script src="/javascript/error-handler.js"></script>
+    <style>
+        .viewer-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+        }
+        .viewer-toolbar .tb-label { color: var(--color-text-secondary); }
+        .viewer-toolbar a, .viewer-toolbar .tb-btn {
+            color: var(--color-primary);
+            cursor: pointer;
+            text-decoration: none;
+            user-select: none;
+        }
+        .viewer-toolbar a:hover, .viewer-toolbar .tb-btn:hover { text-decoration: underline; }
+        .viewer-toolbar a.active, .viewer-toolbar .tb-btn.active { font-weight: 700; }
+        .viewer-toolbar input[type=range] { vertical-align: middle; width: 140px; }
+        #canvasWrap {
+            position: relative;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: #0d1117;
+        }
+        #c { display: block; width: 100%; height: 70vh; min-height: 380px; touch-action: none; }
+        #legend {
+            position: absolute; right: 10px; top: 10px; width: 230px;
+            max-height: calc(70vh - 20px); overflow: auto;
+            font-size: 11px; background: rgba(13,17,23,.72); color: #dfe6ee;
+            padding: 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08);
+            pointer-events: none;
+        }
+        #legend .chip { display: flex; gap: 6px; align-items: center; padding: 2px 4px; border-radius: 4px; }
+        #legend .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+        #legend .nm { opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #legend .lx { opacity: .7; margin-bottom: 4px; }
+        #hud {
+            position: absolute; left: 10px; bottom: 8px;
+            color: rgba(223,230,238,.55); font-size: 12px; pointer-events: none;
+        }
+        #dropHint {
+            position: absolute; inset: 0; display: none;
+            align-items: center; justify-content: center;
+            background: rgba(13,17,23,.72); color: #dfe6ee; font-size: 1rem;
+            z-index: 3; pointer-events: none;
+        }
+        #dropHint.on { display: flex; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; }
+        .info-grid .info-display { margin: 0; }
+        @media (max-width: 640px) { #legend { display: none; } }
+    </style>
+    <script type="importmap">
+        { "imports": { "three": "./three/three.module.min.js",
+                       "three/addons/": "./three/" } }
+    </script>
+</head>
+<body>
+<div class="tool-container">
+    <div class="page-header">
+        <a class="back-home" href="/">← 返回主页</a>
+        <h1>结构 3D 查看器</h1>
+        <div class="subtitle">解析与网格化由 WASM 加速 · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="file-upload-wrapper">
+                <div class="file-upload-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <span class="file-upload-text">点击上传结构文件，或直接拖入页面</span>
+                <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx">
+            </div>
+            <div class="separator"></div>
+            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx（旧版 .schematic 暂不支持）。材质版权归 Mojang 所有，仅作渲染展示。</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">3D 视图</div>
+        <div class="card-body">
+            <div class="viewer-toolbar">
+                <span class="tb-label">LOD:</span>
+                <a id="l1" class="active">×1</a><a id="l2">×2</a><a id="l4">×4</a><a id="l8">×8</a>
+                <span class="tb-label">|</span>
+                <span class="tb-btn" id="texL">贴图:开</span>
+                <span class="tb-btn" id="reL">重置视角(R)</span>
+                <span class="tb-label">|</span>
+                <span class="tb-label">模式:</span>
+                <span class="tb-btn active" id="mOrbit">环绕</span>
+                <span class="tb-btn" id="mPlan">分层</span>
+                <span class="tb-btn" id="mExplore">漫游</span>
+                <span class="tb-label">|</span>
+                <span class="tb-label">切层:</span>
+                <input type="range" id="clipY" min="0" max="100" step="1" value="100" disabled>
+            </div>
+            <div id="canvasWrap">
+                <canvas id="c"></canvas>
+                <div id="legend"></div>
+                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · 漫游模式 WASD/空格/Shift 移动</div>
+                <div id="dropHint">松开以载入文件</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="infoCard" style="display:none;">
+        <div class="card-header">结构信息</div>
+        <div class="card-body">
+            <div class="info-grid">
+                <div class="info-display" id="ifName"></div>
+                <div class="info-display" id="ifSize"></div>
+                <div class="info-display" id="ifOrigin"></div>
+                <div class="info-display" id="ifBlocks"></div>
+                <div class="info-display" id="ifMesh"></div>
+                <div class="info-display" id="ifPalette"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-bar" id="status">正在加载 WASM 核心…</div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const statusEl = document.getElementById('status');
+const legendEl = document.getElementById('legend');
+const inp = document.getElementById('file');
+const clipYEl = document.getElementById('clipY');
+
+function setStatus(s, cls){ statusEl.textContent = s; statusEl.className = 'status-bar' + (cls ? ' ' + cls : ''); }
+
+// ---------------------------------------------------------------- BDX 桥接
+// .bdx = "BD@" 前缀 + Brotli 压缩的 BDX 命令流。用站内 bdx.js 解出 Matrix,
+// 再组装成 mcstructure 形态的 NBT,交给 wasm 核心(它只认 mcstructure 等四种格式)。
+function decodeBDX(rawData){
+    if (new TextDecoder().decode(rawData.slice(0,3)) !== 'BD@') throw new Error('不是有效的 BDX 文件(BD@ 头缺失)');
+    return brotli.decompress(new Uint8Array(rawData.slice(3))).buffer;
+}
+
+function matrixToMcstructureNBT(matrix){
+    const X = matrix.Xmax, Y = matrix.Ymax, Z = matrix.Zmax;
+    const total = X * Y * Z;
+    const palette = matrix.palette.map((key) => {
+        // palette 键形如 "minecraft:name[state=val,...]@ver" 或 "minecraft:name"
+        const m = key.match(/^(?:([a-zA-Z0-9_]*):)?([A-Za-z0-9_]+)(\[.+\])?@?(\d+)?$/);
+        if (!m) return { name: { type: 'string', value: key }, states: { type: 'compound', value: {} } };
+        const ns = m[1] || 'minecraft';
+        let states = { type: 'compound', value: {} };
+        if (m[3]) {
+            const inner = m[3].slice(1, -1);
+            if (inner.trim()) {
+                for (const kv of inner.split(',')) {
+                    const e = kv.indexOf('=');
+                    if (e < 0) continue;
+                    const k2 = kv.slice(0, e), v2 = kv.slice(e + 1);
+                    let tag, val;
+                    if (v2 === 'true' || v2 === 'false') { tag = 'byte'; val = v2 === 'true' ? 1 : 0; }
+                    else if (/^-?\d+$/.test(v2)) { tag = 'int'; val = parseInt(v2, 10); }
+                    else { tag = 'string'; val = v2.replace(/^"|"$/g, ''); }
+                    states.value[k2] = { type: tag, value: val };
+                }
+            }
+        }
+        return { name: { type: 'string', value: ns + ':' + m[2] }, states };
+    });
+    // mcstructure 索引顺序为 y*Z*X + z*X + x(遍历序:x→z→y 每层递增)
+    const indices = new Array(total).fill(-1);
+    for (const it of matrix.getAllBlocks()){
+        const x = it.x, y = it.y, z = it.z;
+        if (x < 0 || y < 0 || z < 0 || x >= X || y >= Y || z >= Z) continue;
+        indices[y * Z * X + z * X + x] = it.block.Index;
+    }
+    return {
+        name: '',
+        value: {
+            format_version: { type: 'int', value: 1 },
+            size: { type: 'list', value: { type: 'int', value: [X, Y, Z] } },
+            structure: {
+                type: 'compound',
+                value: {
+                    block_indices: { type: 'list', value: { type: 'list', value: [
+                        { type: 'int', value: indices },
+                        { type: 'int', value: new Array(total).fill(-1) }
+                    ] } },
+                    entities: { type: 'list', value: { type: 'end', value: [] } },
+                    palette: { type: 'compound', value: { default: { type: 'compound', value: {
+                        block_palette: { type: 'list', value: { type: 'compound', value: palette } },
+                        block_position_data: { type: 'compound', value: {} }
+                    } } } }
+                }
+            },
+            structure_world_origin: { type: 'list', value: { type: 'int', value: [0, 0, 0] } }
+        }
+    };
+}
+
+async function fileToCoreBytes(file){
+    const raw = new Uint8Array(await file.arrayBuffer());
+    if (file.name.toLowerCase().endsWith('.bdx')){
+        const nbtBuf = decodeBDX(raw);   // ArrayBuffer(BDX 命令流)
+        const matrix = new bdx.Reader(nbtBuf).Matrixify();  // Reader 自建 DataView
+        return new Uint8Array(nbt.writeUncompressed(matrixToMcstructureNBT(matrix), true));
+    }
+    return raw;
+}
+
+// ---------------------------------------------------------------- 贴图映射
+// blocks_faces.txt:每行 "minecraft:name<TAB>上,下,北,南,东,西" 的 tile 名。
+let faceMap = null;
+const GEOM_TO_MAN = [4, 5, 0, 1, 3, 2];   // 几何面(0=+X,1=-X,2=+Y,3=-Y,4=+Z,5=-Z) -> 清单序(上/下/北/南/东/西)
+function baseName(name){
+    let n = name;
+    const lb = n.indexOf('['); if (lb >= 0) n = n.slice(0, lb);
+    const c = n.indexOf(':'); if (c >= 0) n = n.slice(c + 1);
+    return n;
+}
+function facingFrontGeom(name){
+    const lb = name.indexOf('[');
+    if (lb < 0) return -1;
+    let inner = name.slice(lb + 1);
+    if (inner.endsWith(']')) inner = inner.slice(0, -1);
+    const props = Object.fromEntries(inner.split(',').map(kv => { const e = kv.indexOf('='); return e > 0 ? [kv.slice(0,e), kv.slice(e+1)] : [kv,'']; }));
+    const javaMap = { down:3, up:2, north:5, south:4, west:1, east:0 };
+    if (props.facing && javaMap[props.facing] !== undefined) return javaMap[props.facing];
+    const bkMap = { '0':3, '1':2, '2':5, '3':4, '4':1, '5':0 }; // 基岩版 facing_direction
+    if (props.facing_direction && bkMap[props.facing_direction] !== undefined) return bkMap[props.facing_direction];
+    return -1;
+}
+// 命令方块侧面箭头:按朝向旋转侧面贴图
+const SIDE_DEG = [90, 270, 0, 0, 180, 0];   // 几何面 -> 世界朝向(度)
+// 旧版基岩版扁平 id → 现代方块名(老 BDX/存档常见)。仅用于贴图查找。
+const LEGACY_ALIASES = {
+    'stonebrick': 'stone_bricks', 'grass': 'grass_block',
+    'tallgrass': 'grass_block', 'double_plant': 'grass_block', 'skull': 'note_block',
+    'planks': 'oak_planks', 'wood': 'oak_log', 'leaves': 'oak_planks', 'leaves2': 'oak_planks',
+    'sapling': 'oak_planks', 'yellow_flower': 'dandelion', 'red_flower': 'poppy',
+    'water': 'stone', 'stained_glass': 'white_stained_glass', 'stained_glass_pane': 'white_stained_glass',
+    'stained_hardened_clay': 'white_terracotta', 'melon_block': 'melon',
+    'noteblock': 'note_block', 'slime': 'stone', 'wool': 'white_wool', 'carpet': 'white_wool',
+    'fence': 'oak_planks', 'fence_gate': 'oak_planks', 'trapdoor': 'oak_planks',
+    'door': 'oak_door', 'iron_door': 'iron_door', 'spruce_door': 'spruce_door',
+    'birch_door': 'birch_door', 'jungle_door': 'jungle_door',
+    'acacia_door': 'acacia_door', 'darkoak_door': 'dark_oak_door',
+    'spruce_fence': 'spruce_planks', 'wooden_slab': 'oak_slab', 'double_wooden_slab': 'oak_planks',
+    'double_stone_block_slab': 'smooth_stone', 'stone_block_slab3': 'smooth_stone',
+    'stone_block_slab2': 'smooth_stone', 'normal_stone_stairs': 'smooth_stone',
+    'lit_redstone_lamp': 'note_block',
+    'standing_banner': 'oak_planks', 'wall_banner': 'oak_planks', 'wall_sign': 'oak_planks',
+    'acacia_wall_sign': 'oak_planks', 'bamboo_wall_sign': 'oak_planks', 'darkoak_wall_sign': 'oak_planks',
+    'spruce_wall_sign': 'spruce_planks', 'birch_wall_sign': 'birch_planks',
+    'daylight_detector_inverted': 'daylight_detector',
+    'heavy_weighted_pressure_plate': 'iron_block', 'light_weighted_pressure_plate': 'gold_block',
+    'stone_pressure_plate': 'stone', 'spruce_pressure_plate': 'spruce_planks',
+    'polished_blackstone_pressure_plate': 'stone',
+    'black_carpet': 'black_wool', 'blue_carpet': 'blue_wool', 'brown_carpet': 'brown_wool',
+    'gray_carpet': 'gray_wool', 'light_blue_carpet': 'light_blue_wool', 'light_gray_carpet': 'light_gray_wool',
+    'orange_carpet': 'orange_wool', 'pink_carpet': 'pink_wool', 'red_carpet': 'red_wool',
+    'white_carpet': 'white_wool', 'yellow_carpet': 'yellow_wool', 'green_carpet': 'green_wool',
+    'double_stone_block_slab2': 'smooth_stone', 'wooden_button': 'oak_planks', 'stone_button': 'stone',
+    'stone_block_slab': 'smooth_stone', 'cobblestone_wall': 'cobblestone',
+    'nether_brick_fence': 'nether_bricks', 'iron_bars': 'iron_bars',
+    'snow': 'snow', 'torch': 'torch', 'ladder': 'ladder', 'anvil': 'anvil',
+    'hopper': 'hopper_top', 'chest': 'note_block', 'border_block': 'stone',
+    'double_wooden_slab': 'oak_planks', 'double_wooden_slab2': 'oak_planks',
+    'spruce_trapdoor': 'spruce_planks', 'iron_trapdoor': 'iron_trapdoor',
+    'bamboo_trapdoor': 'bamboo_trapdoor', 'acacia_trapdoor': 'acacia_trapdoor',
+    'spruce_pressure_plate': 'spruce_planks', 'flower_pot': 'flower_pot', 'campfire': 'campfire_log',
+    'chain': 'white_wool', 'lectern': 'lectern', 'red_candle': 'white_candle',
+    'double_stone_block_slab3': 'smooth_stone', 'stone_block_slab4': 'smooth_stone',
+    'acacia_fence': 'acacia_planks', 'acacia_fence_gate': 'acacia_planks',
+    'birch_fence': 'birch_planks', 'birch_fence_gate': 'birch_planks',
+    'dark_oak_fence': 'dark_oak_planks', 'oak_fence': 'oak_planks',
+    'spruce_fence_gate': 'spruce_planks',
+    'barrier': 'stone', 'fire': 'fire_0', 'frame': 'item_frame',
+    'structure_void': 'stone', 'trapped_chest': 'note_block',
+};
+function aliasKey(base){
+    if (faceMap && faceMap['minecraft:' + base]) return base;
+    return LEGACY_ALIASES[base] || base;
+}
+function cmdFrontDeg(name){
+    const lb = name.indexOf('[');
+    if (lb < 0) return -1;
+    let inner = name.slice(lb + 1); if (inner.endsWith(']')) inner = inner.slice(0, -1);
+    const props = Object.fromEntries(inner.split(',').map(kv => { const e = kv.indexOf('='); return e > 0 ? [kv.slice(0,e), kv.slice(e+1)] : [kv,'']; }));
+    const ja = { north:0, east:90, south:180, west:270 };
+    if (props.facing && ja[props.facing] !== undefined) return ja[props.facing];
+    const bk = { '2':0, '3':180, '4':270, '5':90 };  // 基岩版: 2北 3南 4西 5东
+    if (props.facing_direction && bk[props.facing_direction] !== undefined) return bk[props.facing_direction];
+    return -1;
+}
+function faceTileFor(name, geom, row){
+    if (!row) return null;
+    if (name.indexOf('command_block') >= 0){
+        const front = facingFrontGeom(name);
+        if (front >= 0){
+            const opp = [1,0,3,2,5,4][front];
+            if (geom === front) return row[2];
+            if (geom === opp) return row[3];
+            return row[4];  // 侧面
+        }
+    }
+    const t = row[GEOM_TO_MAN[geom]];
+    return (t && t !== '-') ? t : null;
+}
+// faceMap 未命中时的启发式回退
+let tileSet = null;   // tiles/manifest.json 提供的现有贴图名集合,用于剔除必 404 的候选
+function faceUrls(name, face){
+    const n = aliasKey(baseName(name));
+    const b = './tiles/' + n;
+    let cands;
+    if (face === 2) cands = [b + '_top.png', b + '.png'];
+    else if (face === 3) cands = [b + '_bottom.png', b + '.png', b + '_top.png'];
+    else if (name.indexOf('log') >= 0 && name.indexOf('stripped') < 0) cands = [b + '.png', b + '_top.png'];
+    else cands = [b + '.png', b + '_side.png', b + '_front.png', b + '_top.png'];
+    if (tileSet) cands = cands.filter(u => tileSet.has(u.slice(8, -4)));
+    return cands;
+}
+fetch('./blocks_faces.txt').then(r => r.ok ? r.text() : Promise.reject(r.status)).then(txt => {
+    faceMap = {};
+    for (const line of txt.split(/\r?\n/)){
+        const i = line.indexOf('\t');
+        if (i < 0) continue;
+        const v = line.slice(i + 1).split(',');
+        if (v.length === 6) faceMap[line.slice(0, i)] = v;
+    }
+}).catch(() => {});
+fetch('./tiles/manifest.json').then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(list => { tileSet = new Set(list); }).catch(() => {});
+
+// ---------------------------------------------------------------- three.js 场景
+let scene, camera, renderer, controls;
+let Core = null;
+let meshGroup = null, sliceGroup = null, axesHelper = null;
+let lastFitC = null, lastFitSize = 1;
+let useTex = true, curLod = 1;
+let mode = 'orbit';
+
+function resetCamera(){
+    if (!lastFitC) return;
+    controls.target.copy(lastFitC);
+    camera.position.set(lastFitC.x + lastFitSize*0.9, lastFitC.y + lastFitSize*0.6, lastFitC.z + lastFitSize*0.9);
+    camera.near = Math.max(0.01, lastFitSize*0.001);
+    camera.far = lastFitSize*100;
+    camera.updateProjectionMatrix();
+    controls.update();
+}
+
+addEventListener('keydown', e => { if (e.key === 'r' || e.key === 'R') resetCamera(); });
+
+// --- 模式:环绕 Orbit / 分层 Plan / 漫游 Explore ---
+function setMode(m){
+    mode = m;
+    const ids = { orbit:'mOrbit', plan:'mPlan', explore:'mExplore' };
+    for (const k in ids) document.getElementById(ids[k]).classList.toggle('active', k === m);
+    applyClip();
+    if (!lastFitC) return;
+    if (m === 'plan'){
+        const c = lastFitC, s = lastFitSize;
+        camera.position.set(c.x, c.y + s*1.6, c.z);
+        controls.target.copy(c);
+        controls.update();
+    } else if (m === 'explore'){
+        // 原地继续
+    } else {
+        resetCamera();
+    }
+}
+for (const [id, m] of [['mOrbit','orbit'],['mPlan','plan'],['mExplore','explore']])
+    document.getElementById(id).onclick = () => setMode(m);
+
+addEventListener('keydown', e => {
+    if (mode !== 'explore' || !lastFitC) return;
+    const step = lastFitSize * 0.03;
+    const f = new THREE.Vector3().subVectors(controls.target, camera.position);
+    f.y = 0; if (f.lengthSq() > 1e-9) f.normalize(); else f.set(0,0,1);
+    const r = new THREE.Vector3().crossVectors(f, camera.up).normalize();
+    let dx = 0, dy = 0, dz = 0;
+    const k = e.key.toLowerCase();
+    if (k === 'w') { dx = f.x*step; dz = f.z*step; }
+    else if (k === 's') { dx = -f.x*step; dz = -f.z*step; }
+    else if (k === 'a') { dx = -r.x*step; dz = -r.z*step; }
+    else if (k === 'd') { dx = r.x*step; dz = r.z*step; }
+    else if (k === ' ') { dy = step; }
+    else if (k === 'shift') { dy = -step; }
+    else return;
+    camera.position.x += dx; camera.position.y += dy; camera.position.z += dz;
+    controls.target.x += dx; controls.target.y += dy; controls.target.z += dz;
+    e.preventDefault();
+});
+
+function disposeGroup(g){
+    while (g.children.length){
+        const m = g.children.pop();
+        if (m.geometry) m.geometry.dispose();
+        if (m.material){ if (m.material.map) m.material.map.dispose(); m.material.dispose(); }
+    }
+}
+function removeSlice(){
+    if (sliceGroup){ scene.remove(sliceGroup); disposeGroup(sliceGroup); sliceGroup = null; }
+}
+function showSlice(level){
+    if (!Core) return;
+    const vc = Core._core_slice(level);
+    removeSlice();
+    if (vc <= 0){ if (meshGroup) meshGroup.visible = true; return; }
+    const F32 = Core.HEAPF32, U32 = Core.HEAPU32;
+    const ic = Core._core_slice_index_count();
+    const pp = Core._core_slice_pos_ptr(), cp = Core._core_slice_col_ptr(), ip = Core._core_slice_idx_ptr();
+    const pos = new Float32Array(F32.buffer.slice(pp, pp + vc*3*4));
+    const col = new Float32Array(F32.buffer.slice(cp, cp + vc*3*4));
+    const idx = new Uint32Array(U32.buffer.slice(ip, ip + ic*4));
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    sliceGroup = new THREE.Group();
+    sliceGroup.add(new THREE.Mesh(geo, mat));
+    scene.add(sliceGroup);
+    if (meshGroup) meshGroup.visible = false;
+}
+function applyClip(){
+    clipYEl.disabled = (mode !== 'plan');
+    const level = parseInt(clipYEl.value) || 0;
+    if (mode === 'plan'){ showSlice(level); return; }
+    removeSlice();
+    if (meshGroup) meshGroup.visible = true;
+}
+clipYEl.oninput = applyClip;
+
+function updateAxes(len){
+    if (axesHelper){ scene.remove(axesHelper); axesHelper.geometry.dispose(); axesHelper = null; }
+    if (len > 0){
+        axesHelper = new THREE.AxesHelper(len);
+        scene.add(axesHelper);
+    }
+}
+
+// ---------------------------------------------------------------- 贴图
+function applyTexture(mat, candidates, rotDeg = 0, color = '#ffffff'){
+    const loader = new THREE.TextureLoader();
+    const tryNext = (i) => {
+        if (i >= candidates.length){ return; }
+        loader.load(candidates[i], tex => {
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            // MC "竖排多帧"贴图(如 command_block_side 16x64):取第一行,避免整张拉伸
+            if (tex.image && tex.image.height > tex.image.width){
+                const rows = tex.image.height / tex.image.width;
+                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(1, 1 / rows);
+                tex.offset.set(0, (rows - 1) / rows);  // 顶行
+            }
+            if (rotDeg) tex.rotation = rotDeg * Math.PI / 180;
+            mat.map = tex;
+            mat.color.set(color);
+            mat.needsUpdate = true;
+        }, undefined, () => tryNext(i + 1));
+    };
+    tryNext(0);
+}
+
+// ---------------------------------------------------------------- wasm 几何 -> three.js
+function loadGeometryFromCore(){
+    const vc = Core._core_vertex_count();
+    const ic = Core._core_index_count();
+    if (vc <= 0 || ic <= 0){ setStatus('结构为空(或 LOD 降采样后为空),请尝试更低的 LOD', 'error'); return; }
+
+    const F32 = Core.HEAPF32, U32 = Core.HEAPU32;
+    const posP = Core._core_positions_ptr(), uvP = Core._core_uvs_ptr(),
+          midP = Core._core_mids_ptr(), idxP = Core._core_indices_ptr(),
+          colP = Core._core_colors_ptr(), faceP = Core._core_faces_ptr();
+    const pos  = F32.slice(posP>>2, (posP>>2) + vc*3);
+    const uv   = F32.slice(uvP>>2, (uvP>>2) + vc*2);
+    const faces = F32.slice(faceP>>2, (faceP>>2) + vc);
+    const mids = new Uint32Array(U32.buffer.slice(midP, midP + vc*4));
+    const idx  = new Uint32Array(U32.buffer.slice(idxP, idxP + ic*4));
+    const col  = F32.slice(colP>>2, (colP>>2) + vc*3);
+
+    if (meshGroup){ scene.remove(meshGroup); disposeGroup(meshGroup); }
+    meshGroup = new THREE.Group();
+    scene.add(meshGroup);
+
+    const pal = Core._core_palette_size();
+    const names = [];
+    const keyPtr = Core._malloc(256);
+    const keyBuf = new Uint8Array(Core.HEAPU8.buffer, keyPtr, 256);
+    for (let i = 0; i < pal; i++){
+        keyBuf.fill(0);
+        Core._core_palette_key(i, keyPtr, 256);
+        let nm = '';
+        for (let j = 0; j < 256 && keyBuf[j]; j++) nm += String.fromCharCode(keyBuf[j]);
+        names.push(nm);
+    }
+    Core._free(keyPtr);
+
+    // 按材质(方块 id × 面)分组的三角形;同时统计包围盒
+    const groups = new Map();
+    const mn = [1e9,1e9,1e9], mx = [-1e9,-1e9,-1e9];
+    for (let t = 0; t < ic; t += 3){
+        const a = idx[t], b = idx[t+1], c = idx[t+2];
+        if (mids[a] !== mids[b] || mids[a] !== mids[c]) continue;
+        const m = mids[a], f = Math.round(faces[a]);
+        const key = m * 16 + f;
+        let g = groups.get(key);
+        if (!g){ g = { m: m, face: f, p: [], uv: [], ix: [] }; groups.set(key, g); }
+        const base = g.p.length / 3;
+        let k = 0;
+        for (const v of [a,b,c]){
+            const x = pos[v*3], y = pos[v*3+1], z = pos[v*3+2];
+            if (x < mn[0]) mn[0]=x; if (x > mx[0]) mx[0]=x;
+            if (y < mn[1]) mn[1]=y; if (y > mx[1]) mx[1]=y;
+            if (z < mn[2]) mn[2]=z; if (z > mx[2]) mx[2]=z;
+            g.p.push(x, y, z);
+            g.uv.push(uv[v*2], uv[v*2+1]);
+            g.ix.push(base + k++);
+        }
+    }
+
+    clipYEl.max = String(Math.max(0, Math.round(mx[1] - mn[1])));
+    clipYEl.value = clipYEl.max;
+
+    const pi = Core._core_palette_rgb_ptr() >> 2;
+    for (const [, g] of groups){
+        const m = g.m;
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(g.p), 3));
+        geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.uv), 2));
+        geo.setIndex(new THREE.BufferAttribute(new Uint32Array(g.ix), 1));
+        const cr = F32[pi + m*3] || .7, cg = F32[pi + m*3+1] || .7, cb = F32[pi + m*3+2] || .7;
+        const nm = names[m] || ('block'+m);
+        const isTrans = /(water|glass|leaves|ice|lava|slime|honey|vine|flowing)/i.test(nm);
+        let baseColor = new THREE.Color(cr, cg, cb);
+        if (/leaves|vine/.test(nm)) baseColor = new THREE.Color(0.30, 0.64, 0.30);
+        else if (/grass_block/.test(nm)) baseColor = (g.face === 2)
+            ? new THREE.Color(0.42, 0.72, 0.30)   // 顶面绿
+            : new THREE.Color(0.53, 0.40, 0.27);  // 其余泥土色
+        const mat = new THREE.MeshBasicMaterial(
+            isTrans
+                ? { color: baseColor, side: THREE.DoubleSide,
+                    transparent: true, opacity: /leaves/.test(nm) ? 0.9 : 0.65, depthWrite: false }
+                : { color: baseColor, side: THREE.DoubleSide });
+        meshGroup.add(new THREE.Mesh(geo, mat));
+        if (useTex){
+            let tint = '#ffffff';
+            if (/leaves|vine/.test(nm)) tint = '#4fa34a';
+            else if (/grass_block/.test(nm) && g.face === 2) tint = '#6abe30';
+            const row = faceMap ? faceMap['minecraft:' + aliasKey(baseName(nm))] : null;
+            const tile = row ? faceTileFor(nm, g.face, row) : null;
+            let rot = 0;
+            if (nm.indexOf('command_block') >= 0){
+                const fd = cmdFrontDeg(nm);
+                if (fd >= 0){
+                    if (g.face === 0 || g.face === 1 || g.face === 4 || g.face === 5){
+                        rot = fd - SIDE_DEG[g.face];
+                        if (g.face === 5) rot += 180;   // -Z(北)面镜像
+                    }
+                    else if (g.face === 2 || g.face === 3) rot = fd - 180;  // 上/下默认箭头 ~+Z
+                }
+            }
+            if (tile) applyTexture(mat, ['./tiles/' + tile + '.png'], rot, tint);
+            else applyTexture(mat, faceUrls(nm, g.face), rot, tint);
+        }
+    }
+
+    applyClip();
+    const c = new THREE.Vector3((mn[0]+mx[0])/2, (mn[1]+mx[1])/2, (mn[2]+mx[2])/2);
+    const dx = mx[0]-mn[0], dy = mx[1]-mn[1], dz = mx[2]-mn[2];
+    const size = Math.max(dx, dy, dz, 1);
+    lastFitC = c; lastFitSize = size;
+    updateAxes(Math.min(size * 0.5, 40));
+    controls.target.copy(c);
+    camera.position.set(c.x + size*0.9, c.y + size*0.6, c.z + size*0.9);
+    camera.near = Math.max(0.01, size*0.001);
+    camera.far = size*100;
+    camera.updateProjectionMatrix();
+    controls.update();
+
+    // 结构信息卡
+    const info = Core._malloc(24);
+    Core._core_region_info(info);
+    const i32 = new Int32Array(Core.HEAPU32.buffer, info, 6);
+    const size3 = [i32[3], i32[4], i32[5]];
+    Core._free(info);
+    document.getElementById('infoCard').style.display = '';
+    document.getElementById('ifName').textContent = '文件: ' + lastFileName;
+    document.getElementById('ifSize').textContent = '尺寸: ' + size3[0] + ' × ' + size3[1] + ' × ' + size3[2];
+    document.getElementById('ifOrigin').textContent = '原点: ' + i32[0] + ', ' + i32[1] + ', ' + i32[2];
+    document.getElementById('ifBlocks').textContent = '方块: ' + Core._core_blocks_nonair() + ' / ' + Core._core_blocks_total();
+    document.getElementById('ifMesh').textContent = '顶点 ' + vc + ' · 三角 ' + (ic/3|0) + (curLod > 1 ? ' (LOD×' + curLod + ')' : '');
+    document.getElementById('ifPalette').textContent = '调色板: ' + pal + ' 种';
+
+    setStatus('就绪 · 顶点 ' + vc + ' · 三角 ' + (ic/3|0) + ' · 方块 ' + Core._core_blocks_nonair() + '/' + Core._core_blocks_total(), 'info');
+
+    // 自动 LOD:满细节网格过大时提示切换(不强制跳转,保留用户选择)
+    if (vc > 900000 && curLod === 1 && !loadGeometryFromCore.__lodHinted){
+        loadGeometryFromCore.__lodHinted = true;
+        setStatus('顶点超过 90 万,建议切换 LOD×2 以上以获得更流畅的体验(当前仍显示 ×1)', 'info');
+    }
+
+    // 调色板图例
+    let html = '<div class="lx">方块调色板 (' + pal + ')</div>';
+    const shown = Math.min(pal, 60);
+    for (let i = 0; i < shown; i++){
+        const name = names[i];
+        if (!name || name.indexOf('air') >= 0) continue;
+        const r = F32[pi + i*3], g2 = F32[pi + i*3+1], b2 = F32[pi + i*3+2];
+        const hex = '#'+((r*255|0)<<16|(g2*255|0)<<8|(b2*255|0)).toString(16).padStart(6,'0');
+        html += '<div class="chip"><span class="sw" style="background:'+hex+'"></span><span class="nm">'+name+'</span></div>';
+    }
+    legendEl.innerHTML = html;
+}
+
+// ---------------------------------------------------------------- 文件载入
+let lastFileName = '';
+let cachedBytes = null;
+function setLod(v){
+    curLod = v;
+    for (const [id, val] of [['l1',1],['l2',2],['l4',4],['l8',8]])
+        document.getElementById(id).classList.toggle('active', val === v);
+    if (cachedBytes && Core){
+        // 用缓存的字节按新 LOD 重新加载
+        loadBytesIntoCore(cachedBytes);
+    }
+}
+for (const [id, v] of [['l1',1],['l2',2],['l4',4],['l8',8]])
+    document.getElementById(id).onclick = () => setLod(v);
+
+function tryLoad(bytes){
+    const p = Core._malloc(bytes.length);
+    Core.HEAPU8.set(bytes, p);
+    try {
+        return Core._core_load_lod(p, bytes.length, curLod);
+    } catch (e){
+        return undefined;   // 调用方重建核心重试
+    } finally {
+        Core._free(p);
+    }
+}
+function finishLoad(rc){
+    if (rc === -2){
+        setStatus('文件过大:超过 2.2 亿方块上限,无法渲染(可尝试导出为更小的结构)', 'error');
+        return;
+    }
+    if (rc < 0){
+        setStatus('无法解析: ' + lastFileName + '(文件损坏或格式不受支持)', 'error');
+        return;
+    }
+    loadGeometryFromCore();
+}
+function loadBytesIntoCore(bytes){
+    let rc = tryLoad(bytes);
+    if (rc === undefined){
+        // 上一个大文件仍占着 wasm 堆时再载入可能 OOM abort——重建核心后重试一次
+        (async () => {
+            setStatus('内存不足,正在重置 WASM 核心后重试…', 'info');
+            Core = await createCore({ locateFile: f => './' + f });
+            const p2 = Core._malloc(bytes.length);
+            Core.HEAPU8.set(bytes, p2);
+            const rc2 = Core._core_load_lod(p2, bytes.length, curLod);
+            Core._free(p2);
+            finishLoad(rc2);
+        })();
+        return true;   // 异步路径,结果在重试回调里处理
+    }
+    finishLoad(rc);
+    return true;
+}
+async function onFile(file){
+    try {
+        if (!Core){ setStatus('WASM 核心尚未就绪,请稍候', 'error'); return; }
+        lastFileName = file.name;
+        if (file.name.toLowerCase().endsWith('.schematic')){
+            setStatus('旧版 .schematic 格式暂不支持,请改用 .schem / .litematic / .mcstructure', 'error');
+            return;
+        }
+        setStatus('正在解析 ' + file.name + ' …', 'info');
+        const bytes = await fileToCoreBytes(file);
+        cachedBytes = bytes;
+        if (!loadBytesIntoCore(bytes)) return;
+        if (Core._core_region_count() > 1)
+            setStatus(statusEl.textContent + ' · 该文件含多个区域,当前仅渲染第 1 个', 'info');
+    } catch(err){
+        console.error(err);
+        setStatus('错误: ' + (err && err.message ? err.message : err), 'error');
+        window.reportError(err);
+    }
+}
+
+// 输入接线(不依赖 wasm 初始化完成)
+document.querySelector('.file-upload-wrapper').addEventListener('click', () => {
+    if (!Core){ setStatus('WASM 核心加载中…', 'info'); return; }
+    inp.click();
+});
+inp.onchange = () => { if (inp.files[0]) onFile(inp.files[0]); };
+addEventListener('dragover', e => { e.preventDefault(); document.getElementById('dropHint').classList.add('on'); });
+addEventListener('dragleave', e => { if (!e.relatedTarget) document.getElementById('dropHint').classList.remove('on'); });
+addEventListener('drop', e => {
+    e.preventDefault();
+    document.getElementById('dropHint').classList.remove('on');
+    const f = (e.dataTransfer.files||[])[0]; if (f) onFile(f);
+});
+
+// LOD / 贴图 / 重置视角 控件
+document.getElementById('reL').onclick = () => resetCamera();
+document.getElementById('texL').onclick = () => {
+    useTex = !useTex;
+    document.getElementById('texL').textContent = '贴图:' + (useTex ? '开' : '关');
+    if (lastFileName && Core && cachedBytes) loadBytesIntoCore(cachedBytes);
+};
+
+// ---------------------------------------------------------------- 初始化
+async function init(){
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d1117);
+    camera = new THREE.PerspectiveCamera(50, 16/9, 0.1, 5000);
+    controls = new OrbitControls(camera, document.getElementById('c'));
+    controls.enableDamping = true;
+    scene.add(new THREE.GridHelper(200, 40, 0x3a4150, 0x232a37));
+
+    renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.localClippingEnabled = true;
+    const canvasEl = document.getElementById('c');
+    const resize = () => {
+        const w = canvasEl.clientWidth || canvasEl.parentElement.clientWidth;
+        const h = canvasEl.clientHeight || 420;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h, false);
+    };
+    addEventListener('resize', resize);
+    resize();
+    (function anim(){ requestAnimationFrame(anim);
+        controls.update();
+        renderer.render(scene, camera);
+    })();
+
+    // core.js 自带 wasm 加载器(MODULARIZE 工厂 + locateFile)
+    Core = await createCore({ locateFile: f => './' + f });
+    setStatus('就绪 — 点击上传或拖入结构文件', 'info');
+}
+init().catch(e => {
+    console.error(e);
+    setStatus('初始化失败: ' + (e && e.message ? e.message : e), 'error');
+    window.reportError(e);
+});
+</script>
+</body>
+</html>
