@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>结构格式转换器 | By Dislink</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/style.css">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-HJVLPQTQE6');
+    </script>
+    <script>
+        var _hmt = _hmt || [];
+        (function() {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7210376314498048"
+         crossorigin="anonymous"></script>
+    <script src="/javascript/error-handler.js"></script>
+    <style>
+        .conv-grid {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 1rem;
+            align-items: center;
+            margin: 1rem 0;
+        }
+        .conv-box {
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            text-align: center;
+            background: var(--color-bg-secondary, rgba(0,0,0,.03));
+        }
+        .conv-box .cb-title { font-size: 0.8rem; color: var(--color-text-secondary); margin-bottom: 0.35rem; }
+        .conv-box .cb-name { font-weight: 700; word-break: break-all; }
+        .conv-arrow {
+            font-size: 1.4rem;
+            color: var(--color-primary);
+            text-align: center;
+        }
+        #fmtSel { width: 100%; padding: 0.5rem; }
+        #dlArea { display: none; }
+        #dlArea.on { display: block; }
+        .conv-meta { font-size: 0.85rem; color: var(--color-text-secondary); line-height: 1.7; }
+        .conv-note { font-size: 0.8rem; color: var(--color-text-secondary); line-height: 1.7; margin-top: 0.5rem; }
+        #loadProg {
+            display: none; flex-direction: column; align-items: center; gap: 10px;
+            padding: 14px 0; font-size: 0.9rem;
+        }
+        #loadProg.on { display: flex; }
+        #loadProg .bar { width: 240px; height: 6px; border-radius: 3px; background: #232a37; overflow: hidden; }
+        #loadProg .bar i { display: block; height: 100%; width: 0%; background: #58a6ff; transition: width .2s; }
+        @media (max-width: 640px) {
+            .conv-grid { grid-template-columns: 1fr; }
+            .conv-arrow { transform: rotate(90deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="tool-container">
+    <div class="page-header">
+        <a class="back-home" href="/">← 返回主页</a>
+        <h1>结构格式转换器</h1>
+        <div class="subtitle">mcstructure / litematic / schem / wsmr / BDX 互转 · 解析与重编码全部由 WASM 在后台线程完成 · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="file-upload-wrapper">
+                <div class="file-upload-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <span class="file-upload-text">点击上传结构文件，或直接拖入页面</span>
+                <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx">
+            </div>
+            <div class="separator"></div>
+            <div class="conv-grid">
+                <div class="conv-box">
+                    <div class="cb-title">源文件</div>
+                    <div class="cb-name" id="srcName">未选择文件</div>
+                    <div class="conv-meta" id="srcMeta"></div>
+                </div>
+                <div class="conv-arrow">→</div>
+                <div class="conv-box">
+                    <div class="cb-title">目标格式</div>
+                    <select id="fmtSel">
+                        <option value="1" selected>Litematic（.litematic，Java 版 Litematica）</option>
+                        <option value="2">Schem（.schem，Sponge v2 / WorldEdit）</option>
+                        <option value="3">WSMR（.wsmr，本站中间格式，信息保留最全、体积小）</option>
+                        <option value="0">Mcstructure（.mcstructure，基岩版，未压缩，体积大）</option>
+                    </select>
+                    <button class="btn btn-primary" id="goBtn" style="width:100%;margin-top:0.5rem;" disabled>开始转换</button>
+                </div>
+            </div>
+            <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
+            <div class="info-display">上传后自动识别格式（BD@ 头 / gzip / NBT 嗅探）。支持 .mcstructure / .litematic / .schem / .wsmr / .bdx（旧版 .schematic 暂不支持）。所有处理均在浏览器本地完成，文件不会上传到任何服务器。</div>
+            <div class="conv-note">
+                说明：mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="dlArea">
+        <div class="card-header">转换结果</div>
+        <div class="card-body">
+            <div class="conv-grid">
+                <div class="conv-box">
+                    <div class="cb-title">输入</div>
+                    <div class="cb-name" id="sumSrc"></div>
+                    <div class="conv-meta" id="sumSrcMeta"></div>
+                </div>
+                <div class="conv-arrow">→</div>
+                <div class="conv-box">
+                    <div class="cb-title">输出</div>
+                    <div class="cb-name" id="sumOut"></div>
+                    <div class="conv-meta" id="sumOutMeta"></div>
+                </div>
+            </div>
+            <div class="conv-meta" id="sumDetail"></div>
+            <div class="separator"></div>
+            <button class="btn btn-primary" id="dlBtn" style="width:100%;">下载转换后的文件</button>
+        </div>
+    </div>
+
+    <div class="status-bar" id="status">正在加载 WASM 核心…</div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+const statusEl = document.getElementById('status');
+function setStatus(s, cls){ statusEl.textContent = s; statusEl.className = 'status-bar' + (cls ? ' ' + cls : ''); }
+
+const worker = new Worker('./worker.js');
+let workerReady = false;
+let convSeq = 0;
+let pendingFile = null;     // File 对象,点击"开始转换"时才读入
+let lastResult = null;      // {name, out, size}
+
+const lpEl = document.getElementById('loadProg');
+const lpTextEl = document.getElementById('lpText');
+const lpBarEl = document.getElementById('lpBar');
+let progTimer = null;
+function showProg(text, pct){
+    lpEl.classList.add('on');
+    lpTextEl.textContent = text;
+    if (pct !== undefined) lpBarEl.style.width = pct + '%';
+}
+function hideProg(){
+    lpEl.classList.remove('on');
+    if (progTimer){ clearInterval(progTimer); progTimer = null; }
+}
+function creepProg(cap){
+    if (progTimer) clearInterval(progTimer);
+    progTimer = setInterval(() => {
+        const cur = parseFloat(lpBarEl.style.width) || 0;
+        if (cur < cap) lpBarEl.style.width = Math.min(cap, cur + 1.5) + '%';
+    }, 250);
+}
+
+const FMT_NAMES = ['mcstructure', 'litematic', 'schem', 'wsmr'];
+const FMT_EXT = ['.mcstructure', '.litematic', '.schem', '.wsmr'];
+
+function fmtBytes(n){
+    if (n >= 1048576) return (n / 1048576).toFixed(2) + ' MB';
+    if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+    return n + ' B';
+}
+
+function pickOutName(srcName, fmt){
+    let base = srcName.replace(/\.[^.]+$/, '') || 'structure';
+    return base + FMT_EXT[fmt];
+}
+
+worker.onmessage = (ev) => {
+    const m = ev.data;
+    if (m.type === 'ready'){
+        workerReady = true;
+        setStatus('就绪 — 点击上传或拖入结构文件', 'info');
+    } else if (m.type === 'progress'){
+        if (m.stage === 'parse'){ showProg('解析与重编码(WASM)…', 18); creepProg(88); }
+        else if (m.stage === 'encode'){ showProg('导出…', 92); }
+    } else if (m.type === 'result'){
+        if (m.seq !== convSeq) return;   // 过期回包
+        hideProg();
+        if (m.ok){
+            lastResult = { name: pickOutName(m.srcName, fmtSel.value|0), out: m.out, size: m.size };
+            const dl = document.getElementById('dlArea');
+            dl.classList.add('on');
+            document.getElementById('sumSrc').textContent = m.srcName;
+            document.getElementById('sumSrcMeta').textContent = fmtBytes(m.srcSize);
+            document.getElementById('sumOut').textContent = lastResult.name;
+            document.getElementById('sumOutMeta').textContent = fmtBytes(m.size) + ' · ' + FMT_NAMES[fmtSel.value|0];
+            const ratio = m.srcSize ? (m.size / m.srcSize * 100).toFixed(0) : '?';
+            document.getElementById('sumDetail').textContent =
+                '用时 ' + (m.ms / 1000).toFixed(2) + ' s · 体积为源文件的 ' + ratio + '%' +
+                (m.size > m.srcSize ? '（目标格式存储开销更大，属正常现象）' : '');
+            dl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setStatus('转换完成 — 可以下载了', 'info');
+        } else {
+            lastResult = null;
+            setStatus('转换失败: ' + m.error, 'error');
+        }
+    } else if (m.type === 'worker-error'){
+        hideProg();
+        setStatus('错误: ' + m.message, 'error');
+        window.reportError(new Error(m.message));
+    }
+};
+worker.onerror = (e) => {
+    hideProg();
+    const msg = (e && e.message) ? e.message : '转换线程异常';
+    setStatus('转换线程错误: ' + msg, 'error');
+    window.reportError(new Error(msg));
+};
+
+const inp = document.getElementById('file');
+const fmtSel = document.getElementById('fmtSel');
+const goBtn = document.getElementById('goBtn');
+
+fmtSel.onchange = () => { goBtn.disabled = !pendingFile; };
+
+async function onFile(file){
+    try {
+        if (!workerReady){ setStatus('解析线程尚未就绪,请稍候', 'error'); return; }
+        if (file.name.toLowerCase().endsWith('.schematic')){
+            setStatus('旧版 .schematic 格式暂不支持,请改用 .schem / .litematic / .mcstructure', 'error');
+            return;
+        }
+        pendingFile = file;
+        goBtn.disabled = false;
+        document.getElementById('srcName').textContent = file.name;
+        document.getElementById('srcMeta').textContent = fmtBytes(file.size);
+        setStatus('已选择 ' + file.name + ' — 选择目标格式后点击"开始转换"', 'info');
+    } catch(err){
+        console.error(err);
+        setStatus('错误: ' + (err && err.message ? err.message : err), 'error');
+        window.reportError(err);
+    }
+}
+
+function goConvert(){
+    if (!pendingFile || !workerReady) return;
+    convSeq++;
+    const fmt = fmtSel.value | 0;
+    showProg('读取文件…', 5);
+    setStatus('正在转换 ' + pendingFile.name + ' → ' + FMT_NAMES[fmt] + ' …', 'info');
+    pendingFile.arrayBuffer().then(buf => {
+        const bytes = new Uint8Array(buf);
+        showProg('解析与重编码(WASM)…', 18);
+        creepProg(88);
+        worker.postMessage({ type: 'convert', seq: convSeq, name: pendingFile.name,
+                             bytes: bytes, fmt: fmt }, [bytes.buffer]);
+    }, err => {
+        hideProg();
+        setStatus('读取文件失败: ' + err, 'error');
+    });
+}
+
+goBtn.onclick = goConvert;
+
+// 输入接线
+document.querySelector('.file-upload-wrapper').addEventListener('click', () => {
+    if (!workerReady){ setStatus('解析线程加载中…', 'info'); return; }
+    inp.click();
+});
+inp.onchange = () => { if (inp.files[0]) onFile(inp.files[0]); };
+addEventListener('dragover', e => { e.preventDefault(); });
+addEventListener('drop', e => {
+    e.preventDefault();
+    const f = (e.dataTransfer.files||[])[0]; if (f) onFile(f);
+});
+
+// 下载:普通 a[download] + Blob URL,点击后立即释放
+document.getElementById('dlBtn').onclick = () => {
+    if (!lastResult) return;
+    const blob = new Blob([lastResult.out], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = lastResult.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+};
+
+// 调试快照(供自动化测试读取;对页面无副作用)
+window.__scDebug = () => ({ workerReady, pending: !!pendingFile,
+    fmt: fmtSel ? fmtSel.value : null, done: !!lastResult });
+
+setStatus('正在加载解析线程…', 'info');</script>
+</body>
+</html>
