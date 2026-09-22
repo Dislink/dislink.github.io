@@ -712,4 +712,4 @@
 			});
 		}
 	};
-}).apply(typeof exports !== 'undefined' ? exports : (window.nbt = {}));
+}).apply(typeof exports !== 'undefined' ? exports : (typeof window !== 'undefined' ? (window.nbt = {}) : {}));
