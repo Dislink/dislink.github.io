@@ -159,21 +159,19 @@
         }
         .rje-strip {
             display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 3px;
+            min-height: 56px;
+        }
+        /* 画布中的一行：换行处拆行，后续积木从下一行开始，与预览折行一致 */
+        .rje-line {
+            display: flex;
             flex-wrap: wrap;
             align-items: center;
             gap: 5px;
-            min-height: 56px;
-        }
-        /* 换行拆行容器：包住 ⏎ 徽章和该积木的续行片段，在积木内部独占一行 */
-        .chip-nextline {
-            flex-basis: 100%;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding-left: 14px;
         }
         .rje-empty {
-            width: 100%;
             text-align: center;
             color: rgba(255,255,255,0.45);
             font-size: 0.85rem;
@@ -208,7 +206,6 @@
             position: relative;
             display: inline-flex;
             align-items: center;
-            flex-wrap: wrap;
             padding: 2px 10px;
             border-radius: 8px;
             font-family: "Minecraft";
@@ -293,6 +290,12 @@
         .chip-mini:focus { border-color: #46c0ff; }
         .chip-nl { color: rgba(255,255,255,0.4); }
         .chip-empty { color: rgba(255,255,255,0.35); font-style: italic; }
+        /* 换行积木：只显示 ⏎ 徽章 */
+        .chip-nl-only {
+            padding: 2px 8px;
+            background: rgba(139,195,74,0.06);
+            border-style: dashed;
+        }
         .chip-del {
             display: none;
             position: absolute;
@@ -340,6 +343,12 @@
             background: rgba(255,255,255,0.1);
             border-radius: 3px;
             padding: 0 3px;
+        }
+        /* 悬停高亮：预览换行徽章跟随所属积木段一起亮 */
+        .pv-seg.hl .pv-nl,
+        .pv-nl.hl {
+            background: rgba(255,183,77,0.3);
+            color: #fff;
         }
 
         /* --- 编辑行 --- */
@@ -916,7 +925,7 @@
         // 纯 § 码（如仅 §l）经分词后无可见字符，回退显示原文便于查看编辑
         if (!body.textContent) { body.textContent = s; }
     }
-    function makeChip(node, pathKey) {
+    function makeChip(node, pathKey, contPart) {
         const chip = el('div', 'chip chip-' + node.t);
         chip.dataset.path = pathKey;
         chip.draggable = true;
@@ -933,22 +942,27 @@
 
         if (node.t === 'text' || node.t === 'string') {
             const parts = splitNewlineParts(node.s);
-            if (parts.length <= 1) {
+            if (parts.length > 1 && parts[0] === '' && parts[parts.length - 1] === '' && parts.slice(1, -1).every(p => p === '\n')) {
+                // 纯换行积木（如 s='\n'）：只显示 ⏎ 徽章
+                chip.classList.add('chip-nl-only');
+                chip.appendChild(el('span', 'chip-brk', '⏎'));
+            } else if (contPart !== undefined) {
+                // 拆行积木的续行片段（renderList 传入）：只渲染该行片段
+                const body = el('span', 'chip-body');
+                fillChipBody(body, node, contPart);
+                chip.appendChild(body);
+            } else if (parts.length <= 1) {
                 // 无换行：单片段
                 const body = el('span', 'chip-body');
                 fillChipBody(body, node);
                 chip.appendChild(body);
             } else {
-                // 含换行：片段按换行切开；⏎ 渲染成换行徽章，之后的片段属于续行（renderList 会把徽章和续行包进子行容器）
-                parts.forEach(part => {
-                    if (part === '\n') {
-                        chip.appendChild(el('span', 'chip-brk', '⏎ 换行'));
-                    } else {
-                        const body = el('span', 'chip-body');
-                        fillChipBody(body, node, part);
-                        chip.appendChild(body);
-                    }
-                });
+                // 含换行：只渲染首行片段，⏎ 徽章收尾（renderList 把续行片段作为同积木的下一行芯片渲染）
+                const body = el('span', 'chip-body');
+                fillChipBody(body, node, parts[0]);
+                chip.appendChild(body);
+                chip.appendChild(el('span', 'chip-brk', '⏎'));
+                chip.classList.add('chip-split');
             }
         } else if (node.t === 'translate') {
             const head = el('span', 'chip-head');
@@ -1021,39 +1035,48 @@
         chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
         return chip;
     }
+    // 把一行积木序列渲染进行容器：每个积木生成芯片；含换行的文本积木首行芯片以 ⏎ 徽章收尾，
+    // 续行片段作为同积木的下一行芯片渲染到后续行（同一积木的行芯片共享 data-path，拖动/删除/悬停联动都作用于整块）
     function renderList(list, container, parentKey) {
-        container.appendChild(makeSlot(parentKey, 0, !list.length));
+        let line = el('div', 'rje-line');
+        container.appendChild(line);
+        line.appendChild(makeSlot(parentKey, 0, !list.length));
         list.forEach((n, i) => {
             const key = parentKey ? parentKey + '-' + i : String(i);
-            const chip = makeChip(n, key);
-            container.appendChild(chip);
-            // 含换行的文本积木拆行显示：⏎ 徽章和续行片段包进子行容器，在积木内部强制换到下一行
-            const brk = chip.querySelector('.chip-brk');
-            if (brk) {
-                const wrap = el('span', 'chip-nextline');
-                chip.insertBefore(wrap, brk);
-                let seen = false;
-                [...chip.childNodes].forEach(cn => {
-                    if (cn === brk) { seen = true; return; }
-                    if (seen && cn.classList?.contains('chip-body')) wrap.appendChild(cn);
+            const parts = (n.t === 'text' || n.t === 'string') ? splitNewlineParts(n.s) : null;
+            if (parts && parts.length > 1) {
+                // 含换行：首片段在当前行的首行芯片中；之后每个换行开启新行，续行片段作为同积木的行芯片
+                line.appendChild(makeChip(n, key));
+                parts.forEach((part, pi) => {
+                    if (!pi) return; // 首片段已在首行芯片中
+                    if (part === '\n') {
+                        line = el('div', 'rje-line');
+                        container.appendChild(line);
+                    } else if (part !== '') {
+                        line.appendChild(makeChip(n, key, part));
+                    }
                 });
-                wrap.insertBefore(brk, wrap.firstChild);
+            } else {
+                line.appendChild(makeChip(n, key));
             }
-            container.appendChild(makeSlot(parentKey, i + 1, false));
+            line.appendChild(makeSlot(parentKey, i + 1, false));
         });
     }
+
     function renderAll() {
         // 清掉失效的选中态
         if (selectedKey && !getNode(selectedKey.split('-').map(Number))) selectedKey = null;
         const strip = $('strip');
         strip.textContent = '';
         if (!nodes.length) {
-            strip.appendChild(el('div', 'rje-empty', '从左侧积木库拖动积木到槽位开始拼装（手机端直接点击积木）'));
+            const empty = el('div', 'rje-line');
+            empty.appendChild(el('div', 'rje-empty', '从左侧积木库拖动积木到槽位开始拼装（手机端直接点击积木）'));
+            strip.appendChild(empty);
         }
         renderList(nodes, strip, '');
         if (selectedKey) {
-            const cur = strip.querySelector(`[data-path="${selectedKey}"]`);
-            if (cur) cur.classList.add('selected');
+            // 拆行积木的多个行芯片一起标记选中
+            document.querySelectorAll(`#strip [data-path="${selectedKey}"]`).forEach(x => x.classList.add('selected'));
         }
         updateEditRow();
         refreshOutputs();
@@ -1062,8 +1085,8 @@
     function select(pathKey) {
         selectedKey = pathKey;
         document.querySelectorAll('#strip .chip.selected').forEach(c => c.classList.remove('selected'));
-        const cur = document.querySelector(`#strip [data-path="${pathKey}"]`);
-        if (cur) cur.classList.add('selected');
+        // 拆行积木的多个行芯片一起标记选中
+        if (pathKey) document.querySelectorAll(`#strip [data-path="${pathKey}"]`).forEach(x => x.classList.add('selected'));
         updateEditRow();
     }
     function updateChipBody(pathKey) {
@@ -1072,8 +1095,9 @@
         const chip = document.querySelector(`#strip [data-path="${pathKey}"]`);
         if (!chip) return;
         if (node.t === 'text' || node.t === 'string') {
-            // 含换行时片段结构会变（拆行），直接整体重渲染
-            if (node.s.includes('\n')) { renderAll(); return; }
+            // 换行状态变化会改变拆行布局，直接整体重渲染
+            const hadNL = chip.classList.contains('chip-split') || chip.classList.contains('chip-nl-only');
+            if (hadNL || node.s.includes('\n')) { renderAll(); return; }
             const body = chip.querySelector('.chip-body');
             if (body) fillChipBody(body, node);
         } else if (node.t === 'translate') {
@@ -1303,7 +1327,7 @@
         clearHoverHL();
         if (!pathKey) return;
         hoverPath = pathKey;
-        // 积木侧
+        // 积木侧（含换行拆开的多个行芯片，全部高亮）
         document.querySelectorAll(`#strip [data-path="${pathKey}"]`).forEach(x => x.classList.add('hl'));
         // 预览侧：优先精确匹配，找不到（如翻译参数子积木，其文本并入翻译段）则回退到最近祖先段
         const parts = pathKey.split('-');
@@ -1382,7 +1406,8 @@
 
     // 点击画布空白处取消选中
     $('strip').addEventListener('click', e => {
-        if (e.target === $('strip')) { selectedKey = null; select(null); }
+        if (e.target.closest('.rje-line')) return;
+        selectedKey = null; select(null);
     });
 
     // 键盘快捷键
