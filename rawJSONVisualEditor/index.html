@@ -303,7 +303,13 @@
         }
         .chip:hover .chip-del { display: block; }
         .chip.selected { box-shadow: 0 0 0 2px #46c0ff; }
+        .chip.hl { box-shadow: 0 0 0 2px #ffb74d; }
         .chip.dragging { opacity: 0.4; }
+        .pv-seg { border-radius: 4px; }
+        .pv-seg.hl {
+            background: rgba(255,183,77,0.16);
+            box-shadow: 0 0 0 2px rgba(255,183,77,0.4);
+        }
 
         /* --- 编辑行 --- */
         .rje-editrow {
@@ -638,15 +644,16 @@
     }
 
     /* ============ § 分词渲染（textContent 赋值，防注入） ============ */
-    function renderStyledSpans(text, container, baseColor='#fff') {
-        let color = baseColor, bold = false, italic = false, dim = false;
+    // state：可选的跨段样式状态（预览分段渲染时传入，保证 § 样式像整串渲染一样跨积木延续）
+    function renderStyledSpans(text, container, baseColor='#fff', state) {
+        const st = state || { color: baseColor, bold: false, italic: false, dim: false };
         const push = str => {
             if (!str) return;
             const sp = document.createElement('span');
             sp.textContent = str;
-            sp.style.color = dim ? 'rgba(255,255,255,0.15)' : color;
-            if (bold) sp.style.fontWeight = 'bold';
-            if (italic) sp.style.fontStyle = 'italic';
+            sp.style.color = st.dim ? 'rgba(255,255,255,0.15)' : st.color;
+            if (st.bold) sp.style.fontWeight = 'bold';
+            if (st.italic) sp.style.fontStyle = 'italic';
             container.appendChild(sp);
         };
         const re = /§(.)/g;
@@ -654,11 +661,11 @@
         while ((m = re.exec(text))) {
             push(text.slice(last, m.index));
             const c = m[1].toLowerCase();
-            if (c === 'k') { dim = true; }
-            else if (c === 'l') { bold = true; }
-            else if (c === 'o') { italic = true; }
-            else if (c === 'r') { color = baseColor; bold = false; italic = false; dim = false; }
-            else if (SECTION_COLORS[c] !== undefined) { color = SECTION_COLORS[c]; dim = false; }
+            if (c === 'k') { st.dim = true; }
+            else if (c === 'l') { st.bold = true; }
+            else if (c === 'o') { st.italic = true; }
+            else if (c === 'r') { st.color = baseColor; st.bold = false; st.italic = false; st.dim = false; }
+            else if (SECTION_COLORS[c] !== undefined) { st.color = SECTION_COLORS[c]; st.dim = false; }
             // 未知代码：丢弃（与 rawJSONEditor 预览行为一致）
             last = re.lastIndex;
         }
@@ -1176,24 +1183,72 @@
     }
 
     /* ============ 输出 ============ */
+    // 预览按节点分段渲染：每段带 data-path，与画布积木一一对应，供悬停联动高亮
     function refreshOutputs() {
         const json = JSON.stringify({ rawtext: nodes.map(nodeToJSON) });
         $('jsonOut').value = json;
         updateCommand();
         const { scores, selectors } = buildTestMaps();
-        let text = '';
-        try { text = evaluate(JSON.parse(json), scores, selectors).join(''); }
-        catch (e) { /* 理论上不会失败 */ }
+        clearHoverHL(); // 预览即将重建，清掉失效的悬停高亮
         const line = $('previewLine');
         line.textContent = '';
-        if (text) renderStyledSpans(text, line);
-        else {
+        let hasText = false;
+        const segState = { color: '#fff', bold: false, italic: false, dim: false }; // § 样式跨段延续
+        const renderSeg = (node, pathKey, parent) => {
+            const seg = el('span', 'pv-seg');
+            seg.dataset.path = pathKey;
+            if (node.t === 'rawtext') {
+                // 组：自身无文本，子积木的段落嵌在其中（悬停组芯片即整组高亮）
+                node.children.forEach((child, i) => renderSeg(child, pathKey + '-' + i, seg));
+            } else {
+                let own = '';
+                try { own = evaluate(nodeToJSON(node), scores, selectors).join(''); }
+                catch (e) { /* 理论上不会失败 */ }
+                if (own) { renderStyledSpans(own, seg, '#fff', segState); hasText = true; }
+            }
+            parent.appendChild(seg);
+        };
+        nodes.forEach((n, i) => renderSeg(n, String(i), line));
+        if (!hasText) {
             const ph = el('span', '', '（空）');
             ph.style.color = 'rgba(255,255,255,0.3)';
             line.appendChild(ph);
         }
-        applyFont(line, text || ' ');
+        applyFont(line, line.textContent || ' ');
     }
+
+    /* ============ 悬停联动高亮 ============ */
+    let hoverPath = null;
+    function clearHoverHL() {
+        hoverPath = null;
+        document.querySelectorAll('#strip .hl, #previewLine .hl').forEach(x => x.classList.remove('hl'));
+    }
+    function applyHoverHL(pathKey) {
+        clearHoverHL();
+        if (!pathKey) return;
+        hoverPath = pathKey;
+        // 积木侧
+        document.querySelectorAll(`#strip [data-path="${pathKey}"]`).forEach(x => x.classList.add('hl'));
+        // 预览侧：优先精确匹配，找不到（如翻译参数子积木，其文本并入翻译段）则回退到最近祖先段
+        const parts = pathKey.split('-');
+        let seg = null;
+        for (let n = parts.length; n >= 1 && !seg; n--) {
+            seg = $('previewLine').querySelector(`[data-path="${parts.slice(0, n).join('-')}"]`);
+        }
+        if (seg) seg.classList.add('hl');
+    }
+    function bindHoverHL(root) {
+        root.addEventListener('mouseover', e => {
+            if (document.body.classList.contains('rje-dragging')) return;
+            const t = e.target.closest('[data-path]');
+            if (!t) { if (hoverPath) clearHoverHL(); return; }
+            const pathKey = t.dataset.path;
+            if (pathKey !== hoverPath) applyHoverHL(pathKey);
+        });
+        root.addEventListener('mouseleave', clearHoverHL);
+    }
+    bindHoverHL($('strip'));
+    bindHoverHL($('previewLine'));
     function updateCommand() {
         const v = $('cmdType').value, t = $('cmdTarget').value || '@s';
         const json = $('jsonOut').value || '{}';
