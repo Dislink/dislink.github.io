@@ -1096,6 +1096,9 @@
             if (e.target.closest('input,button')) return;
             e.stopPropagation(); // 防止冒泡到外层组芯片，导致嵌套子芯片选不中
             select(pathKey);
+            // 未点到芯片内部输入框（score/selector 的 chip-mini）时，聚焦下方文本输入框
+            const node = getNode(pathKey.split('-').map(Number));
+            if (node && (node.t === 'text' || node.t === 'string' || node.t === 'translate' || node.t === 'selector' || node.t === 'score') && !$('editInput').disabled) $('editInput').focus();
         });
         chip.addEventListener('dragstart', e => {
             if (e.target.closest('input,button')) { e.preventDefault(); return; }
