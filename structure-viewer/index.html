@@ -248,8 +248,7 @@ worker.onmessage = (ev) => {
         workerReady = true;
         if (!hasFile) setStatus('就绪 — 点击上传或拖入结构文件', 'info');
     } else if (m.type === 'progress'){
-        if (m.stage === 'bridge') showProg('准备数据…', 8);
-        else if (m.stage === 'parse'){ showProg('解析与网格化(WASM)…', 18); creepProg(85); }
+        if (m.stage === 'parse'){ showProg('解析与网格化(WASM)…', 18); creepProg(85); }
         else if (m.stage === 'geometry') showProg('构建几何…', 90);
     } else if (m.type === 'geometry'){
         if (m.seq !== undefined && m.seq !== loadSeq) return;   // 过期回包

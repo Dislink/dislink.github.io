@@ -2,93 +2,22 @@
 // 协议:
 //   → {type:'load', name, bytes, lod, reuse}  (bytes 被 transfer;reuse=1 时忽略 bytes 复用上次转换结果)
 //   ← {type:'ready'}
-//   ← {type:'progress', stage}          bridge / parse / geometry
+//   ← {type:'progress', stage}          parse / geometry
 //   ← {type:'error', code}              code: -1 解析失败 / -2 超上限
 //   ← {type:'worker-error', message}
 //   ← {type:'geometry', vc, ic, groups, pos, uv, idx, palRgb, pal, names,
 //      info6, blocksTotal, blocksNonair, regions, mn, mx}  (typed arrays transfer)
 //   → {type:'slice', level}
 //   ← {type:'slice', vc, ic, pos, col, idx}                  (typed arrays transfer)
-// 部分 classic 脚本(如 brotli/bdx)在顶层引用 window——worker 环境没有 window,
-// 先垫一层再 importScripts。
-self.window = self;
-
-importScripts('./core.js', '/javascript/Brotli.decompress.js', '/javascript/brotli.min.js',
-              './bdx.js', '/javascript/matrix.js', '/javascript/nbt.js');
+// .bdx 现由 wasm 核心原生解析(BD@ 头 + brotli + 指令流全部在 C++ 里完成),
+// 不再走 JS 桥接,因此 worker 只需 importScripts core.js。
+importScripts('./core.js');
 
 let Core = null;
-let lastBytes = null;   // 上次载入的字节(转换后),LOD 切换直接复用,免重复 BDX 桥接
+let lastBytes = null;   // 上次载入的字节,LOD 切换直接复用,免重复解析
 
 // 就绪握手:主线程收到后才开放上传
 postMessage({ type: 'ready' });
-
-// -------------------------------------------------- BDX → mcstructure NBT
-function matrixToMcstructureNBT(matrix){
-    const X = matrix.Xmax, Y = matrix.Ymax, Z = matrix.Zmax;
-    const total = X * Y * Z;
-    const palette = matrix.palette.map((key) => {
-        // palette 键形如 "minecraft:name[state=val,...]@ver" 或 "minecraft:name"
-        const m = key.match(/^(?:([a-zA-Z0-9_]*):)?([A-Za-z0-9_]+)(\[.+\])?@?(\d+)?$/);
-        if (!m) return { name: { type: 'string', value: key }, states: { type: 'compound', value: {} } };
-        const ns = m[1] || 'minecraft';
-        let states = { type: 'compound', value: {} };
-        if (m[3]) {
-            const inner = m[3].slice(1, -1);
-            if (inner.trim()) {
-                for (const kv of inner.split(',')) {
-                    const e = kv.indexOf('=');
-                    if (e < 0) continue;
-                    const k2 = kv.slice(0, e), v2 = kv.slice(e + 1);
-                    let tag, val;
-                    if (v2 === 'true' || v2 === 'false') { tag = 'byte'; val = v2 === 'true' ? 1 : 0; }
-                    else if (/^-?\d+$/.test(v2)) { tag = 'int'; val = parseInt(v2, 10); }
-                    else { tag = 'string'; val = v2.replace(/^"|"$/g, ''); }
-                    states.value[k2] = { type: tag, value: val };
-                }
-            }
-        }
-        return { name: { type: 'string', value: ns + ':' + m[2] }, states };
-    });
-    // mcstructure 索引顺序为 y*Z*X + z*X + x(遍历序:x→z→y 每层递增)
-    const indices = new Array(total).fill(-1);
-    for (const it of matrix.getAllBlocks()){
-        const x = it.x, y = it.y, z = it.z;
-        if (x < 0 || y < 0 || z < 0 || x >= X || y >= Y || z >= Z) continue;
-        indices[y * Z * X + z * X + x] = it.block.Index;
-    }
-    return {
-        name: '',
-        value: {
-            format_version: { type: 'int', value: 1 },
-            size: { type: 'list', value: { type: 'int', value: [X, Y, Z] } },
-            structure: {
-                type: 'compound',
-                value: {
-                    block_indices: { type: 'list', value: { type: 'list', value: [
-                        { type: 'int', value: indices },
-                        { type: 'int', value: new Array(total).fill(-1) }
-                    ] } },
-                    entities: { type: 'list', value: { type: 'end', value: [] } },
-                    palette: { type: 'compound', value: { default: { type: 'compound', value: {
-                        block_palette: { type: 'list', value: { type: 'compound', value: palette } },
-                        block_position_data: { type: 'compound', value: {} }
-                    } } } }
-                }
-            },
-            structure_world_origin: { type: 'list', value: { type: 'int', value: [0, 0, 0] } }
-        }
-    };
-}
-
-function fileToCoreBytes(name, bytes){
-    if (name.toLowerCase().endsWith('.bdx')){
-        if (new TextDecoder().decode(bytes.slice(0,3)) !== 'BD@') throw new Error('不是有效的 BDX 文件(BD@ 头缺失)');
-        const nbtBuf = brotli.decompress(new Uint8Array(bytes.slice(3))).buffer;
-        const matrix = new bdx.Reader(nbtBuf).Matrixify();
-        return new Uint8Array(nbt.writeUncompressed(matrixToMcstructureNBT(matrix), true));
-    }
-    return bytes;
-}
 
 // -------------------------------------------------- wasm 核心
 async function ensureCore(){
@@ -184,10 +113,9 @@ self.onmessage = async (ev) => {
     const msg = ev.data;
     try {
         if (msg.type === 'load'){
-            postMessage({ type: 'progress', stage: 'bridge' });
-            const bytes = msg.reuse ? lastBytes : fileToCoreBytes(msg.name, msg.bytes);
-            lastBytes = bytes;
             postMessage({ type: 'progress', stage: 'parse' });
+            const bytes = msg.reuse ? lastBytes : msg.bytes;
+            lastBytes = bytes;
             const rc = await tryLoad(bytes, msg.lod);
             if (rc === undefined || rc === -1 || rc === -2){
                 postMessage({ type: 'error', code: rc === -2 ? -2 : -1 });
