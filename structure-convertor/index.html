@@ -151,6 +151,7 @@
 
 <script>
 const statusEl = document.getElementById('status');
+const fmtSel = document.getElementById('fmtSel');
 function setStatus(s, cls){ statusEl.textContent = s; statusEl.className = 'status-bar' + (cls ? ' ' + cls : ''); }
 
 const worker = new Worker('./worker.js');
@@ -237,7 +238,6 @@ worker.onerror = (e) => {
 };
 
 const inp = document.getElementById('file');
-const fmtSel = document.getElementById('fmtSel');
 const goBtn = document.getElementById('goBtn');
 
 fmtSel.onchange = () => { goBtn.disabled = !pendingFile; };
