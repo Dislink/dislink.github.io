@@ -80,7 +80,7 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 </div>
                 <span class="file-upload-text">点击上传结构文件，或直接拖入页面</span>
-                <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx">
+                <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx,.nbt,.mca,.mcworld,.mcpack,.mcaddon,.zip">
             </div>
             <div class="separator"></div>
             <div class="conv-grid">
@@ -102,9 +102,9 @@
                 </div>
             </div>
             <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
-            <div class="info-display">上传后自动识别格式（BD@ 头 / gzip / NBT 嗅探）。支持 .mcstructure / .litematic / .schem / .wsmr / .bdx（旧版 .schematic 暂不支持）。所有处理均在浏览器本地完成，文件不会上传到任何服务器。</div>
+            <div class="info-display">上传后自动识别格式（BD@ 头 / gzip / NBT 嗅探）。支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件（旧版 .schematic 暂不支持）。所有处理均在浏览器本地完成，文件不会上传到任何服务器。</div>
             <div class="conv-note">
-                说明：mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。
+                说明：mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。世界类容器（.mcworld / .zip 等）与 .mca 仅作为解析输入：整张世界会按所有区块的包围盒展开，体积可能远超单个结构，转换前请确认范围。
             </div>
         </div>
     </div>
