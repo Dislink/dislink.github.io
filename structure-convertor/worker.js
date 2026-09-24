@@ -1,7 +1,7 @@
 // structure-convertor worker.js — 解析与重编码全部在 WASM 内完成。
 // 协议:
 //   → {type:'convert', seq, bytes, fmt, min6?}  (bytes 被 transfer;
-//     fmt: 0=mcstructure 1=litematic 2=schem 3=wsmr 4=bdx;
+//     fmt: 0=mcstructure 1=litematic 2=schem 3=wsmr 4=bdx 5=schematic;
 //     min6 = {x1,y1,z1,x2,y2,z2} 世界坐标裁剪箱(mcworld 文件名约定),走 core_convert_crop)
 //   ← {type:'ready'}
 //   ← {type:'progress', stage}            parse / encode
