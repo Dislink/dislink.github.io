@@ -185,13 +185,14 @@
             };
         },
         /** 转换一帧盲文,返回 Uint8Array bits 视图(每 cell 一字节点位;拼串留页面)。
-         * threshold: 0..255;dither: 非零启用 FS(与页面 ditheringCheck 一致);
+         * threshold: 0..255;dither: 算法 id 0..8(none/fs/atkinson/jjn/sierra3/
+         * stucki/burkes/bayer4/bayer8,与彩色路径共用 id;Riemersma 不适用);
          * invert: 非零反色。像素语义与 braille 页 convertToBraille 逐字对齐。 */
         convertBrailleTables: function (imgData, w, h, threshold, dither, invert) {
             ensureBrailleBuffers(w, h);
             var px = new Uint8Array(inst.HEAPU8.buffer, exports.px(), w * h * 4);
             px.set(imgData.data.subarray(0, w * h * 4));
-            var n = exports.brailleConvert(w, h, threshold | 0, dither ? 1 : 0, invert ? 1 : 0);
+            var n = exports.brailleConvert(w, h, threshold | 0, dither | 0, invert ? 1 : 0);
             return {
                 bits: new Uint8Array(inst.HEAPU8.buffer, bOutPtr, n),
                 cols: w / 2, rows: h / 6

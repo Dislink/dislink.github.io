@@ -68,10 +68,11 @@ static size_t g_cap_px = 0;
 int vca_version(void) { return 2; }
 
 /* ======================= 盲文字符画(braille 页热路径) =======================
- * 复现 braille/index.html convertToBraille 的全部语义:
+ * 复现 braille/index.html convertToBraille 的全部语义并扩展多抖动算法:
  *   - 深度 = (r+g+b)*(a/255)/3,Float32 缓冲
  *   - invertColors:阈值判断前 val = 255 - val(不改深度缓冲)
- *   - FS 误差扩散进**同一个深度缓冲**(7/16,3/16,5/16,1/16;浮点域,无回绕)
+ *   - 误差扩散进**同一个深度缓冲**(浮点域,无回绕);id 与彩色路径共用:
+ *     0=none 1=FS 2=Atkinson 3=JJN 4=Sierra3 5=Stucki 6=Burkes 7=Bayer4 8=Bayer8
  *   - bit = val > threshold;误差 = val - (bit?255:0)
  *   - 边界条件与 JS 完全一致:px<w-1 && py<h-1 才扩散;四个目标各自判界
  *   - 2×4 点位打包:col0 row0..2 → bit0..2,col1 row0..2 → bit3..5,row3 → bit6..7
@@ -102,9 +103,68 @@ int vca_braille_init(int w, int h) {
 int vca_braille_pixels_ptr(void) { return (int)(uintptr_t)g_b_depth; }
 int vca_braille_out_ptr(void)    { return (int)(uintptr_t)g_b_out; }
 
+/* 盲文 2×4 点位 → bits 位号(与 JS 打包公式一致) */
+static inline int braille_bit_pos(int i, int j) {
+    if (i == 0) return (j < 3) ? j : 6;
+    return (j < 3) ? (3 + j) : 7;
+}
+
+/* --- 各算法的误差扩散系数表:每项 {dx, dy, weight}(彩色/盲文共用) --- */
+typedef struct { signed char dx; signed char dy; float w8; } KERN;
+
+static const KERN K_FS[] = {
+    { 1, 0, 7.f / 16 }, { -1, 1, 3.f / 16 }, { 0, 1, 5.f / 16 }, { 1, 1, 1.f / 16 }
+};
+static const KERN K_ATK[] = {   /* Atkinson:总扩散 6/8,对比更强 */
+    { 1, 0, 1.f / 8 }, { 2, 0, 1.f / 8 },
+    { -1, 1, 1.f / 8 }, { 0, 1, 1.f / 8 }, { 1, 1, 1.f / 8 },
+    { 0, 2, 1.f / 8 }
+};
+static const KERN K_JJN[] = {   /* Jarvis-Judice-Ninke:48 份 */
+    { 1, 0, 7.f / 48 }, { 2, 0, 5.f / 48 },
+    { -2, 1, 3.f / 48 }, { -1, 1, 5.f / 48 }, { 0, 1, 7.f / 48 }, { 1, 1, 5.f / 48 }, { 2, 1, 3.f / 48 },
+    { -2, 2, 1.f / 48 }, { -1, 2, 3.f / 48 }, { 0, 2, 5.f / 48 }, { 1, 2, 3.f / 48 }, { 2, 2, 1.f / 48 }
+};
+static const KERN K_S3[] = {    /* Sierra 3:32 份 */
+    { 1, 0, 5.f / 32 }, { 2, 0, 3.f / 32 },
+    { -2, 1, 2.f / 32 }, { -1, 1, 4.f / 32 }, { 0, 1, 5.f / 32 }, { 1, 1, 4.f / 32 }, { 2, 1, 2.f / 32 },
+    { -1, 2, 2.f / 32 }, { 0, 2, 3.f / 32 }, { 1, 2, 2.f / 32 }
+};
+static const KERN K_STU[] = {   /* Stucki:42 份,比 JJN 锐利 */
+    { 1, 0, 8.f / 42 }, { 2, 0, 4.f / 42 },
+    { -2, 1, 2.f / 42 }, { -1, 1, 4.f / 42 }, { 0, 1, 8.f / 42 }, { 1, 1, 4.f / 42 }, { 2, 1, 2.f / 42 },
+    { -2, 2, 1.f / 42 }, { -1, 2, 2.f / 42 }, { 0, 2, 4.f / 42 }, { 1, 2, 2.f / 42 }, { 2, 2, 1.f / 42 }
+};
+static const KERN K_BUR[] = {   /* Burkes:32 份,Stucki 的单行简化 */
+    { 1, 0, 8.f / 32 }, { 2, 0, 4.f / 32 },
+    { -2, 1, 2.f / 32 }, { -1, 1, 4.f / 32 }, { 0, 1, 8.f / 32 }, { 1, 1, 4.f / 32 }, { 2, 1, 2.f / 32 }
+};
+
+/* Bayer 4x4 阈值矩阵(0..15) */
+static const unsigned char BAYER4[16] = {
+     0,  8,  2, 10,
+    12,  4, 14,  6,
+     3, 11,  1,  9,
+    15,  7, 13,  5
+};
+
+/* Bayer 8x8 阈值矩阵(0..63)→ 归一化到 [-0.5, 0.5) 偏移 */
+static const unsigned char BAYER8[64] = {
+     0, 32,  8, 40,  2, 34, 10, 42,
+    48, 16, 56, 24, 50, 18, 58, 26,
+    12, 44,  4, 36, 14, 46,  6, 38,
+    60, 28, 52, 20, 62, 30, 54, 22,
+     3, 35, 11, 43,  1, 33,  9, 41,
+    51, 19, 59, 27, 49, 17, 57, 25,
+    15, 47,  7, 39, 13, 45,  5, 37,
+    63, 31, 55, 23, 61, 29, 53, 21
+};
+
 /**
  * 盲文转换一帧。像素从 vca_pixels_ptr 读(页面与 vca 共用同一像素拷入流程)。
- * threshold: 0..255;invert: 非零反色;dither: 非零启用 FS(与页面 ditheringCheck 一致)。
+ * threshold: 0..255;invert: 非零反色。
+ * dither: 0=none 1=FS 2=Atkinson 3=JJN 4=Sierra3 5=Stucki 6=Burkes 7=Bayer4 8=Bayer8
+ *   (id 与彩色路径一致;盲文无调色板,Riemersma 不适用)
  * 返回 cell 数(= w/2 * h/6)。
  */
 int vca_braille_convert(int w, int h, int threshold, int dither, int invert) {
@@ -122,8 +182,47 @@ int vca_braille_convert(int w, int h, int threshold, int dither, int invert) {
         }
     }
 
+    /* ---- 有序抖动(Bayer):阈值偏移加在深度上,无邻域扩散;直接打包 ---- */
+    if (dither == 7 || dither == 8) {
+        const int m = (dither == 7) ? 4 : 8;
+        const unsigned char *mat = (m == 4) ? BAYER4 : BAYER8;
+        const int mm = m * m;   /* 阈值份数 */
+        /* 幅度对齐彩色路径:偏移归一化到 [-0.5,0.5) × 255/8 */
+        const float amp = 255.0f / 8.0f;
+        for (int cy = 0; cy < H / 6; cy++) {
+            for (int cx = 0; cx < W / 2; cx++) {
+                unsigned char bits = 0;
+                for (int i = 0; i < 2; i++) {
+                    for (int j = 0; j < 4; j++) {
+                        int px_ = cx * 2 + i;
+                        int py = cy * 6 + j;
+                        float off = ((float)mat[(py & (m - 1)) * m + (px_ & (m - 1))] / mm - 0.5f) * amp;
+                        float val = depth[px_ + (size_t)py * W] + off;
+                        if (invert) val = 255.0f - val;
+                        int bit = val > (float)threshold ? 1 : 0;
+                        bits |= (unsigned char)(bit << braille_bit_pos(i, j));
+                    }
+                }
+                g_b_out[(size_t)cy * (W / 2) + cx] = bits;
+            }
+        }
+        return (W / 2) * (H / 6);
+    }
+
+    /* 误差扩散核(单通道;FS 即原版语义) */
+    const KERN *kern; int kn;
+    switch (dither) {
+        case 1: kern = K_FS;  kn = 4;  break;
+        case 2: kern = K_ATK; kn = 6;  break;
+        case 3: kern = K_JJN; kn = 12; break;
+        case 4: kern = K_S3;  kn = 10; break;
+        case 5: kern = K_STU; kn = 12; break;
+        case 6: kern = K_BUR; kn = 7;  break;
+        default: kn = 0; kern = K_FS; break;   /* none/未知 → 纯阈值 */
+    }
+
     /* 走查顺序与 JS 一致:外层 y(0..h/6),内层 x(0..w/2),cell 内先列后行
-     * (i=0..1 列,j=0..3 行)——FS 扩散依赖此顺序,不可改。
+     * (i=0..1 列,j=0..3 行)——误差扩散依赖此顺序,不可改。
      */
     for (int cy = 0; cy < H / 6; cy++) {
         for (int cx = 0; cx < W / 2; cx++) {
@@ -135,24 +234,17 @@ int vca_braille_convert(int w, int h, int threshold, int dither, int invert) {
                     float val = depth[px_ + (size_t)py * W];
                     if (invert) val = 255.0f - val;
                     int bit = val > (float)threshold ? 1 : 0;
-                    if (i == 0) {
-                        if (j == 0) bits |= (unsigned char)(bit << 0);
-                        else if (j == 1) bits |= (unsigned char)(bit << 1);
-                        else if (j == 2) bits |= (unsigned char)(bit << 2);
-                        else bits |= (unsigned char)(bit << 6);
-                    } else {
-                        if (j == 0) bits |= (unsigned char)(bit << 3);
-                        else if (j == 1) bits |= (unsigned char)(bit << 4);
-                        else if (j == 2) bits |= (unsigned char)(bit << 5);
-                        else bits |= (unsigned char)(bit << 7);
-                    }
+                    bits |= (unsigned char)(bit << braille_bit_pos(i, j));
 
-                    if (dither && px_ < W - 1 && py < H - 1) {
+                    if (kn > 0 && px_ < W - 1 && py < H - 1) {
                         float error = val - (bit ? 255.0f : 0.0f);
-                        if (px_ + 1 < W) depth[px_ + 1 + (size_t)py * W] += error * (7.0f / 16.0f);
-                        if (px_ > 0 && py + 1 < H) depth[px_ - 1 + (size_t)(py + 1) * W] += error * (3.0f / 16.0f);
-                        if (py + 1 < H) depth[px_ + (size_t)(py + 1) * W] += error * (5.0f / 16.0f);
-                        if (px_ + 1 < W && py + 1 < H) depth[px_ + 1 + (size_t)(py + 1) * W] += error * (1.0f / 16.0f);
+                        int dir = 1;   /* 盲文走查固定从左到右(与 JS 版一致,无 serpentine) */
+                        for (int k = 0; k < kn; k++) {
+                            int nx = px_ + kern[k].dx * dir;
+                            int ny = py + kern[k].dy;
+                            if (nx < 0 || nx >= W || ny >= H) continue;
+                            depth[nx + (size_t)ny * W] += error * kern[k].w8;
+                        }
                     }
                 }
             }
@@ -242,57 +334,6 @@ static inline void spread(float *dst, double dr, double dg, double db, double w8
     dst[1] += (float)(dg * w8);
     dst[2] += (float)(db * w8);
 }
-
-/* --- 各算法的误差扩散系数表:每项 {dx, dy, weight} --- */
-typedef struct { signed char dx; signed char dy; float w8; } KERN;
-
-static const KERN K_FS[] = {
-    { 1, 0, 7.f / 16 }, { -1, 1, 3.f / 16 }, { 0, 1, 5.f / 16 }, { 1, 1, 1.f / 16 }
-};
-static const KERN K_ATK[] = {   /* Atkinson:总扩散 6/8,对比更强 */
-    { 1, 0, 1.f / 8 }, { 2, 0, 1.f / 8 },
-    { -1, 1, 1.f / 8 }, { 0, 1, 1.f / 8 }, { 1, 1, 1.f / 8 },
-    { 0, 2, 1.f / 8 }
-};
-static const KERN K_JJN[] = {   /* Jarvis-Judice-Ninke:48 份 */
-    { 1, 0, 7.f / 48 }, { 2, 0, 5.f / 48 },
-    { -2, 1, 3.f / 48 }, { -1, 1, 5.f / 48 }, { 0, 1, 7.f / 48 }, { 1, 1, 5.f / 48 }, { 2, 1, 3.f / 48 },
-    { -2, 2, 1.f / 48 }, { -1, 2, 3.f / 48 }, { 0, 2, 5.f / 48 }, { 1, 2, 3.f / 48 }, { 2, 2, 1.f / 48 }
-};
-static const KERN K_S3[] = {    /* Sierra 3:32 份 */
-    { 1, 0, 5.f / 32 }, { 2, 0, 3.f / 32 },
-    { -2, 1, 2.f / 32 }, { -1, 1, 4.f / 32 }, { 0, 1, 5.f / 32 }, { 1, 1, 4.f / 32 }, { 2, 1, 2.f / 32 },
-    { -1, 2, 2.f / 32 }, { 0, 2, 3.f / 32 }, { 1, 2, 2.f / 32 }
-};
-static const KERN K_STU[] = {   /* Stucki:42 份,比 JJN 锐利 */
-    { 1, 0, 8.f / 42 }, { 2, 0, 4.f / 42 },
-    { -2, 1, 2.f / 42 }, { -1, 1, 4.f / 42 }, { 0, 1, 8.f / 42 }, { 1, 1, 4.f / 42 }, { 2, 1, 2.f / 42 },
-    { -2, 2, 1.f / 42 }, { -1, 2, 2.f / 42 }, { 0, 2, 4.f / 42 }, { 1, 2, 2.f / 42 }, { 2, 2, 1.f / 42 }
-};
-static const KERN K_BUR[] = {   /* Burkes:32 份,Stucki 的单行简化 */
-    { 1, 0, 8.f / 32 }, { 2, 0, 4.f / 32 },
-    { -2, 1, 2.f / 32 }, { -1, 1, 4.f / 32 }, { 0, 1, 8.f / 32 }, { 1, 1, 4.f / 32 }, { 2, 1, 2.f / 32 }
-};
-
-/* Bayer 4x4 阈值矩阵(0..15) */
-static const unsigned char BAYER4[16] = {
-     0,  8,  2, 10,
-    12,  4, 14,  6,
-     3, 11,  1,  9,
-    15,  7, 13,  5
-};
-
-/* Bayer 8x8 阈值矩阵(0..63)→ 归一化到 [-0.5, 0.5) 偏移 */
-static const unsigned char BAYER8[64] = {
-     0, 32,  8, 40,  2, 34, 10, 42,
-    48, 16, 56, 24, 50, 18, 58, 26,
-    12, 44,  4, 36, 14, 46,  6, 38,
-    60, 28, 52, 20, 62, 30, 54, 22,
-     3, 35, 11, 43,  1, 33,  9, 41,
-    51, 19, 59, 27, 49, 17, 57, 25,
-    15, 47,  7, 39, 13, 45,  5, 37,
-    63, 31, 55, 23, 61, 29, 53, 21
-};
 
 /* Riemersma / Hilbert:曲线方向序列。8 阶 Hilbert 覆盖 256×256,>512 宽用走查裁剪。
  * 这里用迭代式 Hilbert 走查(d2xy),逐像素访问以实现"曲线邻域"误差传递(1/2 前向 + 1/4 对角)。

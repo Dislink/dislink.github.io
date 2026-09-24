@@ -1,15 +1,100 @@
 /**
  * bench-braille.js — 盲文转换等价性验证 + 基准(node bench-braille.js)
  *
- * JS 参考实现逐行拷自 braille/index.html convertToBraille。
+ * JS 参考实现逐行拷自 braille/index.html convertToBraille(FS 版)。
  * 等价性要求:**所有参数组合(threshold/dither/invert)输出逐字节一致** ——
  * 盲文深度缓冲是 Float32(无 Uint8 回绕 artifact),wasm 与 JS 应完全等价。
+ *
+ * v3 多抖动:JS 参考实现按 C 同构实现单通道核(fs/atkinson/jjn/sierra3/stucki/
+ * burkes/bayer4/bayer8;盲文无调色板,Riemersma 不适用),wasm 与 JS 逐字节对比。
  *
  * 基准:JS 完整路径(含 String.fromCharCode 拼串)vs wasm(拷入+核心+拼串)。
  */
 'use strict';
 
 const path = require('path');
+
+// ---------- 误差扩散核(与 vca_core.c K_* 表一致) ----------
+const KERNELS = {
+    1: [[1, 0, 7 / 16], [-1, 1, 3 / 16], [0, 1, 5 / 16], [1, 1, 1 / 16]],
+    2: [[1, 0, 1 / 8], [2, 0, 1 / 8], [-1, 1, 1 / 8], [0, 1, 1 / 8], [1, 1, 1 / 8], [0, 2, 1 / 8]],
+    3: [[1, 0, 7 / 48], [2, 0, 5 / 48],
+        [-2, 1, 3 / 48], [-1, 1, 5 / 48], [0, 1, 7 / 48], [1, 1, 5 / 48], [2, 1, 3 / 48],
+        [-2, 2, 1 / 48], [-1, 2, 3 / 48], [0, 2, 5 / 48], [1, 2, 3 / 48], [2, 2, 1 / 48]],
+    4: [[1, 0, 5 / 32], [2, 0, 3 / 32],
+        [-2, 1, 2 / 32], [-1, 1, 4 / 32], [0, 1, 5 / 32], [1, 1, 4 / 32], [2, 1, 2 / 32],
+        [-1, 2, 2 / 32], [0, 2, 3 / 32], [1, 2, 2 / 32]],
+    5: [[1, 0, 8 / 42], [2, 0, 4 / 42],
+        [-2, 1, 2 / 42], [-1, 1, 4 / 42], [0, 1, 8 / 42], [1, 1, 4 / 42], [2, 1, 2 / 42],
+        [-2, 2, 1 / 42], [-1, 2, 2 / 42], [0, 2, 4 / 42], [1, 2, 2 / 42], [2, 2, 1 / 42]],
+    6: [[1, 0, 8 / 32], [2, 0, 4 / 32],
+        [-2, 1, 2 / 32], [-1, 1, 4 / 32], [0, 1, 8 / 32], [1, 1, 4 / 32], [2, 1, 2 / 32]]
+};
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const BAYER8 = [
+    0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26,
+    12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
+    3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25,
+    15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21
+];
+
+function brailleBitPos(i, j) { return i === 0 ? (j < 3 ? j : 6) : (j < 3 ? 3 + j : 7); }
+
+/** JS 多抖动参考(与 C vca_braille_convert 同构;bits 输出) */
+function brailleBitsMulti(data, w, h, threshold, dither, invert) {
+    const depth = new Float32Array(w * h);
+    const bits = new Uint8Array((w / 2) * (h / 6));
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const idx = (x + y * w) * 4;
+            depth[x + y * w] = (data[idx] + data[idx + 1] + data[idx + 2]) * (data[idx + 3] / 255) / 3;
+        }
+    }
+    if (dither === 7 || dither === 8) {
+        const m = dither === 7 ? 4 : 8;
+        const mat = m === 4 ? BAYER4 : BAYER8;
+        const amp = 255 / 8;
+        for (let cy = 0; cy < h / 6; cy++) {
+            for (let cx = 0; cx < w / 2; cx++) {
+                let b = 0;
+                for (let i = 0; i < 2; i++) for (let j = 0; j < 4; j++) {
+                    const px = cx * 2 + i, py = cy * 6 + j;
+                    const off = (mat[(py & (m - 1)) * m + (px & (m - 1))] / (m * m) - 0.5) * amp;
+                    let val = depth[px + py * w] + off;
+                    if (invert) val = 255 - val;
+                    if (val > threshold) b |= 1 << brailleBitPos(i, j);
+                }
+                bits[cy * (w / 2) + cx] = b;
+            }
+        }
+        return bits;
+    }
+    const kern = KERNELS[dither] || null;   // null/undefined → 纯阈值
+    for (let cy = 0; cy < h / 6; cy++) {
+        for (let cx = 0; cx < w / 2; cx++) {
+            let b = 0;
+            for (let i = 0; i < 2; i++) {
+                for (let j = 0; j < 4; j++) {
+                    const px = cx * 2 + i, py = cy * 6 + j;
+                    let val = depth[px + py * w];
+                    if (invert) val = 255 - val;
+                    const bit = val > threshold ? 1 : 0;
+                    b |= bit << brailleBitPos(i, j);
+                    if (kern && px < w - 1 && py < h - 1) {
+                        const error = val - (bit ? 255 : 0);
+                        for (const [dx, dy, w8] of kern) {
+                            const nx = px + dx, ny = py + dy;
+                            if (nx < 0 || nx >= w || ny >= h) continue;
+                            depth[nx + ny * w] += error * w8;
+                        }
+                    }
+                }
+            }
+            bits[cy * (w / 2) + cx] = b;
+        }
+    }
+    return bits;
+}
 
 // ---------- JS 参考实现(逐行拷自 braille/index.html convertToBraille) ----------
 function convertToBraille(imgData, w, h, threshold, enableDither, invertColors) {
@@ -153,10 +238,10 @@ async function main() {
     const pxPtr = M._vca_pixels_ptr();
     const bOutPtr = M._vca_braille_out_ptr();
 
-    // ---- 等价性:threshold × dither × invert 全组合 ----
+    // ---- 等价性:threshold × dither(全算法) × invert 全组合 ----
     let combos = 0, fails = 0;
     for (const threshold of [0, 1, 32, 64, 128, 200, 254, 255]) {
-        for (const dither of [0, 1]) {
+        for (const dither of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
             for (const invert of [0, 1]) {
                 combos++;
                 const pix = makePixels(W, H, 777 + threshold * 31 + dither * 7 + invert);
@@ -165,7 +250,7 @@ async function main() {
                 M._vca_braille_convert(W, H, threshold, dither, invert);
                 const heap2 = new Uint8Array(M.HEAPU8.buffer);
                 const bitsWasm = heap2.slice(bOutPtr, bOutPtr + (W / 2) * (H / 6));
-                const bitsRef = brailleBitsRef(pix, W, H, threshold, dither, invert);
+                const bitsRef = brailleBitsMulti(pix, W, H, threshold, dither, invert);
                 let mm = 0;
                 for (let i = 0; i < bitsWasm.length; i++) {
                     if (bitsWasm[i] !== bitsRef[i]) {

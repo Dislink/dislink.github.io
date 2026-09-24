@@ -95,12 +95,17 @@ emcc vca_core.c -O3 -flto -msimd128 -fno-exceptions \
 ## 盲文字符画(braille 页)移植(2026-09-24)
 
 `vca_core.c` 新增盲文核心(`_vca_braille_init/_vca_braille_convert/...`),完整接管
-`braille/index.html convertToBraille`:深度图 `(r+g+b)*(a/255)/3`、FS 误差扩散进
+`braille/index.html convertToBraille`:深度图 `(r+g+b)*(a/255)/3`、误差扩散进
 同一 Float32 深度缓冲、invert、2×4 点位打包(每 cell 一字节 bits,U+2800 组码留 JS 拼)。
 
-**等价性:`bench-braille.js` 8 档 threshold × 抖动 × 反色共 32 组参数全部逐字节一致**,
-最终盲文字符串也逐字符一致(盲文深度是 Float32,无彩色路径的回绕 artifact,所以
-要求全参数严格等价;也确实做到了)。
+**v3 盲文多抖动**:与彩色路径共用误差核表(KERN/Bayer 阵),支持
+none/fs/atkinson/jjn/sierra3/stucki/burkes/bayer4/bayer8 共 9 种
+(盲文是单通道二值输出、无调色板,Riemersma 不适用)。页面 `ditherAlgo` select
+驱动(原 FS 复选框移除,选项语义与彩色页一致)。
+
+**等价性:`bench-braille.js` 8 档 threshold × 9 算法 × 反色共 144 组参数全部
+逐字节一致**,最终盲文字符串也逐字符一致(盲文深度是 Float32,无彩色路径的
+回绕 artifact,所以要求全参数严格等价;也确实做到了)。
 
 | 场景(256×102 默认) | JS | WASM | 端到端 | 纯核心 |
 |---|---|---|---|---|
@@ -109,9 +114,13 @@ emcc vca_core.c -O3 -flto -msimd128 -fno-exceptions \
 
 512×288(盲文 256×48 字符):FS 3.30×(2.30→0.70 ms),无抖动 6.16×(1.48→0.24 ms)。
 
+v3 各算法核心耗时(256×102,wasm):none 0.044 / fs 0.122 / atkinson 0.151 /
+jjn 0.224 / sierra3 0.213 / stucki 0.214 / burkes 0.160 / bayer4 0.043 /
+bayer8 0.042 ms/帧。
+
 页面接入(工作区未提交):`braille/index.html` 引入 `vca_wasm.js`,6 处
 `convertToBraille` 调用点全部改走 `convertBrailleAuto`(wasm 失败回退 JS 实现,
-原函数原样保留)。
+原函数原样保留;JS 回退只有 FS,其他算法降级 FS 并 console.warn)。
 
 **顺带修复**:`vca_wasm.js` 的 SIMD 探针字节码原本编码错误(type section 尺寸、
 缺 function section、结尾多一个 end),任何引擎都会 validate 失败 → 一直走 JS
