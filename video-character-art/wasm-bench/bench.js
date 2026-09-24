@@ -4,6 +4,9 @@
  * 用同一组伪随机像素分别跑 JS 版 convertFrame 与 wasm 版 vca_convert_frame,
  * 逐字节对比输出字符串与索引表,再各跑 N 轮计时得出加速比。
  * (wasm 核心带 ENVIRONMENT=node,可直接在 Node 里实例化)
+ *
+ * 注意:--dither 模式下 JS 旧 FS(Uint8 回绕)与 wasm 浮点误差域输出**不同属预期**
+ * (wasm 修正了回绕 artifact);等价性要求只针对 none 模式(必须逐字节一致)。
  */
 'use strict';
 
@@ -159,7 +162,13 @@ async function main() {
             mismatches++;
         }
     }
-    console.log(mismatches === 0 ? 'EQUIVALENT: 索引表逐字节一致' : `FAIL: ${mismatches}/${W * H} 像素不一致`);
+    console.log(
+        mismatches === 0
+            ? 'EQUIVALENT: 索引表逐字节一致'
+            : (DITHER
+                ? `DIFF: ${mismatches}/${W * H} 像素不一致 —— 预期内:JS 旧 FS 是 Uint8 回绕实现 artifact,wasm 已修正为浮点误差域(质量对比见 bench2.js)`
+                : `FAIL: ${mismatches}/${W * H} 像素不一致`)
+    );
 
     // ---- 基准 ----
     const t0 = process.hrtime.bigint();

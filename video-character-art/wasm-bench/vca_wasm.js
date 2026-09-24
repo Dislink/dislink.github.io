@@ -17,6 +17,12 @@
     var CODES = '0123456789abcdefghijmnpqstu';
     var CHAR_TABLE = ['┃', '┃', '┃', '┋', '┋', '╏', '┇'];
 
+    /** 页面 ditherAlgo 选项值 → C 算法 id(顺序与 index.html select 一致) */
+    var DITHER_IDS = {
+        none: 0, fs: 1, atkinson: 2, jjn: 3, sierra3: 4,
+        stucki: 5, burkes: 6, bayer4: 7, bayer8: 8, riemersma: 9
+    };
+
     function init(baseUrl) {
         if (loadingPromise) return loadingPromise;
         loadingPromise = (function () {
@@ -42,6 +48,9 @@
                     shades: m._vca_shades_ptr,
                     convert: m._vca_convert_frame
                 };
+                if (m._vca_version() < 2) {
+                    throw new Error('vca_core.wasm 版本过旧(缺少多抖动算法),请重新部署');
+                }
                 return m;
             }).catch(function (e) {
                 console.warn('[vca-wasm] 初始化失败,回退 JS 路径:', e && e.message);
@@ -97,18 +106,26 @@
     var heapU8 = null;
 
     /**
-     * 转换一帧,返回 § 字符串(与 JS convertFrame+optimizeColorString 等价)。
-     * imgData: ImageData(w,h);w/h 与其一致;dither: bool
+     * 转换一帧,返回 § 字符串。
+     * imgData: ImageData(w,h);w/h 与其一致;
+     * dither: 0=无 1=FS 2=Atkinson 3=JJN 4=Sierra3 5=Stucki 6=Burkes 7=Bayer4 8=Bayer8 9=Riemersma
+     *   (与页面 ditherAlgo select 的选项顺序一致)
+     * serpentine: 可选,误差扩散蛇形(默认 true)
      */
-    function convertFrame(imgData, w, h, dither) {
+    function convertFrame(imgData, w, h, dither, serpentine) {
         ensureBuffers(w, h);
         // 拷贝像素进 wasm 堆(4*w*h 字节;imgData.data.buffer 可能被换过,直接从 data 视图拷)
         var px = new Uint8Array(inst.HEAPU8.buffer, pxPtr, w * h * 4);
         px.set(imgData.data.subarray(0, w * h * 4));
 
-        exports.convert(w, h, dither ? 1 : 0);
+        var id = (typeof dither === 'string') ? (DITHER_IDS[dither] || 0) : (dither | 0);
+        exports.convert(w, h, id, serpentine === false ? 0 : 1);
 
-        // 从索引表拼 § 字符串(与 convertFrame 的 asciiStr 一致),再跑颜色合并优化
+        return buildStringFromTables(w, h);
+    }
+
+    /** 从索引表拼 § 字符串(未合并;页面侧用 optimizeColorString 合并) */
+    function buildStringFromTables(w, h) {
         var codes = new Uint8Array(inst.HEAPU8.buffer, codesPtr, w * h);
         var shades = new Uint8Array(inst.HEAPU8.buffer, shadesPtr, w * h);
         var out = '';
@@ -120,36 +137,29 @@
             }
             out += '\n';
         }
-        return optimizeColorStringStr(out);
+        return out;
     }
 
-    // 页面已有同名函数;桥内独立实现避免依赖页面加载顺序
-    function optimizeColorStringStr(text) {
-        var result = '';
-        var i = 0;
-        var len = text.length;
-        while (i < len) {
-            if (text[i] === '§' && i + 2 < len) {
-                var colorCode = text.substr(i, 2);
-                var displayChar = text[i + 2];
-                result += colorCode + displayChar;
-                i += 3;
-                while (i < len && text[i] === '§' && text.substr(i, 2) === colorCode && i + 2 < len) {
-                    result += text[i + 2];
-                    i += 3;
-                }
-            } else {
-                result += text[i];
-                i++;
-            }
-        }
-        return result;
-    }
-
-    window.VcaWasm = {
+        window.VcaWasm = {
         init: init,
+        ditherId: function (name) {
+            var id = DITHER_IDS[name];
+            return id === undefined ? 0 : id;
+        },
         convertFrame: convertFrame,
-        /** 等价性测试用:返回 {codes: Uint8Array, shades: Uint8Array}(转换后索引表) */
+        /** 转换但不拼串(高频路径用):返回 {codes, shades} 视图;拼串由页面按需做 */
+        convertFrameTables: function (imgData, w, h, dither, serpentine) {
+            ensureBuffers(w, h);
+            var px = new Uint8Array(inst.HEAPU8.buffer, pxPtr, w * h * 4);
+            px.set(imgData.data.subarray(0, w * h * 4));
+            var id = (typeof dither === 'string') ? (DITHER_IDS[dither] || 0) : (dither | 0);
+            exports.convert(w, h, id, serpentine === false ? 0 : 1);
+            return {
+                codes: new Uint8Array(inst.HEAPU8.buffer, codesPtr, w * h),
+                shades: new Uint8Array(inst.HEAPU8.buffer, shadesPtr, w * h)
+            };
+        },
+        /** 等价性测试用:返回上次转换的 {codes, shades}(拷贝) */
         lastIndexTables: function () {
             if (!inst || !pxPtrValid) return null;
             return {
