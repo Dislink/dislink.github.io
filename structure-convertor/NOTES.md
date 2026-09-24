@@ -26,13 +26,16 @@
 - **操作数大端,NBT 载荷小端**(BE 头 + LE NBT 混合)。
 - **属性名和值都带引号**:真实 BDX 写 `"k"=v`,解析时(`parse_bdx_block_key`)键和值统一剥引号,canonical 键才对得上 bake 表/Java 拼写(engine `842602c`)。导出侧(`encode_bdx`,export.cpp)按同样引号风格重写后缀(`"k"="v"`),解析时再剥一遍——roundtrip canonical 一致。
 - runtime-id 池(31/32/33/34):rid ≥ 7684 → `minecraft:unknown_runtime_N` 兜底;legacy data 走 kLegacyNames/kLegacyStates 二分。
-- op 26/27/34/35/36/40/41 的命令方块/箱子/NBT 载荷**只跳过不保留**——转换会丢容器内容,这是已知限制。
+- op 26/27/34/35/36 命令方块数据、op 40/41 NBT 载荷**已保留**(2026-09-24 起):命令块字段合成 `block_entity_data` 形状的 NBT、op41 LE-NBT 解析成 DOM,统一按放置格键入 `Region.block_entities`;导出侧回写(见"二点五")。**op37 箱子内容物仍跳过**——箱子格和格子存在,但容器内的物品栏不保留,这是已知限制。
+- op41 载荷带 `{block_entity_data:{…}}` 包装时解析侧**自动解包**(与 mcstructure 解析一致);空 compound 原样保留不丢弃。
 - **放置键 id 会超 u16**(2026-09-24 修,engine `b2c7e1f`):真实 BDX 放置次数轻松破 65535,zc.bdx 138 万次放置使 `Placement.key`/`place()` 里的 `u16 id` 回绕,后段全部错指调色板(pal 586→29、nether_brick_fence 整个丢失、后续 id 移位)。解析端两次都是"流本身完美、解析结果烂",gen7 光标走读证明写侧 0 diff 后才定位到这个回绕。**教训:与放置/键索引相关的计数一律 u32。**
 
 ## 二点五、BDX 导出(encode_bdx)
 
 - 线格式:`BD@` + Brotli;载荷 = u32be `BDX\0` + 作者 cstr + op 流;**全部操作数大端**;op 1 常量串池(ids 从 0),op 5 {u16be nameId, u16be statesId} → key = pool[b]+pool[s](suffix 为 `["k"="v"]` 引号风格,无属性时为空串);放置前显式坐标增量(y→z→x 走查,air 跳过),窄化:±1→14..19,|d|≤127→i8 28..30,≤32767→i16be 20/22/24,否则 i32be 21/23/25;88+69 收尾。
 - **origin 丢失是格式固有**:BDX 无 origin 槽位,重解析基点恒 (0,0,0),包围盒 = 已放置块 min/max(空边界层收缩)。`export_bdx_roundtrip` 测试因此单独断言 rb.origin == Vec3i(),不与其他格式共用 check_documents_equal。
+- **方块实体经 op41 保留**(2026-09-24 起):`Region.block_entities` 每格发射一条 op41(0x0a + u16le 根名长 + 空根名 + compound 体,即 `write_named` 空名——与 JS 桥写法同形),内容为 `{block_entity_data:{…}}` 包装;解析侧见到该包装自动解包。**Skipper 必须跳过根名**:NbtSkipper 曾只读根名长度不 skip 字节,根名非空时全盘错位报 "bad cmd-41 NBT";发射端用 `write_payload` 会漏掉自身 0x0a+名字头,两端曾同时错又恰好互相掩盖——wire 级断言(`export_bdx_wire_envelope`,47 字节手验序列)是唯一能同时抓住两端的方法。
+- mcstructure 导出**回写 block_position_data**:`Region.block_entities` 键 = Bedrock mem 序十进制串(`lx*sz*sy + ly*sz + lz`,z 最快),值 = `{block_entity_data:{…}}` 包装 compound,挂在 `palette.default` 下。**这是 Skyscape 问题的修复**:此前 BDX→mcstructure 不写该字段,游戏导入直接失败(4867 个命令块全丢)。
 - 调色板去重:名字与状态后缀拆成两个常量串池 id,同串复用;调色板中**未被放置的条目不会出现在输出里**(daisy_bell pal 18→7,canonical 逐格全等,属预期)。
 
 ## 三、Java ↔ 基岩转换
@@ -50,7 +53,9 @@
 - `mcstruct_region_info(..., palette_size*, block_count*)`:**block_count = r.blocks.size() = 体积**(含 air),不是非空数——`core_wasm.cpp` 的 OOM 守卫依赖这个语义,测试和调用方都别想当然改成非空数。
 - `_core_convert` **不设置** g_region/g_have(那是 `_core_load`/查看器路径的事),两个入口不要混用假设。
 - 错误串:worker 里手动扫 `HEAPU8` 的 C 字符串。
-- 大文件连续转换/回读会 OOM abort(引擎无 reset 导出):页面 worker catch 后 `createCore` 重建重试一次,与查看器同策略。wasm 内存上限已提到 4GB(engine `886aa9a`,bake 路径大结构峰值可破 2GB)。
+- **C++ 语法坑:`using nbt = mcstruct::nbt;` 无效**(2026-09-24 修)——using 别名不能指向 namespace,gcc/clang 都拒;必须写 `namespace nbt = mcstruct::nbt;`。报错信息(`NbtTag`/`TagType` 找不到)完全不指向语法本身,别怀疑工具链。
+- **place_nbt 与 place 必须严格同步**:`place()` lambda 内 `emplace_back()` 一格一节点,声明必须在 lambda **之前**(lambda 捕获引用);op26 修饰的是"光标处上一次放置",靠 `placements.back()` 坐标比对。
+- **op41 wire 形状(两端必须一致)**:载荷 = **完整命名标签**(空根名):`0x0a + u16le 根名长 + 根名 + compound 体 + 0x00`。导出端用 `write_named(slot, nw, /*little_endian=*/true)`(slot 名为空)——`write_payload` 只写子项、缺自身 0x0a+名字头;解析端 NbtSkipper 的 `compound_total` **必须 skip 根名字节**(曾只读长度不 skip,空根名时侥幸通过、非空根名全盘错位报 "bad cmd-41 NBT")。两端曾同时错又恰好互相"抵消"成能跑的样子,wire 级断言(`export_bdx_wire_envelope`,47 字节手验序列)才能同时抓住。
 - `core_wasm.cpp` **没有** `mcstruct::` 的 i32/u32 短别名(那是 libs/structure 的 core types),该 TU 里写 `i32` 会 wasm 构建挂(engine `3635734`)——用 `int32_t/uint32_t`。
 
 ## 五、构建与测试

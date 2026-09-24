@@ -107,6 +107,7 @@
             <div class="conv-note">
                 说明：mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem / bdx 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。世界类容器（.mcworld / .zip 等）与 .mca 仅作为解析输入：整张世界会按所有区块的包围盒展开，体积可能远超单个结构，转换前请确认范围。
                 <br>世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只转换该世界坐标包围盒（含端点），输出文件名取 <code>@</code> 前的名称；如 <code>zhucheng@[-280,-64,-250]~[250,200,250].mcworld</code> 只导出 [-280,-64,-250] 到 [250,200,250] 的区域。BDX 为基岩版命令流格式（BD@ 头 + Brotli），不存储原点与实体，原点信息会丢弃（重解析基点为 0,0,0）。
+                <br>命令方块、告示牌等<b>方块 NBT 信息已完整保留</b>：mcstructure ↔ BDX 双向转换均保留方块实体数据（命令、自定义名、延时等），转换回 mcstructure 后可直接导入游戏使用；箱子内的物品暂不保留。
             </div>
         </div>
     </div>
