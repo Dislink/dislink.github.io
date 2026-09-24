@@ -46,6 +46,15 @@
 - 多区域文档:litematic 保留全部区域;mcstructure/schem/wsmr/bdx 只取**第一个区域**。
 - 世界容器(mcworld/db)只作解析输入:按全部区块包围盒展开,取第 1 个区域。文件名带 `名称@[x1,y1,z1]~[x2,y2,z2]` 约定时(index.html 的 CROP_RE)只转该包围盒、输出名取 `@` 前部分。
 
+## 三点五、mcworld db/(LevelDB)——journal 不读就丢一整条竖带(2026-09-24 修)
+
+- **症状**:zhucheng.mcworld 转出的 bdx X 方向被裁掉一段(376 格 vs 预期 ~531),但游戏直接导入同一 mcworld 结构完整。
+- **根因**:基岩世界的 db/ 是 LevelDB,结构方块数据按 SubChunkPrefix(tag 47)键存;**未刷盘的 memtable 在 `db/*.log`(write-ahead journal)里**,游戏导入时会重放。引擎此前只走查 `db/*.ldb`,zhucheng 世界 x 子区 6..15(世界 x 96..255)的全部 8750 条子区块**只存在于 000002.log**——不重放 journal,这整条竖带就无声消失,且包围盒裁剪后"看起来只是小了一圈",非常隐蔽。
+- **journal 格式三层**:32KiB 块 + 记录头(crc u32 + len u16 + type u8;FULL/FIRST/MIDDLE/LAST 分片重组)→ WriteBatch `[8B seq][4B count]` + 条目;**删除条目 type=0 没有 vlen**(只有 `[type][varint klen][key]`),put 才有 `[varint vlen][value]`——按 put 形状解析 delete 会把后面的批次全部错位。
+- **journal 键是 10 字节** `[x i32le][z i32le][tag 47@8][y i8@9]`(无维度、无 revision 后缀),与 .ldb 里的 14/18 字节键都不同;解析 Y 必须**跳过偏移 8 的 tag 字节**——曾直接 `read_u8` 把 tag(47)读成 Y,墓碑键 (0,0,47) 永远匹配不上 (0,0,0),删除重放失效且无任何报错。
+- **重放语义**:journal 编号升序逐个重放;put 覆盖同键 .ldb 记录(memtable 更新),delete 抹掉同键 .ldb 子区块。MANIFEST(编号最大的)的 VersionEdit(Tag7/Tag6)决定活表集,MANIFEST 不可读退化为全表。
+- **教训**:"游戏能读而引擎不能"的输入,优先怀疑引擎少读了某类文件(db/*.log、嵌套容器条目),而不是文件本身有问题;`.ldb` 键覆盖范围只是下界。
+
 ## 四、wasm 核心 C ABI
 
 - `core_convert(data,size,int out_fmt)`:格式码 **0=mcstructure 1=litematic 2=schem 3=wsmr 4=bdx**;`char*` 形参编组不稳,必须 int。
