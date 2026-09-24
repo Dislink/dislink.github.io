@@ -1,10 +1,11 @@
 // structure-viewer worker.js — 解析/网格化/几何拷贝全部移出主线程。
 // 协议:
-//   → {type:'load', name, bytes, lod, reuse, tex}  (bytes 被 transfer;reuse=1 忽略 bytes;
-//     tex=0 走纯色贪心路径,tex=1 走烘焙贴图路径)
+//   → {type:'load', name, bytes, lod, reuse, tex, min6?}  (bytes 被 transfer;reuse=1 忽略 bytes;
+//     tex=0 走纯色贪心路径,tex=1 走烘焙贴图路径;min6={x1,y1,z1,x2,y2,z2} 走文件名
+//     约定裁剪路径,与转换器同规则)
 //   ← {type:'ready'}
 //   ← {type:'progress', stage}          parse / geometry
-//   ← {type:'error', code}              code: -1 解析失败 / -2 超上限
+//   ← {type:'error', code}              code: -1 解析失败 / -2 超上限 / -3 裁剪框不重叠
 //   ← {type:'worker-error', message}
 //   ← {type:'geometry', bake:{...} | color:{...}, vc, ic, info6, blocksTotal,
 //      blocksNonair, regions, mn, mx}  (typed arrays transfer)
@@ -49,13 +50,23 @@ async function loadBake(core){
 }
 // 返回实际使用的路径:true = bake 贴图路径,false = 纯色路径。onmessage 据此选
 // collectBake / collectGeometry —— tryLoad 内部的回退可能改变路径,不能只看 msg.tex。
-async function tryLoad(bytes, lod, useBake){
+async function tryLoad(bytes, lod, useBake, min6){
     const attempt = async (core, withBake) => {
         if (withBake) await loadBake(core);
         const p = core._malloc(bytes.length);
         core.HEAPU8.set(bytes, p);
         try {
-            const rc = core._core_load_lod(p, bytes.length, lod);
+            // 文件名约定裁剪(与转换器同规则):min6 在时走 core_load_lod_crop,
+            // 裁剪先行 → 只网格化请求范围,大世界载入更快更省内存。
+            let rc;
+            if (min6){
+                const cp = core._malloc(24);
+                new Int32Array(core.HEAPU32.buffer, cp, 6).set(min6);
+                try { rc = core._core_load_lod_crop(p, bytes.length, lod, cp); }
+                finally { core._free(cp); }
+            } else {
+                rc = core._core_load_lod(p, bytes.length, lod);
+            }
             if (rc > 0) lastLoadBaked = withBake && bakeLoadedOnCore === core;
             return rc;
         }
@@ -78,6 +89,7 @@ async function tryLoad(bytes, lod, useBake){
         return await attempt(core, useBake);
     } catch (e){
         // 上一次载入残留占满 wasm 堆 → 重建核心再试一次;重建后 bake 表丢失需重载。
+        // 注意:-3(裁剪框不重叠)/-2(超上限)是同步返回码不是异常,不会进这里。
         try {
             await freshCore();
             return await attempt(Core, useBake);
@@ -138,10 +150,10 @@ function collectBake(core){
             const r = (isT ? rectsT : rects)[tile] || [0, 0, 1, 1];
             const tc = tints[tintId] || tints[0];
             for (let i = 0; i < 4; ++i){
-                const s = (q + i) * 8, d3 = (q + i) * 3;
+                const s = (q + i) * 8, d3 = (q + i) * 3, d2 = (q + i) * 2;
                 pos[d3] = raw[s]; pos[d3+1] = raw[s+1]; pos[d3+2] = raw[s+2];
-                uv[d3]   = r[0] + raw[s+3] * r[2];
-                uv[d3+1] = r[1] + raw[s+4] * r[3];
+                uv[d2]   = r[0] + raw[s+3] * r[2];
+                uv[d2+1] = r[1] + raw[s+4] * r[3];
                 const ao = i === 0 ? ao0 : i === 1 ? ao1 : i === 2 ? ao2 : ao3;
                 rgb[d3] = tc[0] * ao; rgb[d3+1] = tc[1] * ao; rgb[d3+2] = tc[2] * ao;
                 nrm[d3] = n[0]; nrm[d3+1] = n[1]; nrm[d3+2] = n[2];
@@ -252,9 +264,9 @@ self.onmessage = async (ev) => {
             }
             const bytes = msg.reuse ? lastBytes : msg.bytes;
             lastBytes = bytes;
-            const rc = await tryLoad(bytes, msg.lod, useBake);
-            if (rc === undefined || rc === -1 || rc === -2){
-                postMessage({ type: 'error', code: rc === -2 ? -2 : -1, seq: msg.seq });
+            const rc = await tryLoad(bytes, msg.lod, useBake, msg.min6 || null);
+            if (rc === undefined || rc < 0){
+                postMessage({ type: 'error', code: rc, seq: msg.seq });
                 return;
             }
             postMessage({ type: 'progress', stage: 'geometry' });

@@ -27,37 +27,64 @@
     <!-- BDX 桥接与 wasm 核心均在 worker.js 内运行(解析/网格化移出主线程) -->
     <script src="/javascript/error-handler.js"></script>
     <style>
+        #loadProg .bar { width: 220px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; }
+        #loadProg .bar i { display: block; height: 100%; width: 0%; background: #58a6ff; transition: width .2s; }
+        /* 工具栏:分段胶囊控件(选中项深底白字,悬停浅底),替代纯文本链接 */
         .viewer-toolbar {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 1rem;
             flex-wrap: wrap;
             margin-bottom: 0.75rem;
             font-size: 0.85rem;
         }
-        .viewer-toolbar .tb-label { color: var(--color-text-secondary); }
+        .tb-group {
+            display: inline-flex; align-items: center;
+            background: var(--color-surface-alt);
+            border: 1px solid var(--color-border);
+            border-radius: 8px; padding: 2px; gap: 2px;
+        }
+        .tb-label {
+            color: var(--color-text-secondary);
+            padding: 0 6px 0 8px; font-size: 0.78rem;
+        }
         .viewer-toolbar a, .viewer-toolbar .tb-btn {
-            color: var(--color-primary);
+            color: var(--color-text-secondary);
             cursor: pointer;
             text-decoration: none;
             user-select: none;
+            padding: 3px 9px;
+            border-radius: 6px;
+            line-height: 1.5;
+            transition: background .12s, color .12s;
         }
-        .viewer-toolbar a:hover, .viewer-toolbar .tb-btn:hover { text-decoration: underline; }
-        .viewer-toolbar a.active, .viewer-toolbar .tb-btn.active { font-weight: 700; }
-        .viewer-toolbar input[type=range] { vertical-align: middle; width: 140px; }
+        .viewer-toolbar a:hover, .viewer-toolbar .tb-btn:hover {
+            background: var(--color-primary-light);
+            color: var(--color-text);
+            text-decoration: none;
+        }
+        .viewer-toolbar a.active, .viewer-toolbar .tb-btn.active {
+            background: var(--color-primary);
+            color: #fff;
+            font-weight: 600;
+        }
+        .viewer-toolbar .tb-sep { width: 1px; height: 18px; background: var(--color-border); margin: 0 2px; }
+        .viewer-toolbar input[type=range] { vertical-align: middle; width: 140px; margin: 0 6px; }
         #canvasWrap {
             position: relative;
             border: 1px solid var(--color-border);
             border-radius: var(--radius-md);
             overflow: hidden;
-            background: #0d1117;
+            background: #a8c8e8;
         }
         #c { display: block; width: 100%; height: 70vh; min-height: 380px; touch-action: none; }
         #legend {
             position: absolute; right: 10px; top: 10px; width: 230px;
             max-height: calc(70vh - 20px); overflow: auto;
-            font-size: 11px; background: rgba(13,17,23,.72); color: #dfe6ee;
-            padding: 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08);
+            font-size: 11px; background: rgba(20,26,34,.78); color: #e8eef5;
+            padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,.14);
+            box-shadow: 0 2px 8px rgba(0,0,0,.18);
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
             pointer-events: none;
         }
         #legend .chip { display: flex; gap: 6px; align-items: center; padding: 2px 4px; border-radius: 4px; }
@@ -66,36 +93,35 @@
         #legend .lx { opacity: .7; margin-bottom: 4px; }
         #hud {
             position: absolute; left: 10px; bottom: 8px;
-            color: rgba(223,230,238,.55); font-size: 12px; pointer-events: none;
+            color: rgba(28,38,50,.6); font-size: 12px; pointer-events: none;
         }
         #scaleBar {
             position: absolute; left: 10px; bottom: 28px;
-            color: rgba(223,230,238,.85); font-size: 11px;
+            color: rgba(28,38,50,.85); font-size: 11px;
             pointer-events: none; user-select: none;
-            text-shadow: 0 1px 2px rgba(0,0,0,.8);
+            text-shadow: 0 1px 2px rgba(255,255,255,.6);
         }
         #scaleTxt { margin-bottom: 2px; text-align: center; }
         #scaleLine {
             height: 5px; box-sizing: border-box;
-            border: 1px solid rgba(223,230,238,.85); border-top: none;
+            border: 1px solid rgba(28,38,50,.85); border-top: none;
         }
         #dropHint {
             position: absolute; inset: 0; display: none;
             align-items: center; justify-content: center;
-            background: rgba(13,17,23,.72); color: #dfe6ee; font-size: 1rem;
+            background: rgba(20,26,34,.6); color: #fff; font-size: 1rem;
             z-index: 3; pointer-events: none;
         }
         #dropHint.on { display: flex; }
         #loadProg {
             position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
             display: none; flex-direction: column; align-items: center; gap: 10px;
-            background: rgba(13,17,23,.88); color: #dfe6ee; padding: 18px 26px;
-            border-radius: 10px; border: 1px solid rgba(255,255,255,.12); z-index: 4;
+            background: rgba(20,26,34,.88); color: #e8eef5; padding: 18px 26px;
+            border-radius: 10px; border: 1px solid rgba(255,255,255,.16); z-index: 4;
+            box-shadow: 0 4px 16px rgba(0,0,0,.25);
             font-size: 0.9rem; pointer-events: none; text-align: center;
         }
         #loadProg.on { display: flex; }
-        #loadProg .bar { width: 220px; height: 6px; border-radius: 3px; background: #232a37; overflow: hidden; }
-        #loadProg .bar i { display: block; height: 100%; width: 0%; background: #58a6ff; transition: width .2s; }
         .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; }
         .info-grid .info-display { margin: 0; }
         @media (max-width: 640px) { #legend { display: none; } }
@@ -123,7 +149,7 @@
                 <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx,.schematic,.nbt,.mca,.mcworld,.mcpack,.mcaddon,.zip">
             </div>
             <div class="separator"></div>
-            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域。材质版权归 Mojang 所有，仅作渲染展示。已知限制：海带/海草/睡莲等水生植物会连同水体一起渲染为水，含水方块（waterlogged）的含水覆层暂不显示。</div>
+            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域。世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只载入该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（如 y=-64..200 实际取 -64..207）。材质版权归 Mojang 所有，仅作渲染展示。已知限制：海带/海草/睡莲等水生植物会连同水体一起渲染为水，含水方块（waterlogged）的含水覆层暂不显示。</div>
         </div>
     </div>
 
@@ -131,20 +157,26 @@
         <div class="card-header">3D 视图</div>
         <div class="card-body">
             <div class="viewer-toolbar">
-                <span class="tb-label">LOD:</span>
-                <a id="lA" class="active">自动</a>
-                <a id="l1">×1</a><a id="l2">×2</a><a id="l4">×4</a><a id="l8">×8</a>
-                <span class="tb-label">|</span>
-                <span class="tb-btn" id="texL">贴图:开</span>
-                <span class="tb-btn" id="reL">重置视角(R)</span>
-                <span class="tb-label">|</span>
-                <span class="tb-label">模式:</span>
-                <span class="tb-btn active" id="mOrbit">环绕</span>
-                <span class="tb-btn" id="mPlan">分层</span>
-                <span class="tb-btn" id="mExplore">漫游</span>
-                <span class="tb-label">|</span>
-                <span class="tb-label">切层:</span>
-                <input type="range" id="clipY" min="0" max="100" step="1" value="100" disabled>
+                <div class="tb-group" id="lodGroup">
+                    <span class="tb-label">LOD</span>
+                    <a id="lA" class="active">自动</a>
+                    <a id="l1">×1</a><a id="l2">×2</a><a id="l4">×4</a><a id="l8">×8</a>
+                </div>
+                <div class="tb-group" id="texGroup">
+                    <span class="tb-btn" id="texL">贴图:开</span>
+                    <span class="tb-btn" id="reL">重置视角(R)</span>
+                </div>
+                <span class="tb-sep"></span>
+                <div class="tb-group">
+                    <span class="tb-label">模式</span>
+                    <span class="tb-btn active" id="mOrbit">环绕</span>
+                    <span class="tb-btn" id="mPlan">分层</span>
+                    <span class="tb-btn" id="mExplore">漫游</span>
+                </div>
+                <div class="tb-group">
+                    <span class="tb-label">切层</span>
+                    <input type="range" id="clipY" min="0" max="100" step="1" value="100" disabled>
+                </div>
             </div>
             <div id="canvasWrap">
                 <canvas id="c"></canvas>
@@ -203,6 +235,23 @@ const clipYEl = document.getElementById('clipY');
 
 function setStatus(s, cls){ statusEl.textContent = s; statusEl.className = 'status-bar' + (cls ? ' ' + cls : ''); }
 
+// mcworld 命名约定(与结构转换器同规则):"名称@[x1,y1,z1]~[x2,y2,z2].mcworld"——
+// 方括号内为世界坐标,只载入该包围盒,名取 @ 前的部分。世界容器按 16³ 子区块
+// 存取,坐标全部向外对齐到区块边界(min 向下取整、max 向上取整,16 的倍数),
+// 保证裁剪箱完整覆盖用户给的坐标。
+const CROP_RE = /^(.*)@\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]~\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]/;
+function parseCropName(name){
+    const m = CROP_RE.exec(name);
+    if (!m) return null;
+    const box = [ +m[2], +m[3], +m[4], +m[5], +m[6], +m[7] ];
+    if (box[3] < box[0] || box[4] < box[1] || box[5] < box[2]) return null;
+    const S = v => Math.floor(v / 16) * 16;
+    const E = v => Math.floor(v / 16) * 16 + 15;
+    box[0] = S(box[0]); box[1] = S(box[1]); box[2] = S(box[2]);
+    box[3] = E(box[3]); box[4] = E(box[4]); box[5] = E(box[5]);
+    return { name: m[1].trim() || 'structure', min6: box };
+}
+
 // ---------------------------------------------------------------- worker 通信
 // 解析/BDX 桥接/网格化/几何拷贝全部在 worker.js 内进行,主线程只接收可转移数组。
 const worker = new Worker('./worker.js');
@@ -235,9 +284,11 @@ function creepProg(cap){
 
 function startLoad(name, bytes, reuse){
     loadSeq++;
+    const crop = parseCropName(name);
     showProg(reuse ? '按 LOD×' + curLod + ' 重新网格化…' : '正在解析 ' + name + ' …', 5);
-    if (reuse) worker.postMessage({ type: 'load', name: name, bytes: null, lod: curLod, reuse: true, tex: useTex, seq: loadSeq });
-    else worker.postMessage({ type: 'load', name: name, bytes: bytes, lod: curLod, reuse: false, tex: useTex, seq: loadSeq },
+    const min6 = crop ? crop.min6 : null;
+    if (reuse) worker.postMessage({ type: 'load', name: name, bytes: null, lod: curLod, reuse: true, tex: useTex, seq: loadSeq, min6 });
+    else worker.postMessage({ type: 'load', name: name, bytes: bytes, lod: curLod, reuse: false, tex: useTex, seq: loadSeq, min6 },
                              [bytes.buffer]);
 }
 
@@ -259,6 +310,7 @@ worker.onmessage = (ev) => {
         hideProg();
         hasFile = false;
         if (m.code === -2) setStatus('文件过大:超过 2.2 亿方块上限,无法渲染(可尝试导出为更小的结构)', 'error');
+        else if (m.code === -3) setStatus('裁剪失败: ' + lastFileName + ' —— 坐标范围与该世界不重叠(检查文件名 @ 后的坐标)', 'error');
         else setStatus('无法解析: ' + lastFileName + '(文件损坏或格式不受支持)', 'error');
         // 自动模式下解析失败时把 LOD 回退到默认视角档位,便于用户重试
         if (autoLod){
@@ -371,7 +423,8 @@ function onSliceMessage(m){
     geo.setAttribute('position', new THREE.BufferAttribute(m.pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(m.col, 3));
     geo.setIndex(new THREE.BufferAttribute(m.idx, 1));
-    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
     sliceGroup = new THREE.Group();
     sliceGroup.add(new THREE.Mesh(geo, mat));
     scene.add(sliceGroup);
@@ -506,11 +559,21 @@ function buildFromGeometry(m){
         const nm = names[m2] || ('block'+m2);
         const isTrans = /(water|glass|leaves|ice|lava|slime|honey|vine|flowing)/i.test(nm);
         let baseColor = new THREE.Color(cr, cg, cb);
-        if (/leaves|vine/.test(nm)) baseColor = new THREE.Color(0.30, 0.64, 0.30);
+        if (/leaves|vine/.test(nm)) baseColor = new THREE.Color(0.34, 0.68, 0.30);
         else if (/grass_block/.test(nm)) baseColor = (face === 2)
-            ? new THREE.Color(0.42, 0.72, 0.30)   // 顶面绿
+            ? new THREE.Color(0.45, 0.75, 0.32)   // 顶面绿
             : new THREE.Color(0.53, 0.40, 0.27);  // 其余泥土色
-        const mat = new THREE.MeshBasicMaterial(
+        // 纯色路径也走 Lambert:按贪心组的 face 展开轴向法线(与烘焙路径一致),
+        // 让"贴图关"也有方向光照。
+        const NRM = [[0,-1,0],[0,1,0],[0,0,-1],[0,0,1],[-1,0,0],[1,0,0]];
+        const n = NRM[face] || NRM[1];
+        const nrmArr = new Float32Array(ix.length * 3);
+        for (let i = 0; i < ix.length; i += 3){
+            for (let k = 0; k < 3; ++k){
+                nrmArr[(i+k)*3] = n[0]; nrmArr[(i+k)*3+1] = n[1]; nrmArr[(i+k)*3+2] = n[2];
+            }
+        }
+        const mat = new THREE.MeshLambertMaterial(
             isTrans
                 ? { color: baseColor, side: THREE.DoubleSide,
                     transparent: true, opacity: /leaves/.test(nm) ? 0.9 : 0.65, depthWrite: false }
@@ -518,6 +581,7 @@ function buildFromGeometry(m){
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', posAttr);
         geo.setAttribute('uv', uvAttr);
+        geo.setAttribute('normal', new THREE.BufferAttribute(nrmArr, 3));
         geo.setIndex(new THREE.BufferAttribute(ix, 1));
         const mesh = new THREE.Mesh(geo, mat);
         meshGroup.add(mesh);
@@ -564,7 +628,9 @@ function finishLoad(m, vc, ic){
     const size3 = [i32[3], i32[4], i32[5]];
     document.getElementById('infoCard').style.display = '';
     document.getElementById('ifName').textContent = '文件: ' + lastFileName;
-    document.getElementById('ifSize').textContent = '尺寸: ' + size3[0] + ' × ' + size3[1] + ' × ' + size3[2];
+    const crop = parseCropName(lastFileName);
+    document.getElementById('ifSize').textContent = '尺寸: ' + size3[0] + ' × ' + size3[1] + ' × ' + size3[2] +
+        (crop ? ' (已按文件名裁剪 [' + crop.min6.slice(0,3).join(',') + ']~[' + crop.min6.slice(3).join(',') + '])' : '');
     document.getElementById('ifOrigin').textContent = '原点: ' + i32[0] + ', ' + i32[1] + ', ' + i32[2];
     document.getElementById('ifBlocks').textContent = '方块: ' + m.blocksNonair + ' / ' + m.blocksTotal;
     document.getElementById('ifMesh').textContent = '顶点 ' + vc + ' · 三角 ' + (ic/3|0) + (curLod > 1 ? ' (LOD×' + curLod + (autoLod ? ' · 自动)' : ')') : '');
@@ -709,6 +775,7 @@ document.getElementById('texL').onclick = () => {
 
 // ---------------------------------------------------------------- 初始化
 let sunLight = null;   // 平行光(带阴影);阴影相机随每次载入按结构尺寸拟合
+let fillLight = null;  // 冷色补光(不投影):从太阳对侧抬亮背光面,暗部不死黑
 function fitShadowCamera(){
     if (!sunLight || !lastFitC) return;
     // shulkr 太阳方向:方位角 130° / 仰角 45° → 单位向量 (0.5417, 0.7071, −0.4545)
@@ -717,6 +784,18 @@ function fitShadowCamera(){
         lastFitC.x + 0.5417 * e, lastFitC.y + 0.7071 * e, lastFitC.z - 0.4545 * e);
     sunLight.target.position.copy(lastFitC);
     sunLight.target.updateMatrixWorld();
+    // 补光放太阳对侧(低仰角),随结构尺寸一起挪
+    if (fillLight){
+        fillLight.position.set(
+            lastFitC.x - 0.5417 * e, lastFitC.y + 0.5 * e, lastFitC.z + 0.4545 * e);
+        fillLight.target.position.copy(lastFitC);
+        fillLight.target.updateMatrixWorld();
+    }
+    // 远景渐隐:拉远时结构尾部融进背景,近处不受影响
+    if (scene.fog){
+        scene.fog.near = lastFitSize * 2.5;
+        scene.fog.far = lastFitSize * 7;
+    }
     const sc = sunLight.shadow.camera;
     sc.left = -lastFitSize; sc.right = lastFitSize;
     sc.top = lastFitSize; sc.bottom = -lastFitSize;
@@ -732,33 +811,44 @@ function fitShadowCamera(){
 }
 function init(){
     scene = new THREE.Scene();
-    scene.background = new THREE.Color('#000000');
+    // 天空背景(带雾同步的柔和蓝色),纯黑背景显得生硬;远处的雾把结构尾部融进天色
+    scene.background = new THREE.Color('#a8c8e8');
+    scene.fog = new THREE.Fog(0xa8c8e8, 200, 600);   // near/far 由 fitShadowCamera 按结构尺寸改写
     camera = new THREE.PerspectiveCamera(50, 16/9, 0.1, 5000);
     controls = new OrbitControls(camera, document.getElementById('c'));
     controls.enableDamping = true;
-    scene.add(new THREE.GridHelper(200, 40, 0x3a4150, 0x232a37));
+    const grid = new THREE.GridHelper(200, 40, 0x7a90a8, 0x9db4cc);
+    grid.material.opacity = 0.35; grid.material.transparent = true;
+    scene.add(grid);
 
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.localClippingEnabled = true;
-    // shulkr 同款渲染设置:sRGB 输出 + ACES 电影色调映射(光照参数见下方灯光组)
+    // NoToneMapping 保饱和:ACES 会把 MC 高饱和贴图压灰(饱和色相被向白压缩),
+    // 线性映射让 Lambert 直射出的颜色保持鲜艳;曝光 1.15 微提亮度。
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.shadowMap.autoUpdate = false;   // 静态结构:每次重建网格后手动刷新阴影
 
-    // shulkr 同款灯光:环境 .3 + 半球 .85 + 平行光 1.6(方位 130°/仰角 45°,带阴影)
-    scene.add(new THREE.AmbientLight(0xffffff, .3));
-    scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x8899aa, .85));
-    sunLight = new THREE.DirectionalLight(0xfff4e2, 1.6);
+    // 灯光:环境给底 + 半球给冷暖过渡 + 太阳直射(方位 130°/仰角 45°,带阴影)
+    // + 冷色补光抬亮背光面。直射+环境合计让受光面略过曝、背光面保细节,
+    // 颜色不做色调映射压缩,饱和贴图保持鲜艳。
+    scene.add(new THREE.AmbientLight(0xffffff, .45));
+    scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x8899aa, .55));
+    sunLight = new THREE.DirectionalLight(0xfff4e2, 1.5);
     sunLight.castShadow = true;
     sunLight.shadow.normalBias = .04;
     sunLight.shadow.bias = -5e-4;
     sunLight.shadow.mapSize.set(1024, 1024);
     scene.add(sunLight);
     scene.add(sunLight.target);
+    fillLight = new THREE.DirectionalLight(0xbdd4ff, .3);
+    fillLight.target.position.set(0, 0, 0);
+    scene.add(fillLight);
+    scene.add(fillLight.target);
 
     const canvasEl = document.getElementById('c');
     const resize = () => {
