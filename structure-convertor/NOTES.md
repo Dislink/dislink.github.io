@@ -53,6 +53,7 @@
 - **journal 格式三层**:32KiB 块 + 记录头(crc u32 + len u16 + type u8;FULL/FIRST/MIDDLE/LAST 分片重组)→ WriteBatch `[8B seq][4B count]` + 条目;**删除条目 type=0 没有 vlen**(只有 `[type][varint klen][key]`),put 才有 `[varint vlen][value]`——按 put 形状解析 delete 会把后面的批次全部错位。
 - **journal 键是 10 字节** `[x i32le][z i32le][tag 47@8][y i8@9]`(无维度、无 revision 后缀),与 .ldb 里的 14/18 字节键都不同;解析 Y 必须**跳过偏移 8 的 tag 字节**——曾直接 `read_u8` 把 tag(47)读成 Y,墓碑键 (0,0,47) 永远匹配不上 (0,0,0),删除重放失效且无任何报错。
 - **重放语义**:journal 编号升序逐个重放;put 覆盖同键 .ldb 记录(memtable 更新),delete 抹掉同键 .ldb 子区块。MANIFEST(编号最大的)的 VersionEdit(Tag7/Tag6)决定活表集,MANIFEST 不可读退化为全表。
+- **分片重组的坑(同日二修)**:读完 journal 后仍缺带,这次是 walk 的分片重组用 `pending.empty()` 判断"是否有进行中的分片链"——真实世界在 32KiB 块边界出现**零长度 FIRST 片**(payload len=0,记录体全在后续块),`pending.assign(空)` 后向量仍为 empty,下个块的 LAST 被误判 `LAST without FIRST`,**walk 直接 return,断点之后的 ~8198 条(x 子区 6..15)全部无声丢弃**。修法:独立 `in_fragment` 布尔跟踪链状态。教训:分片/状态机类循环,状态标志不要复用容器非空语义。
 - **教训**:"游戏能读而引擎不能"的输入,优先怀疑引擎少读了某类文件(db/*.log、嵌套容器条目),而不是文件本身有问题;`.ldb` 键覆盖范围只是下界。
 
 ## 四、wasm 核心 C ABI
