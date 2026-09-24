@@ -123,7 +123,7 @@
                 <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx,.nbt,.mca,.mcworld,.mcpack,.mcaddon,.zip">
             </div>
             <div class="separator"></div>
-            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域（旧版 .schematic 暂不支持）。材质版权归 Mojang 所有，仅作渲染展示。</div>
+            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域（旧版 .schematic 暂不支持）。材质版权归 Mojang 所有，仅作渲染展示。已知限制：海带/海草/睡莲等水生植物会连同水体一起渲染为水，含水方块（waterlogged）的含水覆层暂不显示。</div>
         </div>
     </div>
 
@@ -210,7 +210,6 @@ let workerReady = false;
 let loadSeq = 0;          // 载入序号,丢弃过期回包
 let hasFile = false;      // worker 内已缓存成功解析过的文件(LOD 切换可 reuse)
 let lodHinted = false;
-let allMeshes = [];       // [{mesh, info}] — 贴图开关直接改材质,无需重新解析
 
 const lpEl = document.getElementById('loadProg');
 const lpTextEl = document.getElementById('lpText');
@@ -237,8 +236,8 @@ function creepProg(cap){
 function startLoad(name, bytes, reuse){
     loadSeq++;
     showProg(reuse ? '按 LOD×' + curLod + ' 重新网格化…' : '正在解析 ' + name + ' …', 5);
-    if (reuse) worker.postMessage({ type: 'load', name: name, bytes: null, lod: curLod, reuse: true, seq: loadSeq });
-    else worker.postMessage({ type: 'load', name: name, bytes: bytes, lod: curLod, reuse: false, seq: loadSeq },
+    if (reuse) worker.postMessage({ type: 'load', name: name, bytes: null, lod: curLod, reuse: true, tex: useTex, seq: loadSeq });
+    else worker.postMessage({ type: 'load', name: name, bytes: bytes, lod: curLod, reuse: false, tex: useTex, seq: loadSeq },
                              [bytes.buffer]);
 }
 
@@ -253,8 +252,10 @@ worker.onmessage = (ev) => {
     } else if (m.type === 'geometry'){
         if (m.seq !== undefined && m.seq !== loadSeq) return;   // 过期回包
         hideProg();
-        buildFromGeometry(m);
+        if (m.bake) buildBaked(m);
+        else buildFromGeometry(m);
     } else if (m.type === 'error'){
+        if (m.seq !== undefined && m.seq !== loadSeq) return;   // 过期回包
         hideProg();
         hasFile = false;
         if (m.code === -2) setStatus('文件过大:超过 2.2 亿方块上限,无法渲染(可尝试导出为更小的结构)', 'error');
@@ -278,130 +279,6 @@ worker.onerror = (e) => {
     setStatus('解析线程错误: ' + msg, 'error');
     window.reportError(new Error(msg));
 };
-
-// ---------------------------------------------------------------- 贴图映射
-// blocks_faces.txt:每行 "minecraft:name<TAB>上,下,北,南,东,西" 的 tile 名。
-let faceMap = null;
-const GEOM_TO_MAN = [4, 5, 0, 1, 3, 2];   // 几何面(0=+X,1=-X,2=+Y,3=-Y,4=+Z,5=-Z) -> 清单序(上/下/北/南/东/西)
-function baseName(name){
-    let n = name;
-    const lb = n.indexOf('['); if (lb >= 0) n = n.slice(0, lb);
-    const c = n.indexOf(':'); if (c >= 0) n = n.slice(c + 1);
-    return n;
-}
-function facingFrontGeom(name){
-    const lb = name.indexOf('[');
-    if (lb < 0) return -1;
-    let inner = name.slice(lb + 1);
-    if (inner.endsWith(']')) inner = inner.slice(0, -1);
-    const props = Object.fromEntries(inner.split(',').map(kv => { const e = kv.indexOf('='); return e > 0 ? [kv.slice(0,e), kv.slice(e+1)] : [kv,'']; }));
-    const javaMap = { down:3, up:2, north:5, south:4, west:1, east:0 };
-    if (props.facing && javaMap[props.facing] !== undefined) return javaMap[props.facing];
-    const bkMap = { '0':3, '1':2, '2':5, '3':4, '4':1, '5':0 }; // 基岩版 facing_direction
-    if (props.facing_direction && bkMap[props.facing_direction] !== undefined) return bkMap[props.facing_direction];
-    return -1;
-}
-// 命令方块侧面箭头:按朝向旋转侧面贴图
-const SIDE_DEG = [90, 270, 0, 0, 180, 0];   // 几何面 -> 世界朝向(度)
-// 旧版基岩版扁平 id → 现代方块名(老 BDX/存档常见)。仅用于贴图查找。
-const LEGACY_ALIASES = {
-    'stonebrick': 'stone_bricks', 'grass': 'grass_block',
-    'tallgrass': 'grass_block', 'double_plant': 'grass_block', 'skull': 'note_block',
-    'planks': 'oak_planks', 'wood': 'oak_log', 'leaves': 'oak_planks', 'leaves2': 'oak_planks',
-    'sapling': 'oak_planks', 'yellow_flower': 'dandelion', 'red_flower': 'poppy',
-    'water': 'stone', 'stained_glass': 'white_stained_glass', 'stained_glass_pane': 'white_stained_glass',
-    'stained_hardened_clay': 'white_terracotta', 'melon_block': 'melon',
-    'noteblock': 'note_block', 'slime': 'stone', 'wool': 'white_wool', 'carpet': 'white_wool',
-    'fence': 'oak_planks', 'fence_gate': 'oak_planks', 'trapdoor': 'oak_planks',
-    'door': 'oak_door', 'iron_door': 'iron_door', 'spruce_door': 'spruce_door',
-    'birch_door': 'birch_door', 'jungle_door': 'jungle_door',
-    'acacia_door': 'acacia_door', 'darkoak_door': 'dark_oak_door',
-    'spruce_fence': 'spruce_planks', 'wooden_slab': 'oak_slab', 'double_wooden_slab': 'oak_planks',
-    'double_stone_block_slab': 'smooth_stone', 'stone_block_slab3': 'smooth_stone',
-    'stone_block_slab2': 'smooth_stone', 'normal_stone_stairs': 'smooth_stone',
-    'lit_redstone_lamp': 'note_block',
-    'standing_banner': 'oak_planks', 'wall_banner': 'oak_planks', 'wall_sign': 'oak_planks',
-    'acacia_wall_sign': 'oak_planks', 'bamboo_wall_sign': 'oak_planks', 'darkoak_wall_sign': 'oak_planks',
-    'spruce_wall_sign': 'spruce_planks', 'birch_wall_sign': 'birch_planks',
-    'daylight_detector_inverted': 'daylight_detector',
-    'heavy_weighted_pressure_plate': 'iron_block', 'light_weighted_pressure_plate': 'gold_block',
-    'stone_pressure_plate': 'stone', 'spruce_pressure_plate': 'spruce_planks',
-    'polished_blackstone_pressure_plate': 'stone',
-    'black_carpet': 'black_wool', 'blue_carpet': 'blue_wool', 'brown_carpet': 'brown_wool',
-    'gray_carpet': 'gray_wool', 'light_blue_carpet': 'light_blue_wool', 'light_gray_carpet': 'light_gray_wool',
-    'orange_carpet': 'orange_wool', 'pink_carpet': 'pink_wool', 'red_carpet': 'red_wool',
-    'white_carpet': 'white_wool', 'yellow_carpet': 'yellow_wool', 'green_carpet': 'green_wool',
-    'double_stone_block_slab2': 'smooth_stone', 'wooden_button': 'oak_planks', 'stone_button': 'stone',
-    'stone_block_slab': 'smooth_stone', 'cobblestone_wall': 'cobblestone',
-    'nether_brick_fence': 'nether_bricks', 'iron_bars': 'iron_bars',
-    'snow': 'snow', 'torch': 'torch', 'ladder': 'ladder', 'anvil': 'anvil',
-    'hopper': 'hopper_top', 'chest': 'note_block', 'border_block': 'stone',
-    'double_wooden_slab': 'oak_planks', 'double_wooden_slab2': 'oak_planks',
-    'spruce_trapdoor': 'spruce_planks', 'iron_trapdoor': 'iron_trapdoor',
-    'bamboo_trapdoor': 'bamboo_trapdoor', 'acacia_trapdoor': 'acacia_trapdoor',
-    'spruce_pressure_plate': 'spruce_planks', 'flower_pot': 'flower_pot', 'campfire': 'campfire_log',
-    'chain': 'white_wool', 'lectern': 'lectern', 'red_candle': 'white_candle',
-    'double_stone_block_slab3': 'smooth_stone', 'stone_block_slab4': 'smooth_stone',
-    'acacia_fence': 'acacia_planks', 'acacia_fence_gate': 'acacia_planks',
-    'birch_fence': 'birch_planks', 'birch_fence_gate': 'birch_planks',
-    'dark_oak_fence': 'dark_oak_planks', 'oak_fence': 'oak_planks',
-    'spruce_fence_gate': 'spruce_planks',
-    'barrier': 'stone', 'fire': 'fire_0', 'frame': 'item_frame',
-    'structure_void': 'stone', 'trapped_chest': 'note_block',
-};
-function aliasKey(base){
-    if (faceMap && faceMap['minecraft:' + base]) return base;
-    return LEGACY_ALIASES[base] || base;
-}
-function cmdFrontDeg(name){
-    const lb = name.indexOf('[');
-    if (lb < 0) return -1;
-    let inner = name.slice(lb + 1); if (inner.endsWith(']')) inner = inner.slice(0, -1);
-    const props = Object.fromEntries(inner.split(',').map(kv => { const e = kv.indexOf('='); return e > 0 ? [kv.slice(0,e), kv.slice(e+1)] : [kv,'']; }));
-    const ja = { north:0, east:90, south:180, west:270 };
-    if (props.facing && ja[props.facing] !== undefined) return ja[props.facing];
-    const bk = { '2':0, '3':180, '4':270, '5':90 };  // 基岩版: 2北 3南 4西 5东
-    if (props.facing_direction && bk[props.facing_direction] !== undefined) return bk[props.facing_direction];
-    return -1;
-}
-function faceTileFor(name, geom, row){
-    if (!row) return null;
-    if (name.indexOf('command_block') >= 0){
-        const front = facingFrontGeom(name);
-        if (front >= 0){
-            const opp = [1,0,3,2,5,4][front];
-            if (geom === front) return row[2];
-            if (geom === opp) return row[3];
-            return row[4];  // 侧面
-        }
-    }
-    const t = row[GEOM_TO_MAN[geom]];
-    return (t && t !== '-') ? t : null;
-}
-// faceMap 未命中时的启发式回退
-let tileSet = null;   // tiles/manifest.json 提供的现有贴图名集合,用于剔除必 404 的候选
-function faceUrls(name, face){
-    const n = aliasKey(baseName(name));
-    const b = './tiles/' + n;
-    let cands;
-    if (face === 2) cands = [b + '_top.png', b + '.png'];
-    else if (face === 3) cands = [b + '_bottom.png', b + '.png', b + '_top.png'];
-    else if (name.indexOf('log') >= 0 && name.indexOf('stripped') < 0) cands = [b + '.png', b + '_top.png'];
-    else cands = [b + '.png', b + '_side.png', b + '_front.png', b + '_top.png'];
-    if (tileSet) cands = cands.filter(u => tileSet.has(u.slice(8, -4)));
-    return cands;
-}
-fetch('./blocks_faces.txt').then(r => r.ok ? r.text() : Promise.reject(r.status)).then(txt => {
-    faceMap = {};
-    for (const line of txt.split(/\r?\n/)){
-        const i = line.indexOf('\t');
-        if (i < 0) continue;
-        const v = line.slice(i + 1).split(',');
-        if (v.length === 6) faceMap[line.slice(0, i)] = v;
-    }
-}).catch(() => {});
-fetch('./tiles/manifest.json').then(r => r.ok ? r.json() : Promise.reject(r.status))
-    .then(list => { tileSet = new Set(list); }).catch(() => {});
 
 // ---------------------------------------------------------------- three.js 场景
 let scene, camera, renderer, controls;
@@ -520,57 +397,85 @@ function updateAxes(len){
     }
 }
 
-// ---------------------------------------------------------------- 贴图
-const texCache = new Map();   // url -> THREE.Texture(共享)
-function applyTexture(mat, candidates, rotDeg = 0, color = '#ffffff'){
-    const loader = new THREE.TextureLoader();
-    const tryNext = (i) => {
-        if (i >= candidates.length){ return; }
-        const cached = texCache.get(candidates[i]);
-        if (cached){ setMatTex(mat, cached, rotDeg, color); return; }
-        loader.load(candidates[i], tex => {
-            tex.magFilter = THREE.NearestFilter;
-            tex.minFilter = THREE.NearestFilter;
-            tex.colorSpace = THREE.SRGBColorSpace;
-            // MC "竖排多帧"贴图(如 command_block_side 16x64):取第一行,避免整张拉伸
-            if (tex.image && tex.image.height > tex.image.width){
-                const rows = tex.image.height / tex.image.width;
-                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                tex.repeat.set(1, 1 / rows);
-                tex.offset.set(0, (rows - 1) / rows);  // 顶行
-            }
-            texCache.set(candidates[i], tex);
-            setMatTex(mat, tex, rotDeg, color);
-        }, undefined, () => tryNext(i + 1));
+// ---------------------------------------------------------------- 贴图烘焙渲染
+// shulkr 同款图集管线:wasm 核心的 bake 表把每个可见面烘焙成 (图集UV,tile,tint,AO)
+// 四边形;worker 回包时已把 UV 映射进图集 rect、把 AO×tint 换算成顶点色、按四边形
+// 面法线展开出 normal —— 主线程拿到 pos/uv/rgb/nrm 直接包成 BufferAttribute,
+// 零逐顶点 JS 循环、零 computeVertexNormals。渲染用两张图集纹理(gen/atlas.png
+// 不透明 + gen/atlas_t.png 半透明)。
+let atlasTex = null, atlasTexT = null;   // 共享图集纹理(贴图开关时复用)
+function loadAtlas(url, onload){
+    const img = new Image();
+    img.onload = () => {
+        const tex = new THREE.Texture(img);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.flipY = true;
+        tex.needsUpdate = true;
+        onload(tex);
     };
-    tryNext(0);
+    img.onerror = () => setStatus('图集纹理加载失败(' + url + ')', 'error');
+    img.src = url;
 }
-function setMatTex(mat, tex, rotDeg, color){
-    mat.map = tex;
-    mat.color.set(color);
-    mat.needsUpdate = true;
+function ensureAtlasTextures(done){
+    if (atlasTex && atlasTexT){ done(); return; }
+    let n = 0;
+    const step = () => { if (++n === 2) done(); };
+    loadAtlas('./gen/atlas.png', t => { atlasTex = t; step(); });
+    loadAtlas('./gen/atlas_t.png', t => { atlasTexT = t; step(); });
+}
+// 把一个 bake soup(pos/uv/rgb/nrm,worker 已解交织+预变换)包成 geometry。
+// UV/tint/AO/法线全部在 worker 侧算好,这里只是属性包装 —— 主线程零逐顶点工作。
+function bakedGeometry(s){
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(s.pos, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(s.uv, 2));
+    geo.setAttribute('color', new THREE.BufferAttribute(s.rgb, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(s.nrm, 3));
+    geo.setIndex(new THREE.BufferAttribute(s.idx, 1));
+    return geo;
 }
 
 // ---------------------------------------------------------------- worker 几何 -> three.js
-// worker 回传的 groups 是 (mid,face) 连续区间;同一键的所有区间共享同一份
-// pos/uv(全局索引),合并成单个 BufferGeometry(仅拼接索引子区间),mesh 数
-// 等于实际出现的 (方块×面) 组合数,与三角形数解耦。
-let texQueue = [];
-let texPumping = false;
-function pumpTexQueue(){
-    // 分帧上贴图:每 16ms 处理一批,期间界面保持响应、结构先以纯色显示
-    if (texPumping) return;
-    texPumping = true;
-    (function step(){
-        const t0 = performance.now();
-        while (texQueue.length && performance.now() - t0 < 12){
-            const it = texQueue.shift();
-            if (useTex) applyTextureEntry(it, it.mesh.material);
+function buildBaked(m){
+    if (m.vc <= 0 || m.ic <= 0){
+        setStatus('结构为空(或 LOD 降采样后为空),请尝试更低的 LOD', 'error');
+        hasFile = false;
+        return;
+    }
+    if (meshGroup){ scene.remove(meshGroup); disposeGroup(meshGroup); }
+    removeSlice();
+    meshGroup = new THREE.Group();
+    scene.add(meshGroup);
+
+    clipYEl.max = String(Math.max(0, Math.round(m.mx[1] - m.mn[1])));
+    clipYEl.value = clipYEl.max;
+
+    ensureAtlasTextures(() => {
+        const matOpaque = new THREE.MeshLambertMaterial({
+            map: atlasTex, vertexColors: true, side: THREE.FrontSide,
+            transparent: false, alphaTest: .5, depthWrite: true });
+        const matTrans = new THREE.MeshLambertMaterial({
+            map: atlasTexT, vertexColors: true, side: THREE.DoubleSide,
+            transparent: true, depthWrite: false });
+        if (m.opaque.vc > 0){
+            const mesh = new THREE.Mesh(bakedGeometry(m.opaque), matOpaque);
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            meshGroup.add(mesh);
         }
-        if (texQueue.length) requestAnimationFrame(step);
-        else texPumping = false;
-    })();
+        if (m.trans.vc > 0){
+            const tm = new THREE.Mesh(bakedGeometry(m.trans), matTrans);
+            tm.renderOrder = 1;   // 半透明最后画(shulkr translucent pass)
+            meshGroup.add(tm);
+        }
+        applyClip();
+        if (sunLight && scene) fitShadowCamera();   // 阴影相机随结构尺寸拟合
+    });
+    finishLoad(m, m.vc, m.ic);
 }
+
 function buildFromGeometry(m){
     const vc = m.vc, ic = m.ic;
     if (vc <= 0 || ic <= 0){
@@ -582,14 +487,12 @@ function buildFromGeometry(m){
     const pos = m.pos, uv = m.uv;
     const F32 = m.palRgb;
     const names = m.names;
-    const pal = m.pal;
     const mn = m.mn, mx = m.mx;
 
     if (meshGroup){ scene.remove(meshGroup); disposeGroup(meshGroup); }
     removeSlice();
     meshGroup = new THREE.Group();
     scene.add(meshGroup);
-    allMeshes = [];
 
     // worker 已按 (mid,face) 键合并好索引数组([mid,face,Uint32Array] 列表),
     // 主线程只做 BufferAttribute 包装,零逐索引工作。
@@ -618,10 +521,14 @@ function buildFromGeometry(m){
         geo.setIndex(new THREE.BufferAttribute(ix, 1));
         const mesh = new THREE.Mesh(geo, mat);
         meshGroup.add(mesh);
-        allMeshes.push({ mesh: mesh, nm: nm, face: face });
-        texQueue.push(allMeshes[allMeshes.length-1]);
     }
 
+    finishLoad(m, vc, ic);
+}
+
+// 载入完成收尾:切片裁剪、相机适配、信息卡、状态栏(烘焙路径与纯色路径共用)
+function finishLoad(m, vc, ic){
+    const mn = m.mn, mx = m.mx;
     applyClip();
     const c = new THREE.Vector3((mn[0]+mx[0])/2, (mn[1]+mx[1])/2, (mn[2]+mx[2])/2);
     const dx = mx[0]-mn[0], dy = mx[1]-mn[1], dz = mx[2]-mn[2];
@@ -661,7 +568,7 @@ function buildFromGeometry(m){
     document.getElementById('ifOrigin').textContent = '原点: ' + i32[0] + ', ' + i32[1] + ', ' + i32[2];
     document.getElementById('ifBlocks').textContent = '方块: ' + m.blocksNonair + ' / ' + m.blocksTotal;
     document.getElementById('ifMesh').textContent = '顶点 ' + vc + ' · 三角 ' + (ic/3|0) + (curLod > 1 ? ' (LOD×' + curLod + (autoLod ? ' · 自动)' : ')') : '');
-    document.getElementById('ifPalette').textContent = '调色板: ' + pal + ' 种';
+    document.getElementById('ifPalette').textContent = '调色板: ' + (m.paletteSize || 0) + ' 种';
 
     hasFile = true;
     let doneMsg = '就绪 · 顶点 ' + vc + ' · 三角 ' + (ic/3|0) + ' · 方块 ' + m.blocksNonair + '/' + m.blocksTotal;
@@ -669,26 +576,27 @@ function buildFromGeometry(m){
     if (autoLod) doneMsg += ' · 自动LOD开启';
     setStatus(doneMsg, 'info');
 
-    // 贴图分帧加载:结构先以纯色完整显示,再逐帧补贴图(避免数千次贴图请求卡住主线程)
-    pumpTexQueue();
-
     // 自动 LOD:满细节网格过大时提示切换(自动模式下会按缩放自动处理,不再弹提示)
     if (vc > 900000 && curLod === 1 && !lodHinted && !autoLod){
         lodHinted = true;
         setStatus('顶点超过 90 万,建议切换 LOD×2 以上以获得更流畅的体验(当前仍显示 ×1)', 'info');
     }
 
-    // 调色板图例
-    let html = '<div class="lx">方块调色板 (' + pal + ')</div>';
-    const shown = Math.min(pal, 60);
-    for (let i = 0; i < shown; i++){
-        const name = names[i];
-        if (!name || name.indexOf('air') >= 0) continue;
-        const r = F32[i*3], g2 = F32[i*3+1], b2 = F32[i*3+2];
-        const hex = '#'+(((r*255)|0)<<16|((g2*255)|0)<<8|((b2*255)|0)).toString(16).padStart(6,'0');
-        html += '<div class="chip"><span class="sw" style="background:'+hex+'"></span><span class="nm">'+name+'</span></div>';
+    // 调色板图例(仅纯色路径带 palette 数据;烘焙贴图路径显示烘焙 tile 数)
+    if (m.names && m.pal){
+        let html = '<div class="lx">方块调色板 (' + m.pal + ')</div>';
+        const shown = Math.min(m.pal, 60);
+        for (let i = 0; i < shown; i++){
+            const name = m.names[i];
+            if (!name || name.indexOf('air') >= 0) continue;
+            const r = m.palRgb[i*3], g2 = m.palRgb[i*3+1], b2 = m.palRgb[i*3+2];
+            const hex = '#'+(((r*255)|0)<<16|((g2*255)|0)<<8|((b2*255)|0)).toString(16).padStart(6,'0');
+            html += '<div class="chip"><span class="sw" style="background:'+hex+'"></span><span class="nm">'+name+'</span></div>';
+        }
+        legendEl.innerHTML = html;
+    } else {
+        legendEl.innerHTML = '<div class="lx">方块调色板 (' + (m.paletteSize || 0) + ' 种 · 贴图模式)</div>';
     }
-    legendEl.innerHTML = html;
 }
 
 // ---------------------------------------------------------------- 文件载入
@@ -792,49 +700,43 @@ addEventListener('drop', e => {
 
 // LOD / 贴图 / 重置视角 控件
 document.getElementById('reL').onclick = () => resetCamera();
-// 贴图开关只改材质,不重新解析;关=调色板纯色,开=重新取贴图
+// 贴图开关切换渲染管线:开=worker 走烘焙贴图路径(图集),关=纯色贪心路径。
+// 两条路径的几何不同,须让 worker 重新网格化(字节已缓存在 worker 内,reuse=1 秒回)。
 document.getElementById('texL').onclick = () => {
     useTex = !useTex;
     document.getElementById('texL').textContent = '贴图:' + (useTex ? '开' : '关');
-    for (const it of allMeshes){
-        const mat = it.mesh.material;
-        if (useTex) applyTextureEntry(it, mat);
-        else {
-            if (mat.map){ mat.map.dispose(); mat.map = null; }
-            mat.needsUpdate = true;
-        }
+    if (hasFile){
+        removeSlice();
+        startLoad(lastFileName, null, true);
     }
 };
-function applyTextureEntry(it, mat){
-    const nm = it.nm;
-    mat.color.set('#ffffff');
-    mat.map = null;   // 触发重新取贴图
-    const row = faceMap ? faceMap['minecraft:' + aliasKey(baseName(nm))] : null;
-    const tile = row ? faceTileFor(nm, it.face, row) : null;
-    let rot = 0;
-    if (nm.indexOf('command_block') >= 0){
-        const fd = cmdFrontDeg(nm);
-        if (fd >= 0){
-            if (it.face === 0 || it.face === 1 || it.face === 4 || it.face === 5){
-                rot = fd - SIDE_DEG[it.face];
-                if (it.face === 5) rot += 180;   // -Z(北)面镜像
-            }
-            else if (it.face === 2 || it.face === 3) rot = fd - 180;  // 上/下默认箭头 ~+Z
-        }
-    }
-    if (tile) applyTexture(mat, ['./tiles/' + tile + '.png'], rot, tintFor(nm, it.face));
-    else applyTexture(mat, faceUrls(nm, it.face), rot, tintFor(nm, it.face));
-}
-function tintFor(nm, face){
-    if (/leaves|vine/.test(nm)) return '#4fa34a';
-    if (/grass_block/.test(nm) && face === 2) return '#6abe30';
-    return '#ffffff';
-}
 
 // ---------------------------------------------------------------- 初始化
+let sunLight = null;   // 平行光(带阴影);阴影相机随每次载入按结构尺寸拟合
+function fitShadowCamera(){
+    if (!sunLight || !lastFitC) return;
+    // shulkr 太阳方向:方位角 130° / 仰角 45° → 单位向量 (0.5417, 0.7071, −0.4545)
+    const e = Math.max(lastFitSize * 2, 1);
+    sunLight.position.set(
+        lastFitC.x + 0.5417 * e, lastFitC.y + 0.7071 * e, lastFitC.z - 0.4545 * e);
+    sunLight.target.position.copy(lastFitC);
+    sunLight.target.updateMatrixWorld();
+    const sc = sunLight.shadow.camera;
+    sc.left = -lastFitSize; sc.right = lastFitSize;
+    sc.top = lastFitSize; sc.bottom = -lastFitSize;
+    sc.near = Math.max(0.05, e - lastFitSize * 1.05);
+    sc.far = e + lastFitSize * 1.05;
+    sc.updateProjectionMatrix();
+    const mapSize = Math.min(2048, Math.max(1024, Math.pow(2, Math.ceil(Math.log2(Math.max(1, lastFitSize * 16))))));
+    if (sunLight.shadow.map === null || sunLight.shadow.mapSize.x !== mapSize){
+        sunLight.shadow.mapSize.set(mapSize, mapSize);
+        if (sunLight.shadow.map){ sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
+    }
+    renderer.shadowMap.needsUpdate = true;   // 静态结构:重建后手动刷一次阴影
+}
 function init(){
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0d1117);
+    scene.background = new THREE.Color('#000000');
     camera = new THREE.PerspectiveCamera(50, 16/9, 0.1, 5000);
     controls = new OrbitControls(camera, document.getElementById('c'));
     controls.enableDamping = true;
@@ -843,6 +745,25 @@ function init(){
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.localClippingEnabled = true;
+    // shulkr 同款渲染设置:sRGB 输出 + ACES 电影色调映射(光照参数见下方灯光组)
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.shadowMap.autoUpdate = false;   // 静态结构:每次重建网格后手动刷新阴影
+
+    // shulkr 同款灯光:环境 .3 + 半球 .85 + 平行光 1.6(方位 130°/仰角 45°,带阴影)
+    scene.add(new THREE.AmbientLight(0xffffff, .3));
+    scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x8899aa, .85));
+    sunLight = new THREE.DirectionalLight(0xfff4e2, 1.6);
+    sunLight.castShadow = true;
+    sunLight.shadow.normalBias = .04;
+    sunLight.shadow.bias = -5e-4;
+    sunLight.shadow.mapSize.set(1024, 1024);
+    scene.add(sunLight);
+    scene.add(sunLight.target);
+
     const canvasEl = document.getElementById('c');
     const resize = () => {
         const w = canvasEl.clientWidth || canvasEl.parentElement.clientWidth;
