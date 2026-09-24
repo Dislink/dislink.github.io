@@ -97,6 +97,7 @@
                         <option value="2">Schem（.schem，Sponge v2 / WorldEdit）</option>
                         <option value="3">WSMR（.wsmr，本站中间格式，信息保留最全、体积小）</option>
                         <option value="0">Mcstructure（.mcstructure，基岩版，未压缩，体积大）</option>
+                        <option value="4">BDX（.bdx，基岩版命令流，Brotli 压缩，体积小）</option>
                     </select>
                     <button class="btn btn-primary" id="goBtn" style="width:100%;margin-top:0.5rem;" disabled>开始转换</button>
                 </div>
@@ -104,7 +105,8 @@
             <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
             <div class="info-display">上传后自动识别格式（BD@ 头 / gzip / NBT 嗅探）。支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件（旧版 .schematic 暂不支持）。所有处理均在浏览器本地完成，文件不会上传到任何服务器。</div>
             <div class="conv-note">
-                说明：mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。世界类容器（.mcworld / .zip 等）与 .mca 仅作为解析输入：整张世界会按所有区块的包围盒展开，体积可能远超单个结构，转换前请确认范围。
+                说明：mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem / bdx 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。世界类容器（.mcworld / .zip 等）与 .mca 仅作为解析输入：整张世界会按所有区块的包围盒展开，体积可能远超单个结构，转换前请确认范围。
+                <br>世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只转换该世界坐标包围盒（含端点），输出文件名取 <code>@</code> 前的名称；如 <code>zhucheng@[-280,-64,-250]~[250,200,250].mcworld</code> 只导出 [-280,-64,-250] 到 [250,200,250] 的区域。BDX 为基岩版命令流格式（BD@ 头 + Brotli），不存储原点与实体，原点信息会丢弃（重解析基点为 0,0,0）。
             </div>
         </div>
     </div>
@@ -181,18 +183,24 @@ function creepProg(cap){
     }, 250);
 }
 
-const FMT_NAMES = ['mcstructure', 'litematic', 'schem', 'wsmr'];
-const FMT_EXT = ['.mcstructure', '.litematic', '.schem', '.wsmr'];
+const FMT_NAMES = ['mcstructure', 'litematic', 'schem', 'wsmr', 'bdx'];
+const FMT_EXT = ['.mcstructure', '.litematic', '.schem', '.wsmr', '.bdx'];
+
+// mcworld 命名约定:"名称@[x1,y1,z1]~[x2,y2,z2].mcworld"——方括号内为世界坐标,
+// 只转换该包围盒,结构名取 @ 前的部分。
+const CROP_RE = /^(.*)@\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]~\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]/;
+function parseCropName(name){
+    const m = CROP_RE.exec(name);
+    if (!m) return null;
+    const box = [ +m[2], +m[3], +m[4], +m[5], +m[6], +m[7] ];
+    if (box[3] < box[0] || box[4] < box[1] || box[5] < box[2]) return null;
+    return { name: m[1].trim() || 'structure', min6: box };
+}
 
 function fmtBytes(n){
     if (n >= 1048576) return (n / 1048576).toFixed(2) + ' MB';
     if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
     return n + ' B';
-}
-
-function pickOutName(srcName, fmt){
-    let base = srcName.replace(/\.[^.]+$/, '') || 'structure';
-    return base + FMT_EXT[fmt];
 }
 
 worker.onmessage = (ev) => {
@@ -207,7 +215,9 @@ worker.onmessage = (ev) => {
         if (m.seq !== convSeq) return;   // 过期回包
         hideProg();
         if (m.ok){
-            lastResult = { name: pickOutName(m.srcName, fmtSel.value|0), out: m.out, size: m.size };
+            const crop = parseCropName(m.srcName);
+            const outBase = crop ? crop.name : (m.srcName.replace(/\.[^.]+$/, '') || 'structure');
+            lastResult = { name: outBase + FMT_EXT[fmtSel.value|0], out: m.out, size: m.size };
             const dl = document.getElementById('dlArea');
             dl.classList.add('on');
             document.getElementById('sumSrc').textContent = m.srcName;
@@ -217,7 +227,9 @@ worker.onmessage = (ev) => {
             const ratio = m.srcSize ? (m.size / m.srcSize * 100).toFixed(0) : '?';
             document.getElementById('sumDetail').textContent =
                 '用时 ' + (m.ms / 1000).toFixed(2) + ' s · 体积为源文件的 ' + ratio + '%' +
-                (m.size > m.srcSize ? '（目标格式存储开销更大，属正常现象）' : '');
+                (m.size > m.srcSize ? '（目标格式存储开销更大，属正常现象）' : '') +
+                (crop ? ' · 已按文件名约定裁剪 [' + crop.min6.slice(0,3).join(',') + ']~[' +
+                        crop.min6.slice(3).join(',') + ']（世界坐标，含端点）' : '');
             dl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             setStatus('转换完成 — 可以下载了', 'info');
         } else {
@@ -265,14 +277,18 @@ function goConvert(){
     if (!pendingFile || !workerReady) return;
     convSeq++;
     const fmt = fmtSel.value | 0;
+    const crop = parseCropName(pendingFile.name);
     showProg('读取文件…', 5);
-    setStatus('正在转换 ' + pendingFile.name + ' → ' + FMT_NAMES[fmt] + ' …', 'info');
+    setStatus('正在转换 ' + pendingFile.name + ' → ' + FMT_NAMES[fmt] +
+              (crop ? ' （裁剪 ' + crop.min6[0] + ',' + crop.min6[1] + ',' + crop.min6[2] +
+              ' ~ ' + crop.min6[3] + ',' + crop.min6[4] + ',' + crop.min6[5] + '）' : '') + ' …', 'info');
     pendingFile.arrayBuffer().then(buf => {
         const bytes = new Uint8Array(buf);
         showProg('解析与重编码(WASM)…', 18);
         creepProg(88);
         worker.postMessage({ type: 'convert', seq: convSeq, name: pendingFile.name,
-                             bytes: bytes, fmt: fmt }, [bytes.buffer]);
+                             bytes: bytes, fmt: fmt,
+                             min6: crop ? crop.min6 : null }, [bytes.buffer]);
     }, err => {
         hideProg();
         setStatus('读取文件失败: ' + err, 'error');

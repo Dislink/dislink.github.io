@@ -24,25 +24,34 @@
 
 - **Place\* 指令不推进光标**,只有坐标指令(8/14/16/15/17/19 等)移动——真实 BDX 的空隙就是空隙,不要"压缩"几何。
 - **操作数大端,NBT 载荷小端**(BE 头 + LE NBT 混合)。
-- **属性名和值都带引号**:真实 BDX 写 `"k"=v`,解析时(`parse_bdx_block_key`)键和值统一剥引号,canonical 键才对得上 bake 表/Java 拼写(engine `842602c`)。
+- **属性名和值都带引号**:真实 BDX 写 `"k"=v`,解析时(`parse_bdx_block_key`)键和值统一剥引号,canonical 键才对得上 bake 表/Java 拼写(engine `842602c`)。导出侧(`encode_bdx`,export.cpp)按同样引号风格重写后缀(`"k"="v"`),解析时再剥一遍——roundtrip canonical 一致。
 - runtime-id 池(31/32/33/34):rid ≥ 7684 → `minecraft:unknown_runtime_N` 兜底;legacy data 走 kLegacyNames/kLegacyStates 二分。
 - op 26/27/34/35/36/40/41 的命令方块/箱子/NBT 载荷**只跳过不保留**——转换会丢容器内容,这是已知限制。
+- **放置键 id 会超 u16**(2026-09-24 修,engine `b2c7e1f`):真实 BDX 放置次数轻松破 65535,zc.bdx 138 万次放置使 `Placement.key`/`place()` 里的 `u16 id` 回绕,后段全部错指调色板(pal 586→29、nether_brick_fence 整个丢失、后续 id 移位)。解析端两次都是"流本身完美、解析结果烂",gen7 光标走读证明写侧 0 diff 后才定位到这个回绕。**教训:与放置/键索引相关的计数一律 u32。**
+
+## 二点五、BDX 导出(encode_bdx)
+
+- 线格式:`BD@` + Brotli;载荷 = u32be `BDX\0` + 作者 cstr + op 流;**全部操作数大端**;op 1 常量串池(ids 从 0),op 5 {u16be nameId, u16be statesId} → key = pool[b]+pool[s](suffix 为 `["k"="v"]` 引号风格,无属性时为空串);放置前显式坐标增量(y→z→x 走查,air 跳过),窄化:±1→14..19,|d|≤127→i8 28..30,≤32767→i16be 20/22/24,否则 i32be 21/23/25;88+69 收尾。
+- **origin 丢失是格式固有**:BDX 无 origin 槽位,重解析基点恒 (0,0,0),包围盒 = 已放置块 min/max(空边界层收缩)。`export_bdx_roundtrip` 测试因此单独断言 rb.origin == Vec3i(),不与其他格式共用 check_documents_equal。
+- 调色板去重:名字与状态后缀拆成两个常量串池 id,同串复用;调色板中**未被放置的条目不会出现在输出里**(daisy_bell pal 18→7,canonical 逐格全等,属预期)。
 
 ## 三、Java ↔ 基岩转换
 
 - Java 方块属性落到基岩:布尔型写 Byte(`in_wall_bit=true`),枚举数字写 Int(`facing_direction=5`),文本枚举写 String(`stone_type=diorite_smooth`/`color=white`)。已在 ma.bdx、mcworld、litematic 三个来源验证属性名干净(无 waterlogged/axis 泄漏)。
 - legacy data(数字元数据)→ 基岩属性:走 data2bck 表,例 rt 412/413 → `birch_fence_gate[direction=0/1,...]`,rt 500 → `blackstone_wall[...]`。
 - `.schematic`(MCEdit 旧版)**不支持**,页面文案"旧版 .schematic 暂不支持"是预期行为;`.schem`、`.litematic`、`.mcstructure`、`.bdx`、`.wsmr`、`mcworld/mcpack/mcaddon/zip/.mca` 都支持。
-- 多区域文档:litematic 保留全部区域;mcstructure/schem/wsmr 只取**第一个区域**。
-- 世界容器(mcworld/db)只作解析输入:按全部区块包围盒展开,取第 1 个区域。
+- 多区域文档:litematic 保留全部区域;mcstructure/schem/wsmr/bdx 只取**第一个区域**。
+- 世界容器(mcworld/db)只作解析输入:按全部区块包围盒展开,取第 1 个区域。文件名带 `名称@[x1,y1,z1]~[x2,y2,z2]` 约定时(index.html 的 CROP_RE)只转该包围盒、输出名取 `@` 前部分。
 
 ## 四、wasm 核心 C ABI
 
-- `core_convert(data,size,int out_fmt)`:格式码 **0=mcstructure 1=litematic 2=schem 3=wsmr**;`char*` 形参编组不稳,必须 int。
+- `core_convert(data,size,int out_fmt)`:格式码 **0=mcstructure 1=litematic 2=schem 3=wsmr 4=bdx**;`char*` 形参编组不稳,必须 int。
+- `core_convert_crop(data,size,out_fmt,const int32_t* min6)`:min6 = {x1,y1,z1,x2,y2,z2} **世界坐标**含端点裁剪箱;解析后取第 1 个区域裁剪、重定 origin 到箱角,再编码;>220M 格拒转。配合 mcworld 文件名约定(worker.js 传 min6,裁剪箱指针 malloc 在 wasm 堆上、i32×6)。
 - `mcstruct_region_info(..., palette_size*, block_count*)`:**block_count = r.blocks.size() = 体积**(含 air),不是非空数——`core_wasm.cpp` 的 OOM 守卫依赖这个语义,测试和调用方都别想当然改成非空数。
 - `_core_convert` **不设置** g_region/g_have(那是 `_core_load`/查看器路径的事),两个入口不要混用假设。
 - 错误串:worker 里手动扫 `HEAPU8` 的 C 字符串。
 - 大文件连续转换/回读会 OOM abort(引擎无 reset 导出):页面 worker catch 后 `createCore` 重建重试一次,与查看器同策略。wasm 内存上限已提到 4GB(engine `886aa9a`,bake 路径大结构峰值可破 2GB)。
+- `core_wasm.cpp` **没有** `mcstruct::` 的 i32/u32 短别名(那是 libs/structure 的 core types),该 TU 里写 `i32` 会 wasm 构建挂(engine `3635734`)——用 `int32_t/uint32_t`。
 
 ## 五、构建与测试
 

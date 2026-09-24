@@ -1,6 +1,8 @@
 // structure-convertor worker.js — 解析与重编码全部在 WASM 内完成。
 // 协议:
-//   → {type:'convert', seq, bytes, fmt}   (bytes 被 transfer;fmt: 0=mcstructure 1=litematic 2=schem 3=wsmr)
+//   → {type:'convert', seq, bytes, fmt, min6?}  (bytes 被 transfer;
+//     fmt: 0=mcstructure 1=litematic 2=schem 3=wsmr 4=bdx;
+//     min6 = {x1,y1,z1,x2,y2,z2} 世界坐标裁剪箱(mcworld 文件名约定),走 core_convert_crop)
 //   ← {type:'ready'}
 //   ← {type:'progress', stage}            parse / encode
 //   ← {type:'result', seq, ok, size, out, error, srcName, srcSize, ms}
@@ -18,20 +20,31 @@ async function ensureCore(){
     if (!Core) Core = await createCore({ locateFile: f => './' + f });
     return Core;
 }
-// 上一个大文件仍占着 wasm 堆时再转换可能 OOM abort——重建核心后重试一次
-async function tryConvert(bytes, fmt){
+// 上一个大文件仍占着 wasm 堆时再转换可能 OOM abort——重建核心后重试一次。
+// withCrop 为真时改走 core_convert_crop(裁剪箱指针在 wasm 堆上,i32×6)。
+async function tryConvert(bytes, fmt, min6){
     try {
         const core = await ensureCore();
         const p = core._malloc(bytes.length);
         core.HEAPU8.set(bytes, p);
-        try { return core._core_convert(p, bytes.length, fmt); }
-        finally { core._free(p); }
+        const c = min6 ? core._malloc(24) : 0;
+        if (min6) new Int32Array(core.HEAPU8.buffer, c, 6).set(min6);
+        try {
+            return min6 ? core._core_convert_crop(p, bytes.length, fmt, c)
+                        : core._core_convert(p, bytes.length, fmt);
+        }
+        finally { core._free(p); if (c) core._free(c); }
     } catch (e){
         Core = await createCore({ locateFile: f => './' + f });
         const p2 = Core._malloc(bytes.length);
         Core.HEAPU8.set(bytes, p2);
-        try { return Core._core_convert(p2, bytes.length, fmt); }
-        finally { Core._free(p2); }
+        const c2 = min6 ? Core._malloc(24) : 0;
+        if (min6) new Int32Array(Core.HEAPU8.buffer, c2, 6).set(min6);
+        try {
+            return min6 ? Core._core_convert_crop(p2, bytes.length, fmt, c2)
+                        : Core._core_convert(p2, bytes.length, fmt);
+        }
+        finally { Core._free(p2); if (c2) Core._free(c2); }
     }
 }
 
@@ -54,7 +67,7 @@ self.onmessage = async (ev) => {
         if (msg.type === 'convert'){
             const t0 = Date.now();
             postMessage({ type: 'progress', stage: 'parse' });
-            const rc = await tryConvert(msg.bytes, msg.fmt);
+            const rc = await tryConvert(msg.bytes, msg.fmt, msg.min6 || null);
             if (rc === 1){
                 postMessage({ type: 'progress', stage: 'encode' });
                 const n = Core._core_convert_size();
