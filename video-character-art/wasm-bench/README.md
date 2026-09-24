@@ -48,9 +48,9 @@ JS FS 基线(标准浮点域同实现)8.6 ms/帧 → wasm 误差扩散类约 **2
 
 ## 文件
 
-- `vca_core.c` — C 实现:28 色最近色匹配 + 字符档位 + 10 种抖动算法。输出两张索引表
-  (codes:色码 0..27,shades:档位 0..6),字符串拼接留在 JS(UTF-16/§ 码拼接在
-  wasm 里做没有优势)。
+- `vca_core.c` — C 实现:28 色最近色匹配 + 字符档位 + 10 种抖动算法 + 盲文核心。
+  彩色输出两张索引表(codes:色码 0..27,shades:档位 0..6);盲文输出每 cell 一字节
+  点位 bits。字符串拼接留在 JS(UTF-16/§ 码拼接在 wasm 里做没有优势)。
 - `vca_core.js/.wasm` — emcc 产物(MODULARIZE + SIMD128 + ALLOW_MEMORY_GROWTH)。
 - `vca_wasm.js` — 浏览器加载桥(SIMD 探测,失败回退 JS;dither 名→id 映射)。
 - `bench.js` — 等价性验证 + 基准(node bench.js [--dither],W/H 环境变量改尺寸)。
@@ -64,9 +64,12 @@ emcc vca_core.c -O3 -flto -msimd128 -fno-exceptions \
   -s MODULARIZE=1 -s EXPORT_NAME=createVcaCore -s ALLOW_MEMORY_GROWTH=1 \
   -s ENVIRONMENT=web,worker,node -s DISABLE_EXCEPTION_CATCHING=1 \
   -s EXPORTED_RUNTIME_METHODS=HEAPU8,HEAPF32 \
-  -s EXPORTED_FUNCTIONS=_vca_init,_vca_pixels_ptr,_vca_codes_ptr,_vca_shades_ptr,_vca_err_ptr,_vca_convert_frame,_vca_set_palette,_vca_version \
+  -s EXPORTED_FUNCTIONS=_vca_init,_vca_pixels_ptr,_vca_codes_ptr,_vca_shades_ptr,_vca_err_ptr,_vca_convert_frame,_vca_set_palette,_vca_version,_vca_braille_init,_vca_braille_pixels_ptr,_vca_braille_out_ptr,_vca_braille_convert \
   -o vca_core.js
 ```
+
+- `bench-braille.js` — 盲文等价性(32 组参数逐字节)+ 盲文基准。
+- `smoke-bridge.js` — vca_wasm.js 桥接层 Node 冒烟(模拟浏览器 script 注入)。
 
 ## 移植时踩到的语义坑(重要)
 
@@ -85,6 +88,32 @@ emcc vca_core.c -O3 -flto -msimd128 -fno-exceptions \
    `VcaWasm.convertFrameTables`,JS `convertFrame` 保留为回退(SIMD 探测失败/加载失败)。
 2. 转换已在宏任务里逐帧执行(见 `javascript/video-frame-capture.js`),wasm 调用
    同步进行即可;若将来上 worker,把 wasm 实例放进 worker 再传 ImageData。
-3. braille 页的同构热路径(`convertToBraille`)可按同样方式移植,预期收益相近。
+3. ~~braille 页的同构热路径(`convertToBraille`)可按同样方式移植~~ → 已移植,见下节。
 4. SIMD 当前只吃到编译器自动向量化;手写 v128 最近色搜索(28 色 → 用 i16x8 距离)
    预计还能再提,收益递减,视接入后实测再定。
+
+## 盲文字符画(braille 页)移植(2026-09-24)
+
+`vca_core.c` 新增盲文核心(`_vca_braille_init/_vca_braille_convert/...`),完整接管
+`braille/index.html convertToBraille`:深度图 `(r+g+b)*(a/255)/3`、FS 误差扩散进
+同一 Float32 深度缓冲、invert、2×4 点位打包(每 cell 一字节 bits,U+2800 组码留 JS 拼)。
+
+**等价性:`bench-braille.js` 8 档 threshold × 抖动 × 反色共 32 组参数全部逐字节一致**,
+最终盲文字符串也逐字符一致(盲文深度是 Float32,无彩色路径的回绕 artifact,所以
+要求全参数严格等价;也确实做到了)。
+
+| 场景(256×102 默认) | JS | WASM | 端到端 | 纯核心 |
+|---|---|---|---|---|
+| FS 抖动 | 0.47 ms/帧 | 0.11 ms/帧 | **4.45×** | **5.72×** |
+| 无抖动 | 0.28 ms/帧 | 0.04 ms/帧 | **7.19×** | — |
+
+512×288(盲文 256×48 字符):FS 3.30×(2.30→0.70 ms),无抖动 6.16×(1.48→0.24 ms)。
+
+页面接入(工作区未提交):`braille/index.html` 引入 `vca_wasm.js`,6 处
+`convertToBraille` 调用点全部改走 `convertBrailleAuto`(wasm 失败回退 JS 实现,
+原函数原样保留)。
+
+**顺带修复**:`vca_wasm.js` 的 SIMD 探针字节码原本编码错误(type section 尺寸、
+缺 function section、结尾多一个 end),任何引擎都会 validate 失败 → 一直走 JS
+回退。已修正;修复前所有 wasm 基准数据实际测的是"emcc JS 后备 + 拼串"路径
+(仍然有效,但 wasm 未真正参与——本文件上方的彩色性能数字需要在浏览器里重测)。

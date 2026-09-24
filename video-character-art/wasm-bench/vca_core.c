@@ -6,6 +6,7 @@
  *   - 字符档位(charIdx = 3 - round(naturation/96*4),JS 语义对齐)
  *   - 多种抖动算法(见 VCA_DITHER_* 枚举,与页面 ditherAlgo 选项一致)
  *   - 输出两张索引表(codes/shades),§ 字符串拼接留在 JS
+ *   - 盲文字符画(braille 页 convertToBraille):深度图 + FS 抖动 + 2×4 点位打包
  *
  * 抖动统一用浮点误差缓冲(errR/G/B,Float32),不再复现旧 JS Uint8 回绕语义:
  * 回绕是旧实现的实现 artifact(误差本应连续),wasm 版借机修正为标准抖动,
@@ -17,7 +18,8 @@
  *     -s ENVIRONMENT=web,worker,node -s DISABLE_EXCEPTION_CATCHING=1 \
  *     -s EXPORTED_RUNTIME_METHODS=HEAPU8,HEAPF32 \
  *     -s EXPORTED_FUNCTIONS=_vca_init,_vca_pixels_ptr,_vca_codes_ptr,_vca_shades_ptr,\
- * _vca_convert_frame,_vca_set_palette,_vca_version,_vca_err_ptr \
+ * _vca_convert_frame,_vca_set_palette,_vca_version,_vca_err_ptr,\
+ * _vca_braille_init,_vca_braille_pixels_ptr,_vca_braille_out_ptr,_vca_braille_convert \
  *     -o vca_core.js
  */
 #include <stdint.h>
@@ -64,6 +66,101 @@ static int g_w = 0, g_h = 0;
 static size_t g_cap_px = 0;
 
 int vca_version(void) { return 2; }
+
+/* ======================= 盲文字符画(braille 页热路径) =======================
+ * 复现 braille/index.html convertToBraille 的全部语义:
+ *   - 深度 = (r+g+b)*(a/255)/3,Float32 缓冲
+ *   - invertColors:阈值判断前 val = 255 - val(不改深度缓冲)
+ *   - FS 误差扩散进**同一个深度缓冲**(7/16,3/16,5/16,1/16;浮点域,无回绕)
+ *   - bit = val > threshold;误差 = val - (bit?255:0)
+ *   - 边界条件与 JS 完全一致:px<w-1 && py<h-1 才扩散;四个目标各自判界
+ *   - 2×4 点位打包:col0 row0..2 → bit0..2,col1 row0..2 → bit3..5,row3 → bit6..7
+ *     (每 6 行 band 的第 5/6 行不参与,由 h%6==0 保证)
+ * 输出:每 cell 一个字节 = 点位 bits(0..255),U+2800 组码留 JS 拼
+ * (String.fromCharCode 挂 JS 一行,无 wasm 收益)。
+ */
+
+static float *g_b_depth = NULL;         /* 深度缓冲 w*h floats(兼误差传播) */
+static unsigned char *g_b_out = NULL;   /* 每 cell 一个字节:点位 bits */
+static int g_bw = 0, g_bh = 0;
+static size_t g_b_cap = 0;
+
+int vca_braille_init(int w, int h) {
+    size_t npix = (size_t)w * (size_t)h;
+    size_t cells = (size_t)(w / 2) * (size_t)(h / 6);
+    if (!g_b_depth || g_b_cap < npix) {
+        free(g_b_depth); free(g_b_out);
+        g_b_depth = (float *)malloc(sizeof(float) * npix);
+        g_b_out = (unsigned char *)malloc(cells ? cells : 1);
+        if (!g_b_depth || !g_b_out) { g_b_cap = 0; return 0; }
+        g_b_cap = npix;
+    }
+    g_bw = w; g_bh = h;
+    return 1;
+}
+
+int vca_braille_pixels_ptr(void) { return (int)(uintptr_t)g_b_depth; }
+int vca_braille_out_ptr(void)    { return (int)(uintptr_t)g_b_out; }
+
+/**
+ * 盲文转换一帧。像素从 vca_pixels_ptr 读(页面与 vca 共用同一像素拷入流程)。
+ * threshold: 0..255;invert: 非零反色;dither: 非零启用 FS(与页面 ditheringCheck 一致)。
+ * 返回 cell 数(= w/2 * h/6)。
+ */
+int vca_braille_convert(int w, int h, int threshold, int dither, int invert) {
+    const unsigned char *px = g_px;
+    float *depth = g_b_depth;
+    const int W = w, H = h;
+
+    /* 深度图:(r+g+b)*(a/255)/3,浮点域 */
+    for (int y = 0; y < H; y++) {
+        const unsigned char *row = px + (size_t)y * W * 4;
+        float *drow = depth + (size_t)y * W;
+        for (int x = 0; x < W; x++) {
+            const unsigned char *p = row + x * 4;
+            drow[x] = ((float)p[0] + (float)p[1] + (float)p[2]) * ((float)p[3] / 255.0f) / 3.0f;
+        }
+    }
+
+    /* 走查顺序与 JS 一致:外层 y(0..h/6),内层 x(0..w/2),cell 内先列后行
+     * (i=0..1 列,j=0..3 行)——FS 扩散依赖此顺序,不可改。
+     */
+    for (int cy = 0; cy < H / 6; cy++) {
+        for (int cx = 0; cx < W / 2; cx++) {
+            unsigned char bits = 0;
+            for (int i = 0; i < 2; i++) {
+                for (int j = 0; j < 4; j++) {
+                    int px_ = cx * 2 + i;
+                    int py = cy * 6 + j;
+                    float val = depth[px_ + (size_t)py * W];
+                    if (invert) val = 255.0f - val;
+                    int bit = val > (float)threshold ? 1 : 0;
+                    if (i == 0) {
+                        if (j == 0) bits |= (unsigned char)(bit << 0);
+                        else if (j == 1) bits |= (unsigned char)(bit << 1);
+                        else if (j == 2) bits |= (unsigned char)(bit << 2);
+                        else bits |= (unsigned char)(bit << 6);
+                    } else {
+                        if (j == 0) bits |= (unsigned char)(bit << 3);
+                        else if (j == 1) bits |= (unsigned char)(bit << 4);
+                        else if (j == 2) bits |= (unsigned char)(bit << 5);
+                        else bits |= (unsigned char)(bit << 7);
+                    }
+
+                    if (dither && px_ < W - 1 && py < H - 1) {
+                        float error = val - (bit ? 255.0f : 0.0f);
+                        if (px_ + 1 < W) depth[px_ + 1 + (size_t)py * W] += error * (7.0f / 16.0f);
+                        if (px_ > 0 && py + 1 < H) depth[px_ - 1 + (size_t)(py + 1) * W] += error * (3.0f / 16.0f);
+                        if (py + 1 < H) depth[px_ + (size_t)(py + 1) * W] += error * (5.0f / 16.0f);
+                        if (px_ + 1 < W && py + 1 < H) depth[px_ + 1 + (size_t)(py + 1) * W] += error * (1.0f / 16.0f);
+                    }
+                }
+            }
+            g_b_out[(size_t)cy * (W / 2) + cx] = bits;
+        }
+    }
+    return (W / 2) * (H / 6);
+}
 
 /* 初始化调色板为默认表(在 vca_init 前调用亦安全) */
 __attribute__((constructor))
