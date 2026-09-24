@@ -44,7 +44,7 @@
 - legacy data(数字元数据)→ 基岩属性:走 data2bck 表,例 rt 412/413 → `birch_fence_gate[direction=0/1,...]`,rt 500 → `blackstone_wall[...]`。
 - `.schematic`(MCEdit 旧版)**不支持**,页面文案"旧版 .schematic 暂不支持"是预期行为;`.schem`、`.litematic`、`.mcstructure`、`.bdx`、`.wsmr`、`mcworld/mcpack/mcaddon/zip/.mca` 都支持。
 - 多区域文档:litematic 保留全部区域;mcstructure/schem/wsmr/bdx 只取**第一个区域**。
-- 世界容器(mcworld/db)只作解析输入:按全部区块包围盒展开,取第 1 个区域。文件名带 `名称@[x1,y1,z1]~[x2,y2,z2]` 约定时(index.html 的 CROP_RE)只转该包围盒、输出名取 `@` 前部分。
+- 世界容器(mcworld/db)只作解析输入:按全部区块包围盒展开,取第 1 个区域。文件名带 `名称@[x1,y1,z1]~[x2,y2,z2]` 约定时(index.html 的 CROP_RE)只转该包围盒、输出名取 `@` 前部分。**裁剪坐标一律向外对齐到 16 的区块边界**(min 三轴向下取整、max 三轴取到块尾 15,`parseCropName` 里做),如 `[-280,-64,-250]~[250,200,250]` 实际裁 [-288,-64,-256]~[255,207,255]——世界按 16³ 子区块存取,箱子边切在子区块中间会因展开取整丢边(最顶层缺一截就是 y=200 落在子区块 12 中间)。这不是可选优化:子区块是 db/ 的最小存取粒度,不对齐就必然丢边。
 
 ## 三点五、mcworld db/(LevelDB)——journal 不读就丢一整条竖带(2026-09-24 修)
 

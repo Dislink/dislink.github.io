@@ -106,7 +106,7 @@
             <div class="info-display">上传后自动识别格式（BD@ 头 / gzip / NBT 嗅探）。支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件（旧版 .schematic 暂不支持）。所有处理均在浏览器本地完成，文件不会上传到任何服务器。</div>
             <div class="conv-note">
                 说明：mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem / bdx 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。世界类容器（.mcworld / .zip 等）与 .mca 仅作为解析输入：整张世界会按所有区块的包围盒展开，体积可能远超单个结构，转换前请确认范围。
-                <br>世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只转换该世界坐标包围盒（含端点），输出文件名取 <code>@</code> 前的名称；如 <code>zhucheng@[-280,-64,-250]~[250,200,250].mcworld</code> 只导出 [-280,-64,-250] 到 [250,200,250] 的区域。BDX 为基岩版命令流格式（BD@ 头 + Brotli），不存储原点与实体，原点信息会丢弃（重解析基点为 0,0,0）。
+                <br>世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只转换该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（min 向下取整、max 向上取整，如 y=-64..200 实际取 -64..207），避免子区块展开丢边；输出文件名取 <code>@</code> 前的名称。如 <code>zhucheng@[-280,-64,-250]~[250,200,250].mcworld</code> 实际导出 [-288,-64,-256] 到 [255,207,255] 的区域。BDX 为基岩版命令流格式（BD@ 头 + Brotli），不存储原点与实体，原点信息会丢弃（重解析基点为 0,0,0）。
                 <br>命令方块、告示牌等<b>方块 NBT 信息已完整保留</b>：mcstructure ↔ BDX 双向转换均保留方块实体数据（命令、自定义名、延时等），转换回 mcstructure 后可直接导入游戏使用；箱子内的物品暂不保留。
             </div>
         </div>
@@ -195,6 +195,13 @@ function parseCropName(name){
     if (!m) return null;
     const box = [ +m[2], +m[3], +m[4], +m[5], +m[6], +m[7] ];
     if (box[3] < box[0] || box[4] < box[1] || box[5] < box[2]) return null;
+    // 世界容器按 16³ 子区块存取,坐标落在子区块中间会因展开取整丢边。
+    // xyz 全部向外对齐到区块边界(min 向下取整、max 向上取整,16 的倍数),
+    // 保证裁剪箱完整覆盖用户给的坐标。
+    const S = v => Math.floor(v / 16) * 16;
+    const E = v => Math.floor(v / 16) * 16 + 15;
+    box[0] = S(box[0]); box[1] = S(box[1]); box[2] = S(box[2]);
+    box[3] = E(box[3]); box[4] = E(box[4]); box[5] = E(box[5]);
     return { name: m[1].trim() || 'structure', min6: box };
 }
 
