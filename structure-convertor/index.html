@@ -70,7 +70,7 @@
     <div class="page-header">
         <a class="back-home" href="/">← 返回主页</a>
         <h1>结构格式转换器</h1>
-        <div class="subtitle">mcstructure / litematic / schem / wsmr / BDX / mcworld 互转 · 解析与重编码全部由 WASM 在后台线程完成 · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+        <div class="subtitle">mcstructure / litematic / schem / wsmr / BDX / mcworld 互转 · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
     </div>
 
     <div class="card">
@@ -105,12 +105,9 @@
                 </div>
             </div>
             <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
-            <div class="info-display">上传后自动识别格式（BD@ 头 / gzip / NBT 嗅探）。支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件。所有处理均在浏览器本地完成，文件不会上传到任何服务器。</div>
+            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt / .schematic / .mcworld / .mcpack / .mcaddon / .zip / .mca 文件。所有处理均在浏览器本地完成，文件不会上传到任何服务器。</div>
             <div class="conv-note">
-                说明：mcworld 输出为基岩版世界存档 zip（db + level.dat），可直接放进 saves/（或 worlds/<存档名>/）打开；导出沿用世界容器命名约定——输出文件名为 名称@[x1,y1,z1]~[x2,y2,z2].mcworld，坐标为核心回报的输出区域世界包围盒：源文件名带 @[x,y,z]~[x,y,z] 裁剪箱时是区块对齐后的实际裁剪框（反向裁剪可直接复用），源无裁剪箱（如 mcstructure 转 mcworld）时就是结构自身的世界包围盒（导入后结构即落在这些坐标上）。mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem / bdx / schematic 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。世界类容器（.mcworld / .zip 等）与 .mca 仅作为解析输入：整张世界会按所有区块的包围盒展开，体积可能远超单个结构，转换前请确认范围。
-                <br>世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只转换该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（min 向下取整、max 向上取整，如 y=-64..200 实际取 -64..207），避免子区块展开丢边；输出文件名取 <code>@</code> 前的名称。如 <code>zhucheng@[-280,-64,-250]~[250,200,250].mcworld</code> 实际导出 [-288,-64,-256] 到 [255,207,255] 的区域。BDX 为基岩版命令流格式（BD@ 头 + Brotli），不存储原点与实体，原点信息会丢弃（重解析基点为 0,0,0）。
-                <br>命令方块、告示牌等<b>方块 NBT 信息已完整保留</b>：mcstructure ↔ BDX 双向转换均保留方块实体数据（命令、自定义名、延时等），转换回 mcstructure 后可直接导入游戏使用；箱子内的物品暂不保留。
-                <br>旧版 .schematic（MCEdit，Java 1.12 时代）：输入侧数字 id 经内置映射表转现代方块，同 id 查不到精确 data value 时自动回退到 data value=0 的基础方块（未映射 id 落为空气）；输出侧现代方块反查 legacy (id,data)——Java 现代键先经基岩对照表跳转，带三级回退（精确 → 忽略墙连接/含水等派生态 → 同名基础方块 data value=0），墙/门/栅栏门/台阶/蘑菇块等都能落到最近似的 1.12 方块；仅 1.13+ 才存在的方块（深板岩/幽匿/红树等）无 1.12 对应，会导出为空气。方块实体（命令方块/告示牌）不保留，WEOrigin 保存原点。
+                说明：mcworld 输出为基岩版世界存档 zip，可直接放进存档目录打开；输出文件名为 名称@[x1,y1,z1]~[x2,y2,z2].mcworld，导入后结构即落在这些坐标上。mcstructure 输出体积较大，大结构建议优先转换为 wsmr 或 litematic。多区域文件转为其他格式时仅取第 1 个区域。世界文件可将文件名改为 <code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code>，只转换该坐标范围（含端点）；输出文件名取 <code>@</code> 前的名称。转为 BDX 时不保留原点信息。命令方块、告示牌等信息在 mcstructure ↔ BDX 转换中保留，箱子内的物品暂不保留。旧版 .schematic 为 Java 1.12 时代格式，部分新方块（1.13+ 才有的）导出后会变成空气，命令方块/告示牌信息不保留。
             </div>
         </div>
     </div>
@@ -137,7 +134,7 @@
         </div>
     </div>
 
-    <div class="status-bar" id="status">正在加载 WASM 核心…</div>
+    <div class="status-bar" id="status">正在加载解析线程…</div>
 
     <div class="page-footer">
         <span>Made by DislinkSforza</span>
@@ -220,7 +217,7 @@ worker.onmessage = (ev) => {
         workerReady = true;
         setStatus('就绪 — 点击上传或拖入结构文件', 'info');
     } else if (m.type === 'progress'){
-        if (m.stage === 'parse'){ showProg('解析与重编码(WASM)…', 18); creepProg(88); }
+        if (m.stage === 'parse'){ showProg('解析与重编码中…', 18); creepProg(88); }
         else if (m.stage === 'encode'){ showProg('导出…', 92); }
     } else if (m.type === 'result'){
         if (m.seq !== convSeq) return;   // 过期回包
@@ -304,7 +301,7 @@ function goConvert(){
               ' ~ ' + crop.min6[3] + ',' + crop.min6[4] + ',' + crop.min6[5] + '）' : '') + ' …', 'info');
     pendingFile.arrayBuffer().then(buf => {
         const bytes = new Uint8Array(buf);
-        showProg('解析与重编码(WASM)…', 18);
+        showProg('解析与重编码中…', 18);
         creepProg(88);
         worker.postMessage({ type: 'convert', seq: convSeq, name: pendingFile.name,
                              bytes: bytes, fmt: fmt,

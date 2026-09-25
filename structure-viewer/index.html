@@ -138,7 +138,7 @@
     <div class="page-header">
         <a class="back-home" href="/">← 返回主页</a>
         <h1>结构 3D 查看器</h1>
-        <div class="subtitle">解析与网格化由 WASM 加速（后台线程运行，界面不卡顿） · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+        <div class="subtitle">Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
     </div>
 
     <div class="card">
@@ -151,7 +151,7 @@
                 <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx,.schematic,.nbt,.mca,.mcworld,.mcpack,.mcaddon,.zip">
             </div>
             <div class="separator"></div>
-            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域。世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只载入该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（如 y=-64..200 实际取 -64..207）。切层滑块直接控制切口高度：拉到最右为完整结构，向下拖动即切掉上方方块（0 = 空白画布），Ctrl+滚轮可快速调层。材质版权归 Mojang 所有，仅作渲染展示。已知限制：海带/海草/睡莲等水生植物会连同水体一起渲染为水，含水方块（waterlogged）的含水覆层暂不显示。</div>
+            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt / .schematic / .mcworld / .mcpack / .mcaddon / .zip / .mca 文件；多区域文件仅渲染第 1 个区域。世界文件可将文件名改为 <code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code>，只载入该坐标范围（含端点）。切层滑块直接控制切口高度：拉到最右为完整结构，向下拖动即切掉上方方块（0 = 空白画布），Ctrl+滚轮可快速调层。材质版权归 Mojang 所有，仅作渲染展示。</div>
         </div>
     </div>
 
@@ -204,7 +204,7 @@
         </div>
     </div>
 
-    <div class="status-bar" id="status">正在加载 WASM 核心…</div>
+    <div class="status-bar" id="status">正在加载解析线程…</div>
 
     <div class="page-footer">
         <span>Made by DislinkSforza</span>
@@ -298,7 +298,7 @@ worker.onmessage = (ev) => {
         workerReady = true;
         if (!hasFile) setStatus('就绪 — 点击上传或拖入结构文件', 'info');
     } else if (m.type === 'progress'){
-        if (m.stage === 'parse'){ showProg('解析与网格化(WASM)…', 18); creepProg(85); }
+        if (m.stage === 'parse'){ showProg('解析与网格化中…', 18); creepProg(85); }
         else if (m.stage === 'geometry') showProg('构建几何…', 90);
     } else if (m.type === 'geometry'){
         if (m.seq !== undefined && m.seq !== loadSeq) return;   // 过期回包
