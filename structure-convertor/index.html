@@ -70,7 +70,7 @@
     <div class="page-header">
         <a class="back-home" href="/">← 返回主页</a>
         <h1>结构格式转换器</h1>
-        <div class="subtitle">mcstructure / litematic / schem / wsmr / BDX 互转 · 解析与重编码全部由 WASM 在后台线程完成 · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+        <div class="subtitle">mcstructure / litematic / schem / wsmr / BDX / mcworld 互转 · 解析与重编码全部由 WASM 在后台线程完成 · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
     </div>
 
     <div class="card">
@@ -99,6 +99,7 @@
                         <option value="0">Mcstructure（.mcstructure，基岩版，未压缩，体积大）</option>
                         <option value="4">BDX（.bdx，基岩版命令流，Brotli 压缩，体积小）</option>
                         <option value="5">Schematic（.schematic，MCEdit 旧版，Java 1.12 数字 id，无现代方块）</option>
+                        <option value="6">Mcworld（.mcworld，基岩版世界存档 zip，可放进 worlds/ 直接开）</option>
                     </select>
                     <button class="btn btn-primary" id="goBtn" style="width:100%;margin-top:0.5rem;" disabled>开始转换</button>
                 </div>
@@ -106,7 +107,7 @@
             <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
             <div class="info-display">上传后自动识别格式（BD@ 头 / gzip / NBT 嗅探）。支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件。所有处理均在浏览器本地完成，文件不会上传到任何服务器。</div>
             <div class="conv-note">
-                说明：mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem / bdx / schematic 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。世界类容器（.mcworld / .zip 等）与 .mca 仅作为解析输入：整张世界会按所有区块的包围盒展开，体积可能远超单个结构，转换前请确认范围。
+                说明：mcworld 输出为基岩版世界存档 zip（db + level.dat），可直接放进 saves/（或 worlds/<存档名>/）打开；导出沿用世界容器命名约定——源文件名带 @[x,y,z]~[x,y,z] 裁剪箱时，输出文件名为 名称@[对齐后x1,y1,z1]~[对齐后x2,y2,z2].mcworld（坐标为区块对齐后的实际裁剪框，反向再裁剪时可直接复用）。mcstructure 输出为未压缩 NBT，大结构体积会显著膨胀甚至超出内存；多区域文件（litematic 多 Region）转为 mcstructure / schem / bdx / schematic 时仅取第 1 个区域，转 wsmr / litematic 可完整保留。建议大结构优先转换为 wsmr 或 litematic。世界类容器（.mcworld / .zip 等）与 .mca 仅作为解析输入：整张世界会按所有区块的包围盒展开，体积可能远超单个结构，转换前请确认范围。
                 <br>世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只转换该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（min 向下取整、max 向上取整，如 y=-64..200 实际取 -64..207），避免子区块展开丢边；输出文件名取 <code>@</code> 前的名称。如 <code>zhucheng@[-280,-64,-250]~[250,200,250].mcworld</code> 实际导出 [-288,-64,-256] 到 [255,207,255] 的区域。BDX 为基岩版命令流格式（BD@ 头 + Brotli），不存储原点与实体，原点信息会丢弃（重解析基点为 0,0,0）。
                 <br>命令方块、告示牌等<b>方块 NBT 信息已完整保留</b>：mcstructure ↔ BDX 双向转换均保留方块实体数据（命令、自定义名、延时等），转换回 mcstructure 后可直接导入游戏使用；箱子内的物品暂不保留。
                 <br>旧版 .schematic（MCEdit，Java 1.12 时代）：输入侧数字 id 经内置映射表转现代方块，同 id 查不到精确 data value 时自动回退到 data value=0 的基础方块（未映射 id 落为空气）；输出侧现代方块反查 legacy (id,data)——Java 现代键先经基岩对照表跳转，带三级回退（精确 → 忽略墙连接/含水等派生态 → 同名基础方块 data value=0），墙/门/栅栏门/台阶/蘑菇块等都能落到最近似的 1.12 方块；仅 1.13+ 才存在的方块（深板岩/幽匿/红树等）无 1.12 对应，会导出为空气。方块实体（命令方块/告示牌）不保留，WEOrigin 保存原点。
@@ -186,8 +187,8 @@ function creepProg(cap){
     }, 250);
 }
 
-const FMT_NAMES = ['mcstructure', 'litematic', 'schem', 'wsmr', 'bdx', 'schematic'];
-const FMT_EXT = ['.mcstructure', '.litematic', '.schem', '.wsmr', '.bdx', '.schematic'];
+const FMT_NAMES = ['mcstructure', 'litematic', 'schem', 'wsmr', 'bdx', 'schematic', 'mcworld'];
+const FMT_EXT = ['.mcstructure', '.litematic', '.schem', '.wsmr', '.bdx', '.schematic', '.mcworld'];
 
 // mcworld 命名约定:"名称@[x1,y1,z1]~[x2,y2,z2].mcworld"——方括号内为世界坐标,
 // 只转换该包围盒,结构名取 @ 前的部分。
@@ -227,13 +228,20 @@ worker.onmessage = (ev) => {
         if (m.ok){
             const crop = parseCropName(m.srcName);
             const outBase = crop ? crop.name : (m.srcName.replace(/\.[^.]+$/, '') || 'structure');
-            lastResult = { name: outBase + FMT_EXT[fmtSel.value|0], out: m.out, size: m.size };
+            // mcworld 导出沿用世界容器命名约定:带裁剪箱时名称带 @[x1,y1,z1]~[x2,y2,z2],
+            // 坐标为实际生效的区块对齐裁剪框(反向裁剪 mcworld→mcworld 时可直接复用)。
+            const fmt = fmtSel.value|0;
+            const outName = (fmt === 6 && crop)
+                ? outBase + '@[' + crop.min6.slice(0,3).join(',') + ']~[' +
+                  crop.min6.slice(3).join(',') + ']' + FMT_EXT[fmt]
+                : outBase + FMT_EXT[fmt];
+            lastResult = { name: outName, out: m.out, size: m.size };
             const dl = document.getElementById('dlArea');
             dl.classList.add('on');
             document.getElementById('sumSrc').textContent = m.srcName;
             document.getElementById('sumSrcMeta').textContent = fmtBytes(m.srcSize);
             document.getElementById('sumOut').textContent = lastResult.name;
-            document.getElementById('sumOutMeta').textContent = fmtBytes(m.size) + ' · ' + FMT_NAMES[fmtSel.value|0];
+            document.getElementById('sumOutMeta').textContent = fmtBytes(m.size) + ' · ' + FMT_NAMES[fmt];
             const ratio = m.srcSize ? (m.size / m.srcSize * 100).toFixed(0) : '?';
             document.getElementById('sumDetail').textContent =
                 '用时 ' + (m.ms / 1000).toFixed(2) + ' s · 体积为源文件的 ' + ratio + '%' +
