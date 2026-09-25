@@ -20,6 +20,10 @@
 // .bdx 由 wasm 核心原生解析(BD@ 头 + brotli + 指令流全部在 C++ 里完成)。
 importScripts('./core.js');
 
+// 核心更新后浏览器会拿缓存里的旧 core.js/core.wasm(与结构转换器同坑)——
+// 每次重新部署核心时同步递增这里的版本号。
+const CORE_V = 'v6';
+
 let Core = null;
 let lastBytes = null;   // 上次载入的字节,LOD 切换直接复用,免重复解析
 let lastLoadBaked = false; // tryLoad 实际使用的路径(bake 回退可能偏离请求值)
@@ -37,7 +41,7 @@ postMessage({ type: 'ready' });
 
 // -------------------------------------------------- wasm 核心
 async function ensureCore(){
-    if (!Core) Core = await createCore({ locateFile: f => './' + f });
+    if (!Core) Core = await createCore({ locateFile: f => './' + f.split('?')[0] + '?' + CORE_V });
     return Core;
 }
 // 上一个大文件仍占着 wasm 堆时再载入可能 OOM abort——重建核心后重试一次。
@@ -116,7 +120,7 @@ async function tryLoad(bytes, lod, useBake, min6){
     // 新建一个从未载入 bake 表的干净核心(g_bake_loaded 一旦为真,同一实例上
     // core_load_lod 永远走 bake 路径,退不回纯色)。
     const freshCore = async () => {
-        Core = await createCore({ locateFile: f => './' + f });
+        Core = await createCore({ locateFile: f => './' + f.split('?')[0] + '?' + CORE_V });
         bakeLoadedOnCore = null;
         return Core;
     };

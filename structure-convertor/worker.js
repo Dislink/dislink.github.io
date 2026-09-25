@@ -11,14 +11,17 @@
 //   ← {type:'worker-error', message}
 // 输入格式自动嗅探(BD@ / gzip 1F 8B / LE-NBT),输出格式用整数编码
 // (emscripten 导出仅整数编组稳定)。
-importScripts('./core.js');
+// 核心更新后浏览器会拿缓存里的旧 core.js/core.wasm(产物落进旧格式的世界
+// 文件,游戏端 repair)——每次重新部署核心时同步递增这里的版本号。
+const CORE_V = 'v6';
+importScripts('./core.js?' + CORE_V);
 
 let Core = null;
 
 postMessage({ type: 'ready' });
 
 async function ensureCore(){
-    if (!Core) Core = await createCore({ locateFile: f => './' + f });
+    if (!Core) Core = await createCore({ locateFile: f => './' + f.split('?')[0] + '?' + CORE_V });
     return Core;
 }
 // 源文件名(@裁剪约定取 @ 前的名称)作为世界/结构名传给核心,mcworld 导出
@@ -48,7 +51,7 @@ async function tryConvert(bytes, fmt, min6, name){
         }
         finally { core._free(p); if (c) core._free(c); }
     } catch (e){
-        Core = await createCore({ locateFile: f => './' + f });
+        Core = await createCore({ locateFile: f => './' + f.split('?')[0] + '?' + CORE_V });
         setCoreName(Core, name);
         const p2 = Core._malloc(bytes.length);
         Core.HEAPU8.set(bytes, p2);
@@ -116,7 +119,7 @@ self.onmessage = async (ev) => {
         // abort(RuntimeError) 等:报告重建核心并给出可读信息
         const em = (e && e.message) ? e.message : String(e);
         if (/abort|memory/i.test(em)){
-            try { Core = await createCore({ locateFile: f => './' + f }); } catch (_){}
+            try { Core = await createCore({ locateFile: f => './' + f.split('?')[0] + '?' + CORE_V }); } catch (_){}
             postMessage({ type: 'result', seq: msg.seq, ok: false, size: 0, out: null,
                           error: 'WASM 内存不足(目标格式可能展开过大,如未压缩 NBT)',
                           srcName: (msg && msg.name) || '', srcSize: (msg && msg.bytes) ? msg.bytes.length : 0,
