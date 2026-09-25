@@ -13,10 +13,10 @@
 //   ← {type:'slice', level, vc, ic, pos, col, idx}           (纯色路径,typed arrays)
 //   ← {type:'slice', level, bake:true, opaque:{...}, trans:{...}} (贴图路径)
 // 贴图路径:wasm 核心内置 bake 表(gen/bake.bin,shulkr 式方块状态→方块面烘焙),
-// 每个 (方块,面) 发一个带图集 UV / tile / tint / AO 的四边形;核心在载入/切层后
-// 自行完成解交织(UV 映射进图集 rect、tint/AO 换算顶点色、fni 展开轴向法线,
-// meta 经 core_bake_meta_load 上传),worker 只按访问器指针拷出 pos/uv/rgb/nrm,
-// 主线程拿到"零逐顶点工作"的几何直接包成 BufferAttribute。主线程用两张图集纹理渲染。
+// 每个 (方块,面) 发一个带图集 UV / tile / tint / AO 的四边形;worker 在解交织时把
+// UV 直接映射进图集 rect、把 tint/AO 换算成顶点色(bake_meta 派生 tint 查表)、
+// 按核心打包的 fni 展开轴向法线,主线程拿到"零逐顶点工作"的 pos/uv/rgb/nrm,
+// 直接包成 BufferAttribute。主线程用两张图集纹理渲染。
 // .bdx 由 wasm 核心原生解析(BD@ 头 + brotli + 指令流全部在 C++ 里完成)。
 importScripts('./core.js');
 
@@ -28,13 +28,11 @@ let Core = null;
 let lastBytes = null;   // 上次载入的字节,LOD 切换直接复用,免重复解析
 let lastLoadBaked = false; // tryLoad 实际使用的路径(bake 回退可能偏离请求值)
 
-// java 十进制颜色 → 0..1 RGB(tint 表上传给核心前的换算)
-const bakeMetaDec = (n) => [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-
 // 烘焙表与图集元数据(首次 load 时取一次,之后缓存)
 let bakeBin = null;          // Uint8Array(gen/bake.bin)
 let bakeMeta = null;         // 解析后的 bake_meta.json
-let bakeLoadedOnCore = null; // 当前 Core 实例上 bake 表是否已成功载入(meta 也一并上传)
+let bakeTints = null;        // tint id -> [r,g,b](0..1),由 bake_meta 派生
+let bakeLoadedOnCore = null; // 当前 Core 实例上 bake 是否已成功载入
 
 // 就绪握手:主线程收到后才开放上传
 postMessage({ type: 'ready' });
@@ -45,7 +43,7 @@ async function ensureCore(){
     return Core;
 }
 // 上一个大文件仍占着 wasm 堆时再载入可能 OOM abort——重建核心后重试一次。
-// 重建后 bake 表丢失,需重新 core_bake_load + core_bake_meta_load。
+// 重建后 bake 表丢失,需重新 core_bake_load。
 async function loadBake(core){
     if (bakeLoadedOnCore === core && bakeLoadedOnCore) return true;
     if (!bakeBin || !bakeMeta) return false;
@@ -53,45 +51,7 @@ async function loadBake(core){
     core.HEAPU8.set(bakeBin, p);
     try { bakeLoadedOnCore = core._core_bake_load(p, bakeBin.length, bakeMeta.solidTiles) ? core : null; }
     finally { core._free(p); }
-    if (!bakeLoadedOnCore) return false;
-    // 渲染 meta(rects/rectsT/tint 表)也进核心:解交织在核心内做。
-    // 注意 bake_meta.json 的 tiles 是 tile 名字数组不是数量,rect 数量取 rects.length
-    // (误传数组 → Float32Array(NaN·4) 空 → rect_count=0 → 核心整图集回退 → 花屏)。
-    const tileCount = bakeMeta.rects.length, dec = bakeMetaDec;
-    // 稀疏数组(JSON null 洞)→ 稠密 tile×4,洞补全图集 (0,0,1,1)
-    const mk = (src) => {
-        const f = new Float32Array(tileCount * 4);
-        for (let t = 0; t < tileCount; ++t){
-            const r = src && src[t];
-            if (r) { f[t*4] = r[0]; f[t*4+1] = r[1]; f[t*4+2] = r[2]; f[t*4+3] = r[3]; }
-            else   { f[t*4] = 0;   f[t*4+1] = 0;   f[t*4+2] = 1;   f[t*4+3] = 1; }
-        }
-        return f;
-    };
-    const rects = mk(bakeMeta.rects), rectsT = mk(bakeMeta.rectsT);
-    // tint 表:id 0 白 + fixedTints + defaultTints(fixed 优先,与旧 worker 派生一致;
-    // 未知 tint id 核心内回退白)
-    const tintTable = { 0: [1, 1, 1] };
-    for (const [id, n] of Object.entries(bakeMeta.fixedTints || {})) tintTable[id | 0] = dec(n);
-    const cls = bakeMeta.defaultTints || {};
-    if (cls.grass && tintTable[1] === undefined) tintTable[1] = dec(cls.grass);
-    if (cls.foliage && tintTable[2] === undefined) tintTable[2] = dec(cls.foliage);
-    if (cls.dryFoliage && tintTable[4] === undefined) tintTable[4] = dec(cls.dryFoliage);
-    const tintCount = Math.max(...Object.keys(tintTable).map(Number)) + 1;
-    const tints = new Float32Array(tintCount * 3);
-    for (let i = 0; i < tintCount; ++i){
-        const c = tintTable[i] || [1, 1, 1];
-        tints[i*3] = c[0]; tints[i*3+1] = c[1]; tints[i*3+2] = c[2];
-    }
-    const rp = core._malloc(rects.byteLength), rt = core._malloc(rectsT.byteLength),
-          tp = core._malloc(tints.byteLength);
-    try {
-        new Uint8Array(core.HEAPU8.buffer, rp, rects.byteLength).set(new Uint8Array(rects.buffer));
-        new Uint8Array(core.HEAPU8.buffer, rt, rectsT.byteLength).set(new Uint8Array(rectsT.buffer));
-        new Uint8Array(core.HEAPU8.buffer, tp, tints.byteLength).set(new Uint8Array(tints.buffer));
-        core._core_bake_meta_load(rp, rt, tileCount, tp, tintCount);
-    } finally { core._free(rp); core._free(rt); core._free(tp); }
-    return true;
+    return !!bakeLoadedOnCore;
 }
 // 返回实际使用的路径:true = bake 贴图路径,false = 纯色路径。onmessage 据此选
 // collectBake / collectGeometry —— tryLoad 内部的回退可能改变路径,不能只看 msg.tex。
@@ -156,37 +116,60 @@ async function tryLoad(bytes, lod, useBake, min6){
         }
     }
 }
-// 返回 bake soup:核心已完成解交织(pos/uv/rgb/nrm + u32 索引,UV 已映射进图集
-// rect、rgb=tint×AO、法线=面轴向),worker 按访问器指针拷出 wasm 堆成独立
+// 返回 bake soup:解交织后 [x,y,z,u,v,r,g,b](UV 已映射进图集 rect,颜色=AO×tint,
+// 法线=四边形面法线,由核心打包进 tile 的 fni 高位解出),拷贝出 wasm 堆成独立
 // typed arrays。
 function collectBake(core){
-    const grab = (vc, ic, posP, uvP, rgbP, nrmP, idxP) => {
+    const F32 = core.HEAPF32, U32 = core.HEAPU32;
+    const ovc = core._core_bake_opaque_vertex_count(),
+          oic = core._core_bake_opaque_index_count();
+    const tvc = core._core_bake_trans_vertex_count(),
+          tic = core._core_bake_trans_index_count();
+    const solidTiles = bakeMeta ? bakeMeta.solidTiles : 0;
+    const rects = bakeMeta ? bakeMeta.rects : [], rectsT = bakeMeta ? bakeMeta.rectsT : [];
+    const tints = bakeTints || { 0: [1, 1, 1] };
+    // ZEA 面法线(与 bake_mesh.cpp kFaceTuple 的 normalAxis/sign 对应);
+    // ZEA: 0=down(0,-1,0) 1=up(0,1,0) 2=north(0,0,-1) 3=south(0,0,1)
+    //      4=west(-1,0,0) 5=east(1,0,0)。倾斜面(元素旋转/楼梯等)仍按其主
+    // fni 取轴向法线:四边形共面,棱线略硬但与 computeVertexNormals 的
+    // 面内插值差异在正常光照下不可辨。
+    const NRM = [[0,-1,0],[0,1,0],[0,0,-1],[0,0,1],[-1,0,0],[1,0,0]];
+    const soup = (vc, ic, dataP, idxP) => {
         if (vc <= 0 || ic <= 0) return { vc: 0, ic: 0, pos: new Float32Array(0), uv: new Float32Array(0), rgb: new Float32Array(0), nrm: new Float32Array(0), idx: new Uint32Array(0) };
-        const F32 = core.HEAPF32, U32 = core.HEAPU32;
-        return {
-            vc, ic,
-            pos: F32.slice(posP >> 2, (posP >> 2) + vc * 3),
-            uv:  F32.slice(uvP  >> 2, (uvP  >> 2) + vc * 2),
-            rgb: F32.slice(rgbP >> 2, (rgbP >> 2) + vc * 3),
-            nrm: F32.slice(nrmP >> 2, (nrmP >> 2) + vc * 3),
-            idx: new Uint32Array(U32.buffer.slice(idxP, idxP + ic * 4)),
-        };
+        // 顶点属性解交织 + UV/tint 预变换:pos(3) / uv(2) / rgb(3) / nrm(3)
+        const pos = new Float32Array(vc * 3), uv = new Float32Array(vc * 2),
+              rgb = new Float32Array(vc * 3), nrm = new Float32Array(vc * 3);
+        const raw = F32.subarray(dataP >> 2, (dataP >> 2) + vc * 8);
+        for (let q = 0; q < vc; q += 4){
+            // 每 4 顶点一个四边形:tile/tint 在四边形内恒定;面法线按 fni 取轴向。
+            // 核心把 fni 打包进 tile 字段的高 3 位(低 13 位是 tile id,最大
+            // 1085 远小于 8192,安全)。
+            const s0 = q * 8;
+            const packed = raw[s0 + 5];
+            const tile = packed & 8191;
+            const fni = (packed / 8192) | 0;
+            const n = NRM[fni] || NRM[1];
+            const tintId = raw[s0 + 6] | 0, ao0 = raw[s0 + 7], ao1 = raw[s0 + 15],
+                  ao2 = raw[s0 + 23], ao3 = raw[s0 + 31];
+            const isT = tile > solidTiles;
+            const r = (isT ? rectsT : rects)[tile] || [0, 0, 1, 1];
+            const tc = tints[tintId] || tints[0];
+            for (let i = 0; i < 4; ++i){
+                const s = (q + i) * 8, d3 = (q + i) * 3, d2 = (q + i) * 2;
+                pos[d3] = raw[s]; pos[d3+1] = raw[s+1]; pos[d3+2] = raw[s+2];
+                uv[d2]   = r[0] + raw[s+3] * r[2];
+                uv[d2+1] = r[1] + raw[s+4] * r[3];
+                const ao = i === 0 ? ao0 : i === 1 ? ao1 : i === 2 ? ao2 : ao3;
+                rgb[d3] = tc[0] * ao; rgb[d3+1] = tc[1] * ao; rgb[d3+2] = tc[2] * ao;
+                nrm[d3] = n[0]; nrm[d3+1] = n[1]; nrm[d3+2] = n[2];
+            }
+        }
+        const idx = new Uint32Array(U32.buffer.slice(idxP, idxP + ic * 4));
+        return { vc, ic, pos, uv, rgb, nrm, idx };
     };
     return {
-        opaque: grab(core._core_bake_opaque_geometry_vertex_count(),
-                     core._core_bake_opaque_geometry_index_count(),
-                     core._core_bake_opaque_geometry_pos_ptr(),
-                     core._core_bake_opaque_geometry_uv_ptr(),
-                     core._core_bake_opaque_geometry_rgb_ptr(),
-                     core._core_bake_opaque_geometry_nrm_ptr(),
-                     core._core_bake_opaque_geometry_idx_ptr()),
-        trans:  grab(core._core_bake_trans_geometry_vertex_count(),
-                     core._core_bake_trans_geometry_index_count(),
-                     core._core_bake_trans_geometry_pos_ptr(),
-                     core._core_bake_trans_geometry_uv_ptr(),
-                     core._core_bake_trans_geometry_rgb_ptr(),
-                     core._core_bake_trans_geometry_nrm_ptr(),
-                     core._core_bake_trans_geometry_idx_ptr()),
+        opaque: soup(ovc, oic, core._core_bake_opaque_data_ptr(), core._core_bake_opaque_idx_ptr()),
+        trans:  soup(tvc, tic, core._core_bake_trans_data_ptr(), core._core_bake_trans_idx_ptr()),
     };
 }
 // 旧纯色路径(贴图关):贪心 (mid,face) 分组 soup + 调色板,协议保持兼容。
@@ -262,6 +245,16 @@ async function fetchBake(){
         ]);
         bakeBin = new Uint8Array(bin);
         bakeMeta = meta;
+        // tint 查表从 bake_meta 派生(0..8 与图元 tint id 对应;java 十进制色 → 0..1 RGB)
+        const dec = (n) => [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+        bakeTints = { 0: [1, 1, 1] };
+        for (const [id, n] of Object.entries(bakeMeta.fixedTints || {})) bakeTints[id | 0] = dec(n);
+        const cls = bakeMeta.defaultTints || {};
+        if (cls.grass) bakeTints[1] = dec(cls.grass);
+        if (cls.foliage) bakeTints[2] = dec(cls.foliage);
+        if (cls.dryFoliage) bakeTints[4] = dec(cls.dryFoliage);
+        // 3(水)/5(作物茎)在 fixedTints;6/7/8 也在 fixedTints(云杉/白桦/睡莲)。
+        // defaultTints 同名条目不覆盖 fixedTints(fixed 优先)。
     }
 }
 
@@ -308,46 +301,75 @@ self.onmessage = async (ev) => {
                               merged: mergedArr, ...info }, transfers);
             }
         } else if (msg.type === 'slice'){
-            // 分层切片:该核心走过 bake 表 → 贴图平面(核心 core_bake_plan 出
-            // 合并 stride-8 soup 后自行分箱/重排/解交织,worker 只拷访问器);
+            // 分层切片:该核心走过 bake 表 → 贴图平面(核心出 stride-8 soup,
+            // 与 collectBake 同一解交织逻辑,worker 按 tile 分箱 opaque/trans);
             // 否则纯色 core_slice。
             if (!Core){ postMessage({ type: 'slice', level: msg.level, vc: 0, ic: 0 }); return; }
             if (bakeLoadedOnCore === Core){
                 const vc = Core._core_bake_plan(msg.level);
-                const empty = () => ({ vc: 0, ic: 0, pos: new Float32Array(0), uv: new Float32Array(0),
-                                       rgb: new Float32Array(0), nrm: new Float32Array(0), idx: new Uint32Array(0) });
                 if (vc > 0){
-                    const grab = (vc, ic, posP, uvP, rgbP, nrmP, idxP) => {
-                        if (vc <= 0 || ic <= 0) return empty();
-                        const F32 = Core.HEAPF32, U32 = Core.HEAPU32;
-                        return {
-                            vc, ic,
-                            pos: F32.slice(posP >> 2, (posP >> 2) + vc * 3),
-                            uv:  F32.slice(uvP  >> 2, (uvP  >> 2) + vc * 2),
-                            rgb: F32.slice(rgbP >> 2, (rgbP >> 2) + vc * 3),
-                            nrm: F32.slice(nrmP >> 2, (nrmP >> 2) + vc * 3),
-                            idx: new Uint32Array(U32.buffer.slice(idxP, idxP + ic * 4)),
-                        };
+                    const ic = Core._core_bake_plan_index_count();
+                    const F32 = Core.HEAPF32, U32 = Core.HEAPU32;
+                    const dp = Core._core_bake_plan_data_ptr(), ip = Core._core_bake_plan_idx_ptr();
+                    const solidTiles = bakeMeta ? bakeMeta.solidTiles : 0;
+                    const rects = bakeMeta ? bakeMeta.rects : [], rectsT = bakeMeta ? bakeMeta.rectsT : [];
+                    const tints = bakeTints || { 0: [1, 1, 1] };
+                    const soup = (vc, dp, ip) => {
+                        // tile ≤ solidTiles 进 opaque,其余进 trans:同一 soup 里
+                        // 按四边形分箱,再各自转正 typed arrays。法线恒为世界向上
+                        //(平面俯视,平面是平的不需要逐点变化)。
+                        const raw = F32.subarray(dp >> 2, (dp >> 2) + vc * 8);
+                        const opPos = [], opUv = [], opRgb = [], opNrm = [];
+                        const trPos = [], trUv = [], trRgb = [], trNrm = [];
+                        const opIdx = [], trIdx = [];
+                        for (let q = 0; q < vc; q += 4){
+                            const s0 = q * 8;
+                            const packed = raw[s0 + 5];
+                            const tile = packed & 8191;
+                            const isT = tile > solidTiles;
+                            const r = (isT ? rectsT : rects)[tile] || [0, 0, 1, 1];
+                            const tintId = raw[s0 + 6] | 0;
+                            const tc = tints[tintId] || tints[0];
+                            const P = isT ? trPos : opPos, U = isT ? trUv : opUv,
+                                  R = isT ? trRgb : opRgb, N = isT ? trNrm : opNrm;
+                            const base = P.length / 3;
+                            for (let i = 0; i < 4; ++i){
+                                const s = (q + i) * 8;
+                                P.push(raw[s], raw[s+1], raw[s+2]);
+                                U.push(r[0] + raw[s+3] * r[2], r[1] + raw[s+4] * r[3]);
+                                const ao = i === 0 ? raw[s0 + 7] : i === 1 ? raw[s0 + 15] : i === 2 ? raw[s0 + 23] : raw[s0 + 31];
+                                R.push(tc[0] * ao, tc[1] * ao, tc[2] * ao);
+                                N.push(0, 1, 0);
+                            }
+                            // 每四边形 6 索引:u32 索引数组,字节地址 ip,quad 号
+                            // = q/4,每 quad 6 个 u32 = 24 字节。核心索引是合并
+                            // soup 的绝对顶点号(quad n → 4n+order);分箱后要改成
+                            // 箱内局部号:该 quad 的核心基址 = q,箱内基址 = base。
+                            const src = U32.subarray((ip >> 2) + (q >> 2) * 6, (ip >> 2) + (q >> 2) * 6 + 6);
+                            for (let k = 0; k < 6; ++k) (isT ? trIdx : opIdx).push(base + src[k] - q);
+                        }
+                        const pack = (P, U, R, N, I) => ({ vc: P.length / 3, ic: I.length,
+                            pos: new Float32Array(P), uv: new Float32Array(U),
+                            rgb: new Float32Array(R), nrm: new Float32Array(N),
+                            idx: new Uint32Array(I) });
+                        return { opaque: pack(opPos, opUv, opRgb, opNrm, opIdx),
+                                 trans:  pack(trPos, trUv, trRgb, trNrm, trIdx) };
                     };
-                    const op = grab(Core._core_bake_plan_opaque_vertex_count(),
-                                    Core._core_bake_plan_opaque_index_count(),
-                                    Core._core_bake_plan_opaque_pos_ptr(), Core._core_bake_plan_opaque_uv_ptr(),
-                                    Core._core_bake_plan_opaque_rgb_ptr(), Core._core_bake_plan_opaque_nrm_ptr(),
-                                    Core._core_bake_plan_opaque_idx_ptr());
-                    const tr = grab(Core._core_bake_plan_trans_vertex_count(),
-                                    Core._core_bake_plan_trans_index_count(),
-                                    Core._core_bake_plan_trans_pos_ptr(), Core._core_bake_plan_trans_uv_ptr(),
-                                    Core._core_bake_plan_trans_rgb_ptr(), Core._core_bake_plan_trans_nrm_ptr(),
-                                    Core._core_bake_plan_trans_idx_ptr());
-                    const transfers = [op.pos.buffer, op.uv.buffer, op.rgb.buffer, op.nrm.buffer, op.idx.buffer,
-                                       tr.pos.buffer, tr.uv.buffer, tr.rgb.buffer, tr.nrm.buffer, tr.idx.buffer]
+                    const b = soup(vc, dp, ip);
+                    const transfers = [b.opaque.pos.buffer, b.opaque.uv.buffer, b.opaque.rgb.buffer,
+                                       b.opaque.nrm.buffer, b.opaque.idx.buffer,
+                                       b.trans.pos.buffer, b.trans.uv.buffer, b.trans.rgb.buffer,
+                                       b.trans.nrm.buffer, b.trans.idx.buffer]
                                       .filter(bb => bb && bb.byteLength > 0);
                     postMessage({ type: 'slice', level: msg.level, bake: true,
-                                  opaque: op, trans: tr }, transfers);
+                                  opaque: b.opaque, trans: b.trans }, transfers);
                     return;
                 }
                 postMessage({ type: 'slice', level: msg.level, bake: true,
-                              opaque: empty(), trans: empty() });
+                              opaque: { vc: 0, ic: 0, pos: new Float32Array(0), uv: new Float32Array(0),
+                                        rgb: new Float32Array(0), nrm: new Float32Array(0), idx: new Uint32Array(0) },
+                              trans: { vc: 0, ic: 0, pos: new Float32Array(0), uv: new Float32Array(0),
+                                       rgb: new Float32Array(0), nrm: new Float32Array(0), idx: new Uint32Array(0) } });
                 return;
             }
             const vc = Core._core_slice(msg.level);
