@@ -149,7 +149,7 @@
                 <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx,.schematic,.nbt,.mca,.mcworld,.mcpack,.mcaddon,.zip">
             </div>
             <div class="separator"></div>
-            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域。世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只载入该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（如 y=-64..200 实际取 -64..207）。材质版权归 Mojang 所有，仅作渲染展示。已知限制：海带/海草/睡莲等水生植物会连同水体一起渲染为水，含水方块（waterlogged）的含水覆层暂不显示。</div>
+            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域。世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只载入该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（如 y=-64..200 实际取 -64..207）。切层模式为切口视图：滑块选择切层高度，保留该层及以下的完整方块（0 = 空白画布）。材质版权归 Mojang 所有，仅作渲染展示。已知限制：海带/海草/睡莲等水生植物会连同水体一起渲染为水，含水方块（waterlogged）的含水覆层暂不显示。</div>
         </div>
     </div>
 
@@ -169,13 +169,13 @@
                 <span class="tb-sep"></span>
                 <div class="tb-group">
                     <span class="tb-label">模式</span>
-                    <span class="tb-btn active" id="mOrbit">环绕</span>
-                    <span class="tb-btn" id="mPlan">分层</span>
-                    <span class="tb-btn" id="mExplore">漫游</span>
+                    <span class="tb-btn active" id="mOrbit">整体</span>
+                    <span class="tb-btn" id="mPlan">切层</span>
                 </div>
-                <div class="tb-group">
+                <div class="tb-group" id="clipGroup" style="display:none;">
                     <span class="tb-label">切层</span>
-                    <input type="range" id="clipY" min="0" max="100" step="1" value="100" disabled>
+                    <input type="range" id="clipY" min="0" max="100" step="1" value="100"
+                           title="切层高度:0 = 空白画布,其余数值为切口高度(显示该高度以下的部分)">
                 </div>
             </div>
             <div id="canvasWrap">
@@ -185,7 +185,7 @@
                     <div id="scaleTxt"></div>
                     <div id="scaleLine"></div>
                 </div>
-                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · 漫游模式 WASD/空格/Shift 移动</div>
+                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · WASD/空格/Shift 漫游(两种模式均可用)</div>
                 <div id="dropHint">松开以载入文件</div>
                 <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
             </div>
@@ -335,6 +335,12 @@ worker.onerror = (e) => {
 // ---------------------------------------------------------------- three.js 场景
 let scene, camera, renderer, controls;
 let meshGroup = null, sliceGroup = null, axesHelper = null;
+// 切层模式的整体裁剪面:保留 y ≤ constant 的部分(constant=Infinity 即不裁)。
+// 切层不再是"每个柱子只画一块顶面",而是完整网格照常渲染、用裁剪面切掉
+// 切层以上的部分 —— 被上方遮挡的方块同正常渲染一样完整出现;worker 的
+// bake_plan 顶盖只补切口处被相邻方块剔除的朝上面。constant 用 Infinity
+// 表达"不裁",免去材质 define 翻转触发的着色器重编译。
+const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), Infinity);
 let lastFitC = null, lastFitSize = 1;
 let pendingFit = true;    // 下一轮回包是否需要摆默认视角(仅每个文件首次载入;LOD 重建保留当前视角)
 let useTex = true, curLod = 1;
@@ -355,46 +361,60 @@ function resetCamera(){
 
 addEventListener('keydown', e => { if (e.key === 'r' || e.key === 'R') resetCamera(); });
 
-// --- 模式:环绕 Orbit / 分层 Plan / 漫游 Explore ---
+// --- 模式:整体 / 切层(漫游键两种模式都可用) ---
 function setMode(m){
     mode = m;
-    const ids = { orbit:'mOrbit', plan:'mPlan', explore:'mExplore' };
+    const ids = { orbit:'mOrbit', plan:'mPlan' };
     for (const k in ids) document.getElementById(ids[k]).classList.toggle('active', k === m);
     applyClip();
     if (!lastFitC) return;
     if (m === 'plan'){
         const c = lastFitC, s = lastFitSize;
-        camera.position.set(c.x, c.y + s*1.6, c.z);
+        // 切口视角:相机从上前方斜视切口,而不是纯俯视 —— 俯视只能看到
+        // 顶盖平面,看不到切口处完整方块的侧壁。
+        camera.position.set(c.x, c.y + s*1.1, c.z + s*0.9);
         controls.target.copy(c);
         controls.update();
-    } else if (m === 'explore'){
-        // 原地继续
     } else {
         resetCamera();
     }
 }
-for (const [id, m] of [['mOrbit','orbit'],['mPlan','plan'],['mExplore','explore']])
+for (const [id, m] of [['mOrbit','orbit'],['mPlan','plan']])
     document.getElementById(id).onclick = () => setMode(m);
 
+// 漫游键(WASD/空格/Shift)在整体与切层模式下都可用;每帧按住状态平滑行进。
+const roamKeys = new Set();
 addEventListener('keydown', e => {
-    if (mode !== 'explore' || !lastFitC) return;
-    const step = lastFitSize * 0.03;
+    const k = e.key.toLowerCase();
+    if (k === 'w' || k === 'a' || k === 's' || k === 'd' || k === ' ' || k === 'shift'){
+        // 焦点在滑块等输入控件上时不抢按键,留给键盘可访问性。
+        if (document.activeElement === document.body || document.activeElement === null){
+            roamKeys.add(k);
+            e.preventDefault();
+        }
+    }
+});
+addEventListener('keyup', e => roamKeys.delete(e.key.toLowerCase()));
+addEventListener('blur', () => roamKeys.clear());
+// 每帧漫游步进:按当前朝向(忽略俯仰的水平分量)前进/平移,空格/Shift 升降。
+// 速度 = 每秒 0.35 倍结构尺寸 × 帧间隔 —— 帧率无关的连续移动,没有逐格顿挫
+// (旧实现每次 keydown 跳固定一格,按住时受系统按键重复节拍限制,呈格子感)。
+function roamTick(dt){
+    if (roamKeys.size === 0 || !lastFitC || dt <= 0) return;
+    const step = lastFitSize * 0.35 * dt;
     const f = new THREE.Vector3().subVectors(controls.target, camera.position);
     f.y = 0; if (f.lengthSq() > 1e-9) f.normalize(); else f.set(0,0,1);
     const r = new THREE.Vector3().crossVectors(f, camera.up).normalize();
     let dx = 0, dy = 0, dz = 0;
-    const k = e.key.toLowerCase();
-    if (k === 'w') { dx = f.x*step; dz = f.z*step; }
-    else if (k === 's') { dx = -f.x*step; dz = -f.z*step; }
-    else if (k === 'a') { dx = -r.x*step; dz = -r.z*step; }
-    else if (k === 'd') { dx = r.x*step; dz = r.z*step; }
-    else if (k === ' ') { dy = step; }
-    else if (k === 'shift') { dy = -step; }
-    else return;
+    if (roamKeys.has('w')) { dx += f.x*step; dz += f.z*step; }
+    if (roamKeys.has('s')) { dx -= f.x*step; dz -= f.z*step; }
+    if (roamKeys.has('a')) { dx -= r.x*step; dz -= r.z*step; }
+    if (roamKeys.has('d')) { dx += r.x*step; dz += r.z*step; }
+    if (roamKeys.has(' ')) dy += step;
+    if (roamKeys.has('shift')) dy -= step;
     camera.position.x += dx; camera.position.y += dy; camera.position.z += dz;
     controls.target.x += dx; controls.target.y += dy; controls.target.z += dz;
-    e.preventDefault();
-});
+}
 
 function disposeGroup(g){
     while (g.children.length){
@@ -408,48 +428,68 @@ function removeSlice(){
 }
 function showSlice(level){
     if (!hasFile) return;
+    if (level <= 0){   // 切层 0 = 空白画布:不请求顶盖,清掉未决请求
+        sliceReq = null;
+        removeSlice();
+        return;
+    }
     if (sliceReq !== null){ sliceReq = { level: level }; return; }  // 请求进行中,记最新层级
     sliceReq = { level: level };
     worker.postMessage({ type: 'slice', level: level });
 }
+
+// 切层=切口视角:主网格被 clipPlane 裁到切层以下(完整方块照常渲染,被上方
+// 遮挡的方块不消失),worker 的 bake_plan 只负责补切口处被相邻方块剔除的
+// 朝上面(顶盖)。切层 0 = 空白画布(网格整体裁掉、不补顶盖)。
 function onSliceMessage(m){
     const req = sliceReq;
     sliceReq = null;
+    if (mode !== 'plan' || !req) return;   // 已退出切层模式 / 无未决请求,丢弃
     removeSlice();
-    if (!req) return;
     if (m.level !== req.level){ showSlice(req.level); return; }  // 过期回包,补最新请求
     if (m.bake){
-        // 贴图分层平面:worker 已按 tile 分好 opaque/trans 两箱,主线程只包
-        // BufferAttribute(与主网格同两张图集材质),零逐顶点工作。
-        // 空切片回包两箱可能缺省(旧协议只带 vc:0),统一判空,防止读 undefined。
-        if (!m.opaque || !m.trans || (m.opaque.vc <= 0 && m.trans.vc <= 0)){
-            if (meshGroup) meshGroup.visible = true; return;
-        }
-        ensureAtlasTextures(() => {
-            const geoOp = bakedGeometry(m.opaque);
-            const mat = new THREE.MeshLambertMaterial({
-                map: atlasTex, vertexColors: true, side: THREE.DoubleSide,
-                transparent: false, alphaTest: .5, depthWrite: true });
-            sliceGroup = new THREE.Group();
-            sliceGroup.add(new THREE.Mesh(geoOp, mat));
-            if (m.trans.vc > 0){
-                const geoT = bakedGeometry(m.trans);
-                const matT = new THREE.MeshLambertMaterial({
-                    map: atlasTexT, vertexColors: true, side: THREE.DoubleSide,
-                    transparent: true, depthWrite: false });
-                const tm = new THREE.Mesh(geoT, matT);
-                tm.renderOrder = 1;
-                sliceGroup.add(tm);
+        // 切口顶盖:worker 已按 tile 分好 opaque/trans 两箱,主线程只包
+        // BufferAttribute(与主网格同两张图集材质),零逐顶点工作。主网格不
+        // 隐藏 —— 它被 clipPlane 裁到切层以下,顶盖补上切口处被剔除的朝上面。
+        // 空切片回包两箱可能缺省(旧协议只带 vc:0),统一判空,防止读 undefined;
+        // 空顶盖是正常情况(切层以上没有可画的朝上面),只移除旧顶盖即可。
+        // 顶盖贴图平移 -0.02 防与切口处真实朝上面共面 z-fighting。
+        if (m.opaque && m.trans && (m.opaque.vc > 0 || m.trans.vc > 0)){
+            // 顶盖贴图平移 -0.02 防与切口处真实朝上面共面 z-fighting。
+            ensureAtlasTextures(() => {
+                const geoOp = bakedGeometry(m.opaque);
+                const mat = new THREE.MeshLambertMaterial({
+                    map: atlasTex, vertexColors: true, side: THREE.DoubleSide,
+                    transparent: false, alphaTest: .5, depthWrite: true });
+                sliceGroup = new THREE.Group();
+                sliceGroup.position.y = -0.02;
+                sliceGroup.add(new THREE.Mesh(geoOp, mat));
+                if (m.trans.vc > 0){
+                    const geoT = bakedGeometry(m.trans);
+                    const matT = new THREE.MeshLambertMaterial({
+                        map: atlasTexT, vertexColors: true, side: THREE.DoubleSide,
+                        transparent: true, depthWrite: false });
+                    const tm = new THREE.Mesh(geoT, matT);
+                    tm.renderOrder = 1;
+                    sliceGroup.add(tm);
+                }
+                scene.add(sliceGroup);
+                // 完成后若滑动条已指到别的层,立即补发
+                if (mode === 'plan'){
+                    const want = parseInt(clipYEl.value) || 0;
+                    if (want !== req.level) showSlice(want);
+                }
+            });
+        } else {
+            // 空顶盖:只移除旧顶盖;若回包期间用户又动了滑块,补发最新层。
+            if (mode === 'plan'){
+                const want = parseInt(clipYEl.value) || 0;
+                if (want !== req.level) showSlice(want);
             }
-            scene.add(sliceGroup);
-            if (meshGroup) meshGroup.visible = false;
-            // 完成后若滑动条已指到别的层,立即补发
-            const want = parseInt(clipYEl.value) || 0;
-            if (want !== req.level) showSlice(want);
-        });
+        }
         return;
     }
-    if (m.vc <= 0){ if (meshGroup) meshGroup.visible = true; return; }
+    if (m.vc <= 0) return;   // 纯色路径的旧切片协议:空层直接跳过(无切口顶盖概念)
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(m.pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(m.col, 3));
@@ -459,17 +499,32 @@ function onSliceMessage(m){
     sliceGroup = new THREE.Group();
     sliceGroup.add(new THREE.Mesh(geo, mat));
     scene.add(sliceGroup);
-    if (meshGroup) meshGroup.visible = false;
     // 完成后若滑动条已指到别的层,立即补发
-    const want = parseInt(clipYEl.value) || 0;
-    if (want !== req.level) showSlice(want);
+    if (mode === 'plan'){
+        const want = parseInt(clipYEl.value) || 0;
+        if (want !== req.level) showSlice(want);
+    }
 }
 function applyClip(){
-    clipYEl.disabled = (mode !== 'plan');
+    // 切层滑块只在切层模式显示;整体模式隐藏整个切层组。
+    document.getElementById('clipGroup').style.display = (mode === 'plan') ? '' : 'none';
+    clipYEl.disabled = (mode !== 'plan');   // 隐藏之外再禁用,双保险
     const level = parseInt(clipYEl.value) || 0;
-    if (mode === 'plan'){ showSlice(level); return; }
+    if (mode === 'plan'){
+        // 切层 0(最左)= 空白画布:把整个网格裁掉、不画顶盖;其余层把网格
+        // 裁到 y ≤ 切层 + ε。ε 是必须的:切层恰好落在最上层保留方块的真实
+        // 顶面上,裁剪面与该顶面共面 —— 共面片元的裁剪测试符号随浮点舍入
+        // 摆动,表现为"最上层有一薄层在闪"。上抬 0.01 让这层顶面稳定落在
+        // 保留侧(0.01 块高度的切口毛边在任何缩放下都不可见)。
+        clipPlane.constant = level > 0 ? level + 0.01 : -1e9;
+        if (level > 0) showSlice(level);
+        else removeSlice();
+        if (renderer && renderer.shadowMap.autoUpdate === false)
+            renderer.shadowMap.needsUpdate = true;   // 切层变了,裁剪阴影需重刷
+        return;
+    }
+    clipPlane.constant = Infinity;   // 整体模式不裁
     removeSlice();
-    if (meshGroup) meshGroup.visible = true;
 }
 clipYEl.oninput = applyClip;
 
@@ -538,12 +593,17 @@ function buildBaked(m){
     clipYEl.value = clipYEl.max;
 
     ensureAtlasTextures(() => {
+        // DoubleSide:切层切口会暴露被剔除的内侧背面(正常视角这些面被相邻
+        // 方块挡住所以剔除,切口视角下不渲染会看到空腔);clipShadows 让
+        // 阴影同步被裁掉,切层以上不再投影。
         const matOpaque = new THREE.MeshLambertMaterial({
-            map: atlasTex, vertexColors: true, side: THREE.FrontSide,
-            transparent: false, alphaTest: .5, depthWrite: true });
+            map: atlasTex, vertexColors: true, side: THREE.DoubleSide,
+            transparent: false, alphaTest: .5, depthWrite: true,
+            clippingPlanes: [clipPlane], clipShadows: true });
         const matTrans = new THREE.MeshLambertMaterial({
             map: atlasTexT, vertexColors: true, side: THREE.DoubleSide,
-            transparent: true, depthWrite: false });
+            transparent: true, depthWrite: false,
+            clippingPlanes: [clipPlane], clipShadows: true });
         if (m.opaque.vc > 0){
             const mesh = new THREE.Mesh(bakedGeometry(m.opaque), matOpaque);
             mesh.castShadow = true; mesh.receiveShadow = true;
@@ -607,8 +667,10 @@ function buildFromGeometry(m){
         const mat = new THREE.MeshLambertMaterial(
             isTrans
                 ? { color: baseColor, side: THREE.DoubleSide,
-                    transparent: true, opacity: /leaves/.test(nm) ? 0.9 : 0.65, depthWrite: false }
-                : { color: baseColor, side: THREE.DoubleSide });
+                    transparent: true, opacity: /leaves/.test(nm) ? 0.9 : 0.65, depthWrite: false,
+                    clippingPlanes: [clipPlane], clipShadows: true }
+                : { color: baseColor, side: THREE.DoubleSide,
+                    clippingPlanes: [clipPlane], clipShadows: true });
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', posAttr);
         geo.setAttribute('uv', uvAttr);
@@ -714,7 +776,7 @@ function autoLodFor(distRatio){
 let lodTimer = null;
 let lastLodDist = -1;   // 距离没变化时不重排定时器,否则每帧 clear+set 会饿死 350ms 触发
 function scheduleAutoLod(){
-    if (!autoLod || !hasFile || !lastFitC || mode === 'plan') return;   // 分层模式固定走整层切片
+    if (!autoLod || !hasFile || !lastFitC || mode === 'plan') return;   // 切层模式固定走整层切片
     const dist = camera.position.distanceTo(controls.target);
     if (Math.abs(dist - lastLodDist) < lastFitSize * 0.01) return;
     lastLodDist = dist;
@@ -806,7 +868,6 @@ document.getElementById('texL').onclick = () => {
 
 // ---------------------------------------------------------------- 初始化
 let sunLight = null;   // 平行光(带阴影);阴影相机随每次载入按结构尺寸拟合
-let fillLight = null;  // 冷色补光(不投影):从太阳对侧抬亮背光面,暗部不死黑
 function fitShadowCamera(){
     if (!sunLight || !lastFitC) return;
     // shulkr 太阳方向:方位角 130° / 仰角 45° → 单位向量 (0.5417, 0.7071, −0.4545)
@@ -815,13 +876,6 @@ function fitShadowCamera(){
         lastFitC.x + 0.5417 * e, lastFitC.y + 0.7071 * e, lastFitC.z - 0.4545 * e);
     sunLight.target.position.copy(lastFitC);
     sunLight.target.updateMatrixWorld();
-    // 补光放太阳对侧(低仰角),随结构尺寸一起挪
-    if (fillLight){
-        fillLight.position.set(
-            lastFitC.x - 0.5417 * e, lastFitC.y + 0.5 * e, lastFitC.z + 0.4545 * e);
-        fillLight.target.position.copy(lastFitC);
-        fillLight.target.updateMatrixWorld();
-    }
     // 远景渐隐:拉远时结构尾部融进背景,近处不受影响
     if (scene.fog){
         scene.fog.near = lastFitSize * 2.5;
@@ -855,30 +909,28 @@ function init(){
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.localClippingEnabled = true;
-    // NoToneMapping 保饱和:ACES 会把 MC 高饱和贴图压灰(饱和色相被向白压缩),
-    // 线性映射让 Lambert 直射出的颜色保持鲜艳。
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.NoToneMapping;
+    // ACES 色调映射 + 1.2 曝光:按 shulkr 反编译的渲染参数复刻(此前以为
+    // ACES 会压灰 MC 贴图是误判——shulkr 恰是靠 ACES 柔和滚降高光、压暗部,
+    // 衬得中高饱和色相更浓;线性映射高光直接截断,反而发白)。
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.shadowMap.autoUpdate = false;   // 静态结构:每次重建网格后手动刷新阴影
 
-    // 灯光:环境给底 + 半球给冷暖过渡 + 太阳直射(方位 130°/仰角 45°,带阴影)
-    // + 冷色补光抬亮背光面。直射+环境合计让受光面略过曝、背光面保细节,
-    // 颜色不做色调映射压缩,饱和贴图保持鲜艳。
-    scene.add(new THREE.AmbientLight(0xffffff, .45));
-    scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x8899aa, .55));
-    sunLight = new THREE.DirectionalLight(0xfff4e2, 1.5);
+    // 灯光按 shulkr 复刻:环境 .3 + 半球 .85(冷暖过渡)+ 太阳 1.6 暖白直射
+    // (方位 130°/仰角 45°,带阴影)。直射+半球合计让受光面接近满曝、
+    // 背光面靠环境/半球保细节;不加补光,保留直射的方向感(shulkr 同款)。
+    scene.add(new THREE.AmbientLight(0xffffff, .3));
+    scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x8899aa, .85));
+    sunLight = new THREE.DirectionalLight(0xfff4e2, 1.6);
     sunLight.castShadow = true;
     sunLight.shadow.normalBias = .04;
     sunLight.shadow.bias = -5e-4;
     sunLight.shadow.mapSize.set(1024, 1024);
     scene.add(sunLight);
     scene.add(sunLight.target);
-    fillLight = new THREE.DirectionalLight(0xbdd4ff, .3);
-    fillLight.target.position.set(0, 0, 0);
-    scene.add(fillLight);
-    scene.add(fillLight.target);
 
     const canvasEl = document.getElementById('c');
     const resize = () => {
@@ -913,12 +965,18 @@ function init(){
         scaleLineEl.style.width = px + 'px';
     }
 
-    (function anim(){ requestAnimationFrame(anim);
+    let lastAnimT = 0;
+    (function anim(now){ requestAnimationFrame(anim);
+        // 漫游:dt 秒连续步进(首帧 dt=0 跳过;dt 截断到 0.1s,防止标签页
+        // 切回来时一步跳很远)。小 dt 抖动不影响手感,无需平滑。
+        const dt = lastAnimT === 0 ? 0 : Math.min(((now || 0) - lastAnimT) / 1000, 0.1);
+        lastAnimT = now || 0;
+        roamTick(dt);
         controls.update();
         renderer.render(scene, camera);
         updateScaleBar();
         scheduleAutoLod();
-    })();
+    })(0);
 
     // wasm 核心与解析都在 worker.js 内;init 只负责 three.js 场景
     setStatus('正在加载解析线程…', 'info');
