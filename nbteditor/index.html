@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBT 可视化编辑器 | By Dislink</title>
+<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+<link rel="stylesheet" href="/css/style.css">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-HJVLPQTQE6"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-HJVLPQTQE6');
+</script>
+<script>
+var _hmt = _hmt || [];
+(function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?34e9d3026415a77ab986f1363796d253";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+})();
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7210376314498048"
+     crossorigin="anonymous"></script>
+<script src="/javascript/error-handler.js"></script>
+<style>
+/* ===== NBT 编辑器页内样式 ===== */
+.editor-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 1rem;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .editor-layout { grid-template-columns: 1fr; }
+}
+
+/* 工具栏 */
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+}
+.tb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.12s;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+.tb-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+.tb-btn:active { transform: scale(0.97); }
+.tb-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.tb-btn.danger:hover {
+    border-color: var(--color-error);
+    color: var(--color-error);
+    background: #fef2f2;
+}
+.tb-sep {
+    width: 1px;
+    height: 1.2rem;
+    background: var(--color-border);
+    flex-shrink: 0;
+}
+.tb-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+    user-select: none;
+}
+
+/* 树视图 */
+.tree-wrap {
+    max-height: 640px;
+    overflow: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+.tree {
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    padding: 0.35rem 0;
+    min-width: max-content;
+    min-height: 3rem;
+}
+.tree-empty {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+}
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.12rem 0.5rem;
+    white-space: nowrap;
+    cursor: default;
+}
+.tree-row:hover { background: var(--color-surface-alt); }
+.tree-row.selected {
+    background: var(--color-primary-light);
+    outline: 1px solid #bfdbfe;
+}
+.tree-row .twisty {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 0.65rem;
+    user-select: none;
+    border-radius: 3px;
+}
+.tree-row .twisty:hover {
+    background: var(--color-border);
+    color: var(--color-text);
+}
+.tree-row .twisty.leaf { visibility: hidden; }
+
+/* wiki 风格 NBT 图标(sprite, 16px cell) */
+.nbt-sprite {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-repeat: no-repeat;
+    background-size: 64px 64px;
+    flex-shrink: 0;
+    image-rendering: pixelated;
+}
+.nbt-sprite { background-image: url(./nbtsheet.png); }
+.sp-byte       { background-position:   0px   0px; }
+.sp-short      { background-position: -16px -16px; }
+.sp-int        { background-position: -48px   0px; }
+.sp-long       { background-position:   0px -16px; }
+.sp-float      { background-position: -32px   0px; }
+.sp-double     { background-position: -16px   0px; }
+.sp-string     { background-position: -32px -16px; }
+.sp-compound   { background-position: -48px -16px; }
+.sp-list       { background-position: -32px -32px; }
+.sp-bytearray  { background-position:   0px -32px; }
+.sp-intarray   { background-position: -16px -32px; }
+.sp-longarray  { background-position:   0px -48px; }
+.sp-boolean    { background-position: -48px -32px; }
+
+.tree-row .tag-name {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+.tree-row .tag-name-input {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 0 0.3rem;
+    border: 1px solid var(--color-primary);
+    border-radius: 3px;
+    width: 10rem;
+}
+.tree-row .tag-type {
+    font-size: 0.68rem;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 99px;
+    padding: 0 0.45rem;
+    background: var(--color-surface-alt);
+    font-family: var(--font-sans);
+}
+.tree-row .tag-eq { color: var(--color-text-muted); }
+.tree-row .tag-value {
+    color: var(--color-text);
+    font-weight: 500;
+    word-break: break-all;
+    white-space: normal;
+    min-width: 2rem;
+}
+.tree-row .tag-value.editable {
+    cursor: text;
+    border-bottom: 1px dashed var(--color-border-strong);
+}
+.tree-row .tag-value.editable:hover { border-bottom-color: var(--color-primary); }
+.tree-row .tag-value.invalid { color: var(--color-error); }
+.tree-row .tag-value-input {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 0 0.3rem;
+    border: 1px solid var(--color-primary);
+    border-radius: 3px;
+    min-width: 6rem;
+}
+.tree-row .row-actions {
+    display: none;
+    gap: 0.15rem;
+    margin-left: 0.35rem;
+}
+.tree-row:hover .row-actions,
+.tree-row.selected .row-actions { display: inline-flex; }
+.row-actions .ra-btn {
+    width: 1.35rem;
+    height: 1.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 0.72rem;
+    line-height: 1;
+    padding: 0;
+}
+.row-actions .ra-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+.row-actions .ra-btn.del:hover {
+    border-color: var(--color-error);
+    color: var(--color-error);
+    background: #fef2f2;
+}
+.tree-children {
+    margin-left: 1.1rem;
+    border-left: 1px dashed var(--color-border);
+    padding-left: 0.35rem;
+}
+.tree-children.collapsed { display: none; }
+.tree-row .child-count {
+    font-size: 0.68rem;
+    color: var(--color-text-muted);
+    font-family: var(--font-sans);
+}
+
+/* SNBT 面板 */
+.snbt-area {
+    width: 100%;
+    min-height: 240px;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.55;
+    resize: vertical;
+    white-space: pre;
+    overflow-x: auto;
+}
+.panel-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+.panel-tabs .pt-btn {
+    flex: 1;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.45rem 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-alt);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.12s;
+}
+.panel-tabs .pt-btn.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+.array-view {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    margin-left: 0.25rem;
+}
+.search-box {
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+.stat-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+}
+.stat-chip {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 99px;
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.stat-chip .nbt-sprite { width: 12px; height: 12px; background-size: 48px 48px; }
+.stat-chip b { color: var(--color-text); font-weight: 600; }
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.3rem 0.75rem;
+    font-size: 0.82rem;
+}
+.meta-grid dt { color: var(--color-text-secondary); white-space: nowrap; }
+.meta-grid dd { color: var(--color-text); word-break: break-all; margin: 0; font-family: var(--font-mono); font-size: 0.78rem; }
+
+#editorCard, #snbtCard { display: none; }
+#editorCard.on, #snbtCard.on { display: block; }
+
+.search-hit { background: #fef08a; border-radius: 2px; }
+@media (max-width: 600px) {
+    .tree-wrap { max-height: 480px; }
+    .tb-btn { padding: 0.3rem 0.55rem; }
+}
+</style>
+</head>
+<body>
+<div class="tool-container">
+    <div class="page-header">
+        <a class="back-home" href="/">← 返回主页</a>
+        <h1>NBT 可视化编辑器</h1>
+        <div class="subtitle">gzip / zlib 压缩 NBT · 小端 NBT（mcstructure / level.dat）· SNBT 文本 · 树形可视化编辑 · Bug反馈/功能建议请前往 <a href="https://qm.qq.com/q/o3lzAuOili" target="_blank">QQ群</a></div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="file-upload-wrapper" id="uploadWrapper">
+                <div class="file-upload-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <span class="file-upload-text">点击上传 NBT 文件，或直接拖入页面（.nbt / .dat / .mcstructure / .litematic / .schem / .snbt 等）</span>
+                <input type="file" id="file">
+            </div>
+            <div class="separator"></div>
+            <div class="toolbar">
+                <button class="tb-btn" id="btnSample">载入示例</button>
+                <span class="tb-sep"></span>
+                <button class="tb-btn" id="btnUndo" disabled title="Ctrl+Z">撤销</button>
+                <button class="tb-btn" id="btnRedo" disabled title="Ctrl+Y / Ctrl+Shift+Z">重做</button>
+                <span class="tb-sep"></span>
+                <button class="tb-btn" id="btnExportNbtGz" disabled>导出 NBT（gzip 压缩）</button>
+                <button class="tb-btn" id="btnExportNbtRaw" disabled>导出 NBT（大端）</button>
+                <button class="tb-btn" id="btnExportLe" disabled>导出 NBT（小端）</button>
+                <button class="tb-btn" id="btnExportMcstructure" disabled>导出 .mcstructure</button>
+                <span class="tb-sep"></span>
+                <button class="tb-btn" id="btnToSnbt" disabled>树 → SNBT</button>
+                <button class="tb-btn" id="btnSnbtToTree">SNBT → 树</button>
+                <button class="tb-btn" id="btnCopySnbt" disabled>复制 SNBT</button>
+            </div>
+            <div class="notice">所有处理均在浏览器本地完成，文件不会上传到任何服务器。支持：Java 版 gzip / zlib 压缩 NBT、未压缩大端 NBT、基岩版小端 NBT（.mcstructure、level.dat 8 字节头自动识别）、SNBT 文本文件。</div>
+        </div>
+    </div>
+
+    <div class="status-bar" id="status">就绪 — 上传文件或点击“载入示例”开始</div>
+
+    <div id="editorCard">
+        <div class="editor-layout">
+            <div>
+                <div class="card">
+                    <div class="card-header">
+                        <span id="treeTitle">NBT 结构树</span>
+                        <span style="margin-left:auto;display:inline-flex;gap:0.3rem;">
+                            <button class="tb-btn" id="btnExpandAll">全部展开</button>
+                            <button class="tb-btn" id="btnCollapseAll">全部折叠</button>
+                        </span>
+                    </div>
+                    <div class="card-body" style="padding:0.5rem;">
+                        <input type="text" class="search-box" id="searchBox" placeholder="搜索标签名 / 值…（高亮匹配项）">
+                        <div class="tree-wrap" id="treeWrap"><div class="tree" id="tree"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div class="card">
+                    <div class="card-header">文件信息</div>
+                    <div class="card-body">
+                        <dl class="meta-grid" id="metaList"></dl>
+                        <div class="separator"></div>
+                        <div class="stat-chips" id="statChips"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">选中标签</div>
+                    <div class="card-body" id="selInfo" style="font-size:0.85rem;">未选中</div>
+                </div>
+                <div class="card">
+                    <div class="card-header">类型图例</div>
+                    <div class="card-body">
+                        <div class="stat-chips" id="legendChips"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="snbtCard">
+        <div class="card-header">SNBT 文本</div>
+        <div class="card-body">
+            <textarea class="snbt-area" id="snbtArea" spellcheck="false" placeholder="{键名: 值, 列表: [1b, 2b, 3b], 嵌套: {a: 0x1F}}"></textarea>
+        </div>
+    </div>
+
+    <div class="page-footer">
+        <span>Made by DislinkSforza</span>
+        <div class="footer-links">
+            <a href="https://qm.qq.com/cgi-bin/qm/qr?k=NQYXkW4V78oAb1jo6ZRA9i_jba2Gw1Hd" target="_blank">
+                <img class="footer-icon" referrerpolicy="no-referrer" src="https://qlogo3.store.qq.com/qzone/1600515314/1600515314/100" alt=""> QQ
+            </a>
+            <a href="https://space.bilibili.com/490775607" target="_blank">
+                <img class="footer-icon" src="https://www.bilibili.com/favicon.ico" alt=""> Bilibili
+            </a>
+            <a href="https://github.com/Dislink" target="_blank">
+                <img class="footer-icon" src="https://github.com/favicon.ico" alt=""> GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<script src="nbt-core.js"></script>
+<script src="nbt-ui.js"></script>
+</body>
+</html>
