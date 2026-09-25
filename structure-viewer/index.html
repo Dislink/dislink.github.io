@@ -70,6 +70,8 @@
         }
         .viewer-toolbar .tb-sep { width: 1px; height: 18px; background: var(--color-border); margin: 0 2px; }
         .viewer-toolbar input[type=range] { vertical-align: middle; width: 140px; margin: 0 6px; }
+        /* 切层高度标签(滑块右侧):tabular-nums 防拖动时数字宽度变化抖动布局 */
+        #sliceYLabel { font-variant-numeric: tabular-nums; }
         #canvasWrap {
             position: relative;
             border: 1px solid var(--color-border);
@@ -171,6 +173,7 @@
                     <span class="tb-label">切层</span>
                     <input type="range" id="clipY" min="0" max="100" step="1" value="100"
                            title="切层高度:最右 = 完整结构,0 = 空白画布,其余为切口高度(显示该高度以下的部分)">
+                    <span id="sliceYLabel" class="tb-label" style="display:none;"></span>
                 </div>
             </div>
             <div id="canvasWrap">
@@ -227,6 +230,7 @@ const statusEl = document.getElementById('status');
 const legendEl = document.getElementById('legend');
 const inp = document.getElementById('file');
 const clipYEl = document.getElementById('clipY');
+const sliceYLabelEl = document.getElementById('sliceYLabel');
 
 function setStatus(s, cls){ statusEl.textContent = s; statusEl.className = 'status-bar' + (cls ? ' ' + cls : ''); }
 
@@ -341,6 +345,7 @@ let lastFitC = null, lastFitSize = 1;
 let pendingFit = true;    // 下一轮回包是否需要摆默认视角(仅每个文件首次载入;LOD 重建保留当前视角)
 let useTex = true, curLod = 1;
 let sliceReq = null;
+let sliceOriginY = 0;   // 切层标签用:region 原点 Y(worker info6[1]),局部层高 + 原点 = 世界 Y
 
 function resetCamera(){
     if (!lastFitC) return;
@@ -486,6 +491,14 @@ function onSliceMessage(m){
 function applyClip(){
     const level = parseInt(clipYEl.value) || 0;
     const max = parseInt(clipYEl.max) || 0;
+    // 切层高度标签(滑块右侧):完整结构(最右)与空白画布(0)不算切口,隐藏;
+    // 其余层显示世界坐标 Y = 原点Y + 局部层高(与文件名裁剪坐标同坐标系)。
+    if (!hasFile || level >= max || level <= 0){
+        sliceYLabelEl.style.display = 'none';
+    } else {
+        sliceYLabelEl.textContent = 'Y=' + (sliceOriginY + level);
+        sliceYLabelEl.style.display = '';
+    }
     if (level >= max){
         // 滑块最右 = 完整结构:不裁、无顶盖。
         clipPlane.constant = Infinity;
@@ -704,6 +717,7 @@ function finishLoad(m, vc, ic){
     // 结构信息卡(worker 侧 info6 = origin[3] + size[3])
     const i32 = m.info6;
     const size3 = [i32[3], i32[4], i32[5]];
+    sliceOriginY = i32[1];   // 切层标签的世界 Y 基准(纯格式为 0,基岩世界容器为 -64 等)
     document.getElementById('infoCard').style.display = '';
     document.getElementById('ifName').textContent = '文件: ' + lastFileName;
     const crop = parseCropName(lastFileName);
