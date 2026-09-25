@@ -418,6 +418,37 @@ function onSliceMessage(m){
     removeSlice();
     if (!req) return;
     if (m.level !== req.level){ showSlice(req.level); return; }  // 过期回包,补最新请求
+    if (m.bake){
+        // 贴图分层平面:worker 已按 tile 分好 opaque/trans 两箱,主线程只包
+        // BufferAttribute(与主网格同两张图集材质),零逐顶点工作。
+        // 空切片回包两箱可能缺省(旧协议只带 vc:0),统一判空,防止读 undefined。
+        if (!m.opaque || !m.trans || (m.opaque.vc <= 0 && m.trans.vc <= 0)){
+            if (meshGroup) meshGroup.visible = true; return;
+        }
+        ensureAtlasTextures(() => {
+            const geoOp = bakedGeometry(m.opaque);
+            const mat = new THREE.MeshLambertMaterial({
+                map: atlasTex, vertexColors: true, side: THREE.DoubleSide,
+                transparent: false, alphaTest: .5, depthWrite: true });
+            sliceGroup = new THREE.Group();
+            sliceGroup.add(new THREE.Mesh(geoOp, mat));
+            if (m.trans.vc > 0){
+                const geoT = bakedGeometry(m.trans);
+                const matT = new THREE.MeshLambertMaterial({
+                    map: atlasTexT, vertexColors: true, side: THREE.DoubleSide,
+                    transparent: true, depthWrite: false });
+                const tm = new THREE.Mesh(geoT, matT);
+                tm.renderOrder = 1;
+                sliceGroup.add(tm);
+            }
+            scene.add(sliceGroup);
+            if (meshGroup) meshGroup.visible = false;
+            // 完成后若滑动条已指到别的层,立即补发
+            const want = parseInt(clipYEl.value) || 0;
+            if (want !== req.level) showSlice(want);
+        });
+        return;
+    }
     if (m.vc <= 0){ if (meshGroup) meshGroup.visible = true; return; }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(m.pos, 3));
@@ -560,13 +591,13 @@ function buildFromGeometry(m){
         const isTrans = /(water|glass|leaves|ice|lava|slime|honey|vine|flowing)/i.test(nm);
         let baseColor = new THREE.Color(cr, cg, cb);
         if (/leaves|vine/.test(nm)) baseColor = new THREE.Color(0.34, 0.68, 0.30);
-        else if (/grass_block/.test(nm)) baseColor = (face === 2)
+        else if (/grass_block/.test(nm)) baseColor = (face === 2)   // +y 顶面
             ? new THREE.Color(0.45, 0.75, 0.32)   // 顶面绿
             : new THREE.Color(0.53, 0.40, 0.27);  // 其余泥土色
-        // 纯色路径也走 Lambert:按贪心组的 face 展开轴向法线(与烘焙路径一致),
-        // 让"贴图关"也有方向光照。
-        const NRM = [[0,-1,0],[0,1,0],[0,0,-1],[0,0,1],[-1,0,0],[1,0,0]];
-        const n = NRM[face] || NRM[1];
+        // 纯色路径也走 Lambert:按贪心组的 face 展开轴向法线,让"贴图关"也有
+        // 方向光照。face 约定见引擎 mesh_data.hpp:0=+x 1=-x 2=+y 3=-y 4=+z 5=-z。
+        const NRM = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+        const n = NRM[face] || NRM[2];
         const nrmArr = new Float32Array(ix.length * 3);
         for (let i = 0; i < ix.length; i += 3){
             for (let k = 0; k < 3; ++k){
@@ -825,10 +856,9 @@ function init(){
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.localClippingEnabled = true;
     // NoToneMapping 保饱和:ACES 会把 MC 高饱和贴图压灰(饱和色相被向白压缩),
-    // 线性映射让 Lambert 直射出的颜色保持鲜艳;曝光 1.15 微提亮度。
+    // 线性映射让 Lambert 直射出的颜色保持鲜艳。
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.NoToneMapping;
-    renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.shadowMap.autoUpdate = false;   // 静态结构:每次重建网格后手动刷新阴影

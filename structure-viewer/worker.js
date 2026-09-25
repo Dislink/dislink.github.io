@@ -10,7 +10,8 @@
 //   ← {type:'geometry', bake:{...} | color:{...}, vc, ic, info6, blocksTotal,
 //      blocksNonair, regions, mn, mx}  (typed arrays transfer)
 //   → {type:'slice', level}
-//   ← {type:'slice', vc, ic, pos, col, idx}                  (typed arrays transfer)
+//   ← {type:'slice', level, vc, ic, pos, col, idx}           (纯色路径,typed arrays)
+//   ← {type:'slice', level, bake:true, opaque:{...}, trans:{...}} (贴图路径)
 // 贴图路径:wasm 核心内置 bake 表(gen/bake.bin,shulkr 式方块状态→方块面烘焙),
 // 每个 (方块,面) 发一个带图集 UV / tile / tint / AO 的四边形;worker 在解交织时把
 // UV 直接映射进图集 rect、把 tint/AO 换算成顶点色(bake_meta 派生 tint 查表)、
@@ -296,7 +297,77 @@ self.onmessage = async (ev) => {
                               merged: mergedArr, ...info }, transfers);
             }
         } else if (msg.type === 'slice'){
+            // 分层切片:该核心走过 bake 表 → 贴图平面(核心出 stride-8 soup,
+            // 与 collectBake 同一解交织逻辑,worker 按 tile 分箱 opaque/trans);
+            // 否则纯色 core_slice。
             if (!Core){ postMessage({ type: 'slice', level: msg.level, vc: 0, ic: 0 }); return; }
+            if (bakeLoadedOnCore === Core){
+                const vc = Core._core_bake_plan(msg.level);
+                if (vc > 0){
+                    const ic = Core._core_bake_plan_index_count();
+                    const F32 = Core.HEAPF32, U32 = Core.HEAPU32;
+                    const dp = Core._core_bake_plan_data_ptr(), ip = Core._core_bake_plan_idx_ptr();
+                    const solidTiles = bakeMeta ? bakeMeta.solidTiles : 0;
+                    const rects = bakeMeta ? bakeMeta.rects : [], rectsT = bakeMeta ? bakeMeta.rectsT : [];
+                    const tints = bakeTints || { 0: [1, 1, 1] };
+                    const soup = (vc, dp, ip) => {
+                        // tile ≤ solidTiles 进 opaque,其余进 trans:同一 soup 里
+                        // 按四边形分箱,再各自转正 typed arrays。法线恒为世界向上
+                        //(平面俯视,平面是平的不需要逐点变化)。
+                        const raw = F32.subarray(dp >> 2, (dp >> 2) + vc * 8);
+                        const opPos = [], opUv = [], opRgb = [], opNrm = [];
+                        const trPos = [], trUv = [], trRgb = [], trNrm = [];
+                        const opIdx = [], trIdx = [];
+                        for (let q = 0; q < vc; q += 4){
+                            const s0 = q * 8;
+                            const packed = raw[s0 + 5];
+                            const tile = packed & 8191;
+                            const isT = tile > solidTiles;
+                            const r = (isT ? rectsT : rects)[tile] || [0, 0, 1, 1];
+                            const tintId = raw[s0 + 6] | 0;
+                            const tc = tints[tintId] || tints[0];
+                            const P = isT ? trPos : opPos, U = isT ? trUv : opUv,
+                                  R = isT ? trRgb : opRgb, N = isT ? trNrm : opNrm;
+                            const base = P.length / 3;
+                            for (let i = 0; i < 4; ++i){
+                                const s = (q + i) * 8;
+                                P.push(raw[s], raw[s+1], raw[s+2]);
+                                U.push(r[0] + raw[s+3] * r[2], r[1] + raw[s+4] * r[3]);
+                                const ao = i === 0 ? raw[s0 + 7] : i === 1 ? raw[s0 + 15] : i === 2 ? raw[s0 + 23] : raw[s0 + 31];
+                                R.push(tc[0] * ao, tc[1] * ao, tc[2] * ao);
+                                N.push(0, 1, 0);
+                            }
+                            // 每四边形 6 索引:u32 索引数组,字节地址 ip,quad 号
+                            // = q/4,每 quad 6 个 u32 = 24 字节。核心索引是合并
+                            // soup 的绝对顶点号(quad n → 4n+order);分箱后要改成
+                            // 箱内局部号:该 quad 的核心基址 = q,箱内基址 = base。
+                            const src = U32.subarray((ip >> 2) + (q >> 2) * 6, (ip >> 2) + (q >> 2) * 6 + 6);
+                            for (let k = 0; k < 6; ++k) (isT ? trIdx : opIdx).push(base + src[k] - q);
+                        }
+                        const pack = (P, U, R, N, I) => ({ vc: P.length / 3, ic: I.length,
+                            pos: new Float32Array(P), uv: new Float32Array(U),
+                            rgb: new Float32Array(R), nrm: new Float32Array(N),
+                            idx: new Uint32Array(I) });
+                        return { opaque: pack(opPos, opUv, opRgb, opNrm, opIdx),
+                                 trans:  pack(trPos, trUv, trRgb, trNrm, trIdx) };
+                    };
+                    const b = soup(vc, dp, ip);
+                    const transfers = [b.opaque.pos.buffer, b.opaque.uv.buffer, b.opaque.rgb.buffer,
+                                       b.opaque.nrm.buffer, b.opaque.idx.buffer,
+                                       b.trans.pos.buffer, b.trans.uv.buffer, b.trans.rgb.buffer,
+                                       b.trans.nrm.buffer, b.trans.idx.buffer]
+                                      .filter(bb => bb && bb.byteLength > 0);
+                    postMessage({ type: 'slice', level: msg.level, bake: true,
+                                  opaque: b.opaque, trans: b.trans }, transfers);
+                    return;
+                }
+                postMessage({ type: 'slice', level: msg.level, bake: true,
+                              opaque: { vc: 0, ic: 0, pos: new Float32Array(0), uv: new Float32Array(0),
+                                        rgb: new Float32Array(0), nrm: new Float32Array(0), idx: new Uint32Array(0) },
+                              trans: { vc: 0, ic: 0, pos: new Float32Array(0), uv: new Float32Array(0),
+                                       rgb: new Float32Array(0), nrm: new Float32Array(0), idx: new Uint32Array(0) } });
+                return;
+            }
             const vc = Core._core_slice(msg.level);
             const F32 = Core.HEAPF32, U32 = Core.HEAPU32;
             const ic = Core._core_slice_index_count();
