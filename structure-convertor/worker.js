@@ -13,7 +13,7 @@
 // (emscripten 导出仅整数编组稳定)。
 // 核心更新后浏览器会拿缓存里的旧 core.js/core.wasm(产物落进旧格式的世界
 // 文件,游戏端 repair)——每次重新部署核心时同步递增这里的版本号。
-const CORE_V = 'v6';
+const CORE_V = 'v7';
 importScripts('./core.js?' + CORE_V);
 
 let Core = null;
