@@ -22,7 +22,7 @@ importScripts('./core.js');
 
 // 核心更新后浏览器会拿缓存里的旧 core.js/core.wasm(与结构转换器同坑)——
 // 每次重新部署核心时同步递增这里的版本号。
-const CORE_V = 'v6';
+const CORE_V = 'v8';
 
 let Core = null;
 let lastBytes = null;   // 上次载入的字节,LOD 切换直接复用,免重复解析
