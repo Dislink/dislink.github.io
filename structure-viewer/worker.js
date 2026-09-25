@@ -51,7 +51,9 @@ async function loadBake(core){
     finally { core._free(p); }
     if (!bakeLoadedOnCore) return false;
     // 渲染 meta(rects/rectsT/tint 表)也进核心:解交织在核心内做。
-    const tileCount = bakeMeta.tiles, dec = bakeMetaDec;
+    // 注意 bake_meta.json 的 tiles 是 tile 名字数组不是数量,rect 数量取 rects.length
+    // (误传数组 → Float32Array(NaN·4) 空 → rect_count=0 → 核心整图集回退 → 花屏)。
+    const tileCount = bakeMeta.rects.length, dec = bakeMetaDec;
     // 稀疏数组(JSON null 洞)→ 稠密 tile×4,洞补全图集 (0,0,1,1)
     const mk = (src) => {
         const f = new Float32Array(tileCount * 4);
@@ -62,7 +64,7 @@ async function loadBake(core){
         }
         return f;
     };
-    const rects = mk(bakeMeta.rects), rectsT = mk(bakeMeta.rects_t);
+    const rects = mk(bakeMeta.rects), rectsT = mk(bakeMeta.rectsT);
     // tint 表:id 0 白 + fixedTints + defaultTints(fixed 优先,与旧 worker 派生一致;
     // 未知 tint id 核心内回退白)
     const tintTable = { 0: [1, 1, 1] };
