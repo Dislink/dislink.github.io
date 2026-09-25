@@ -20,11 +20,23 @@ async function ensureCore(){
     if (!Core) Core = await createCore({ locateFile: f => './' + f });
     return Core;
 }
+// 源文件名(@裁剪约定取 @ 前的名称)作为世界/结构名传给核心,mcworld 导出
+// 的 level.dat LevelName / levelname.txt 用它。name 为空串时清除覆盖。
+function setCoreName(core, name){
+    if (!core._core_convert_name) return;
+    const bytes = new TextEncoder().encode(name || '');
+    const p = core._malloc(bytes.length + 1);
+    core.HEAPU8.set(bytes, p);
+    core.HEAPU8[p + bytes.length] = 0;
+    try { core._core_convert_name(p); }
+    finally { core._free(p); }
+}
 // 上一个大文件仍占着 wasm 堆时再转换可能 OOM abort——重建核心后重试一次。
 // withCrop 为真时改走 core_convert_crop(裁剪箱指针在 wasm 堆上,i32×6)。
-async function tryConvert(bytes, fmt, min6){
+async function tryConvert(bytes, fmt, min6, name){
     try {
         const core = await ensureCore();
+        setCoreName(core, name);
         const p = core._malloc(bytes.length);
         core.HEAPU8.set(bytes, p);
         const c = min6 ? core._malloc(24) : 0;
@@ -36,6 +48,7 @@ async function tryConvert(bytes, fmt, min6){
         finally { core._free(p); if (c) core._free(c); }
     } catch (e){
         Core = await createCore({ locateFile: f => './' + f });
+        setCoreName(Core, name);
         const p2 = Core._malloc(bytes.length);
         Core.HEAPU8.set(bytes, p2);
         const c2 = min6 ? Core._malloc(24) : 0;
@@ -66,8 +79,12 @@ self.onmessage = async (ev) => {
     try {
         if (msg.type === 'convert'){
             const t0 = Date.now();
+            // mcworld 世界名:文件名带 @裁剪约定时取 @ 前的名称,否则取去扩展名的源文件名。
+            const m = /^(.*)@\[\s*-?\d+\s*,\s*-?\d+\s*,\s*-?\d+\s*\]~\[\s*-?\d+\s*,\s*-?\d+\s*,\s*-?\d+\s*\]/.exec(msg.name || '');
+            const srcName = m ? (m[1].trim() || 'structure')
+                              : (msg.name || '').replace(/\.[^.]+$/, '');
             postMessage({ type: 'progress', stage: 'parse' });
-            const rc = await tryConvert(msg.bytes, msg.fmt, msg.min6 || null);
+            const rc = await tryConvert(msg.bytes, msg.fmt, msg.min6 || null, srcName);
             if (rc === 1){
                 postMessage({ type: 'progress', stage: 'encode' });
                 const n = Core._core_convert_size();
