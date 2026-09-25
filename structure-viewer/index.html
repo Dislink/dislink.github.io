@@ -159,6 +159,11 @@
         <div class="card-header">3D 视图</div>
         <div class="card-body">
             <div class="viewer-toolbar">
+                <div class="tb-group" id="modeGroup">
+                    <span class="tb-label">视角</span>
+                    <a id="mOrbit" class="active">环绕</a>
+                    <a id="mView">主视角</a>
+                </div>
                 <div class="tb-group" id="lodGroup">
                     <span class="tb-label">LOD</span>
                     <a id="lA" class="active">自动</a>
@@ -183,7 +188,7 @@
                     <div id="scaleTxt"></div>
                     <div id="scaleLine"></div>
                 </div>
-                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · Ctrl+滚轮调切层 · WASD/空格/Shift 漫游</div>
+                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · Ctrl+滚轮调切层 · WASD/空格/Shift 移动</div>
                 <div id="dropHint">松开以载入文件</div>
                 <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
             </div>
@@ -362,8 +367,71 @@ function resetCamera(){
 addEventListener('keydown', e => { if (e.key === 'r' || e.key === 'R') resetCamera(); });
 
 // 切层(原"分层")切口视图定型:主网格照常渲染 + clipPlane 裁剪,切层滑块
-// 常驻(无模式切换),最右 = 完整结构不裁,0 = 空白画布。漫游键(WASD/
-// 空格/Shift)全程可用。
+// 常驻(无模式切换),最右 = 完整结构不裁,0 = 空白画布。移动键(WASD/
+// 空格/Shift)全程可用,两种视角只有旋转方式不同:
+//   环绕 = OrbitControls 绕目标点公转(默认);
+//   主视角 = 鼠标拖动旋转相机自身朝向(yaw/pitch),WASD 沿视线方向飞。
+let viewMode = 'orbit';   // 'orbit' | 'view'
+// 主视角的拖动旋转状态(与 OrbitControls 的指针监听互斥:环绕模式下不处理)
+let viewDragging = false, viewLastX = 0, viewLastY = 0;
+// 从相机当前朝向提取 yaw/pitch(rotation.order='YXZ' 下 rotation.y=yaw、rotation.x=pitch)
+function syncViewAngles(){
+    // OrbitControls.update() 走 lookAt,其欧拉角顺序不是 YXZ;按实际朝向重建
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    camera.rotation.set(
+        Math.asin(Math.max(-1, Math.min(1, dir.y))),
+        Math.atan2(-dir.x, -dir.z), 0, 'YXZ');
+}
+function setViewMode(m){
+    if (viewMode === m) return;
+    viewMode = m;
+    document.getElementById('mOrbit').classList.toggle('active', m === 'orbit');
+    document.getElementById('mView').classList.toggle('active', m === 'view');
+    if (m === 'view'){
+        // 主视角:关掉 OrbitControls 的旋转/平移(保留滚轮缩放=前后移动),
+        // 以当前视线方向为初始 yaw/pitch
+        syncViewAngles();
+        controls.enableRotate = false;
+        controls.enablePan = false;
+    } else {
+        // 回环绕:把 target 摆回视线前方,交还 OrbitControls 轨道旋转
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        controls.target.copy(camera.position).addScaledVector(
+            dir, Math.max(lastFitSize || 1, 1));
+        camera.up.set(0, 1, 0);
+        controls.enableRotate = true;
+        controls.enablePan = true;
+        controls.update();
+    }
+    hudEl.textContent = m === 'view'
+        ? '拖拽转动视角 · 滚轮/前后键前进后退 · WASD 移动 · 空格/Shift 升降 · Ctrl+滚轮调切层'
+        : '左键拖拽旋转 · 右键平移 · 滚轮缩放 · Ctrl+滚轮调切层 · WASD/空格/Shift 移动';
+}
+const hudEl = document.getElementById('hud');
+document.getElementById('mOrbit').onclick = () => setViewMode('orbit');
+document.getElementById('mView').onclick = () => setViewMode('view');
+// 主视角的鼠标拖动 = 转动相机自身朝向(环绕模式下这些监听直接跳过,
+// OrbitControls 的指针处理不受影响 —— 两套监听并存,按模式各自生效)
+const viewCanvas = document.getElementById('c');
+viewCanvas.addEventListener('pointerdown', e => {
+    if (viewMode !== 'view' || e.button !== 0) return;
+    viewDragging = true; viewLastX = e.clientX; viewLastY = e.clientY;
+    viewCanvas.setPointerCapture(e.pointerId);
+});
+viewCanvas.addEventListener('pointermove', e => {
+    if (!viewDragging) return;
+    const dx = e.clientX - viewLastX, dy = e.clientY - viewLastY;
+    viewLastX = e.clientX; viewLastY = e.clientY;
+    const s = 2 * Math.PI / viewCanvas.clientHeight;   // 与 OrbitControls 同刻度:全屏拖动=360°
+    camera.rotation.y -= dx * s;          // yaw:左右拖动水平转
+    camera.rotation.x -= dy * s;          // pitch:上下拖动俯仰
+    camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+});
+addEventListener('pointerup', () => { viewDragging = false; });
+addEventListener('blur', () => { viewDragging = false; });
+
 const roamKeys = new Set();
 addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
@@ -377,24 +445,40 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => roamKeys.delete(e.key.toLowerCase()));
 addEventListener('blur', () => roamKeys.clear());
-// 每帧漫游步进:按当前朝向(忽略俯仰的水平分量)前进/平移,空格/Shift 升降。
-// 速度 = 每秒 0.35 倍结构尺寸 × 帧间隔 —— 帧率无关的连续移动,没有逐格顿挫
-// (旧实现每次 keydown 跳固定一格,按住时受系统按键重复节拍限制,呈格子感)。
+// 每帧移动步进:两种视角共用(只有前进方向不同)——环绕按水平朝向、主视角沿
+// 完整视线(带俯仰)。速度 = 每秒 0.35 倍结构尺寸 × 帧间隔 —— 帧率无关的连续
+// 移动,没有逐格顿挫(旧实现每次 keydown 跳固定一格,按住时受系统按键重复
+// 节拍限制,呈格子感)。
 function roamTick(dt){
     if (roamKeys.size === 0 || !lastFitC || dt <= 0) return;
     const step = lastFitSize * 0.35 * dt;
-    const f = new THREE.Vector3().subVectors(controls.target, camera.position);
-    f.y = 0; if (f.lengthSq() > 1e-9) f.normalize(); else f.set(0,0,1);
-    const r = new THREE.Vector3().crossVectors(f, camera.up).normalize();
+    // 前进方向 f:环绕 = 视线方向投影到水平面(绕结构转时 WASD 保持水平走);
+    // 主视角 = 相机自身朝向(俯冲/爬升时沿视线飞)。
+    const f = new THREE.Vector3();
+    if (viewMode === 'view'){
+        camera.getWorldDirection(f);
+    } else {
+        f.subVectors(controls.target, camera.position);
+        f.y = 0; if (f.lengthSq() > 1e-9) f.normalize(); else f.set(0,0,1);
+    }
+    // 右方向 r:始终取水平分量(f 含俯仰时叉积会前倾,左右键要沿水平走)
+    const r = new THREE.Vector3().crossVectors(f, camera.up);
+    r.y = 0; if (r.lengthSq() > 1e-9) r.normalize(); else r.set(1,0,0);
     let dx = 0, dy = 0, dz = 0;
-    if (roamKeys.has('w')) { dx += f.x*step; dz += f.z*step; }
-    if (roamKeys.has('s')) { dx -= f.x*step; dz -= f.z*step; }
+    // W/S:环绕沿水平朝向前进;主视角沿完整视线(含俯仰,f 已归一化)
+    const fw = (roamKeys.has('w') ? 1 : 0) - (roamKeys.has('s') ? 1 : 0);
+    if (fw !== 0){ dx += f.x*step*fw; dy += f.y*step*fw; dz += f.z*step*fw; }
     if (roamKeys.has('a')) { dx -= r.x*step; dz -= r.z*step; }
     if (roamKeys.has('d')) { dx += r.x*step; dz += r.z*step; }
     if (roamKeys.has(' ')) dy += step;
     if (roamKeys.has('shift')) dy -= step;
     camera.position.x += dx; camera.position.y += dy; camera.position.z += dz;
-    controls.target.x += dx; controls.target.y += dy; controls.target.z += dz;
+    if (viewMode === 'view'){
+        // 主视角:相机自由飞,target 摆到视线前方 1 格(仅作滚轮缩放基准)
+        controls.target.copy(camera.position).addScaledVector(f, 1);
+    } else {
+        controls.target.x += dx; controls.target.y += dy; controls.target.z += dz;
+    }
 }
 
 function disposeGroup(g){
@@ -910,6 +994,7 @@ function init(){
     scene.background = new THREE.Color('#a8c8e8');
     scene.fog = new THREE.Fog(0xa8c8e8, 200, 600);   // near/far 由 fitShadowCamera 按结构尺寸改写
     camera = new THREE.PerspectiveCamera(50, 16/9, 0.1, 5000);
+    camera.rotation.order = 'YXZ';   // 主视角用 yaw/pitch 欧拉角旋转(先偏航后俯仰)
     controls = new OrbitControls(camera, document.getElementById('c'));
     controls.enableDamping = true;
     const grid = new THREE.GridHelper(200, 40, 0x7a90a8, 0x9db4cc);
@@ -1002,11 +1087,16 @@ function init(){
 
     let lastAnimT = 0;
     (function anim(now){ requestAnimationFrame(anim);
-        // 漫游:dt 秒连续步进(首帧 dt=0 跳过;dt 截断到 0.1s,防止标签页
+        // 移动:dt 秒连续步进(首帧 dt=0 跳过;dt 截断到 0.1s,防止标签页
         // 切回来时一步跳很远)。小 dt 抖动不影响手感,无需平滑。
         const dt = lastAnimT === 0 ? 0 : Math.min(((now || 0) - lastAnimT) / 1000, 0.1);
         lastAnimT = now || 0;
         roamTick(dt);
+        // 主视角:相机朝向由拖动直接写在 rotation 上。这里不调 lookAt —— 它会
+        // 用 world-up 重算 up 向量,仰视/俯视超过 90° 时 up 翻转、画面跳变;
+        // rotation 本身已把朝向写好,直接交给 OrbitControls.update() 重新读
+        // position(它会无条件 lookAt(target),而 target 恒在视线前方,等价
+        // 于保持朝向)。环绕模式则由 OrbitControls 正常处理轨道旋转。
         controls.update();
         renderer.render(scene, camera);
         updateScaleBar();
