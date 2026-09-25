@@ -248,7 +248,8 @@ function parseCropName(name){
 }
 
 // ---------------------------------------------------------------- worker 通信
-// 解析/BDX 桥接/网格化/几何拷贝全部在 worker.js 内进行,主线程只接收可转移数组。
+// 解析/BDX 桥接/网格化/几何收集全部在 worker.js 内进行(解交织已下沉 wasm 核心,
+// worker 只拷访问器指针),主线程只接收可转移数组。
 const worker = new Worker('./worker.js');
 let workerReady = false;
 let loadSeq = 0;          // 载入序号,丢弃过期回包
@@ -332,7 +333,7 @@ let scene, camera, renderer, controls;
 let meshGroup = null, sliceGroup = null, axesHelper = null;
 // 切层模式的整体裁剪面:保留 y ≤ constant 的部分(constant=Infinity 即不裁)。
 // 切层不再是"每个柱子只画一块顶面",而是完整网格照常渲染、用裁剪面切掉
-// 切层以上的部分 —— 被上方遮挡的方块同正常渲染一样完整出现;worker 的
+// 切层以上的部分 —— 被上方遮挡的方块同正常渲染一样完整出现;核心的
 // bake_plan 顶盖只补切口处被相邻方块剔除的朝上面。constant 用 Infinity
 // 表达"不裁",免去材质 define 翻转触发的着色器重编译。
 const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), Infinity);
@@ -414,7 +415,7 @@ function showSlice(level){
 }
 
 // 切层=切口视图:主网格被 clipPlane 裁到切层以下(完整方块照常渲染,被上方
-// 遮挡的方块不消失),worker 的 bake_plan 只负责补切口处被相邻方块剔除的
+// 遮挡的方块不消失),核心的 bake_plan 只负责补切口处被相邻方块剔除的
 // 朝上面(顶盖)。切层 0 = 空白画布(网格整体裁掉、不补顶盖),滑块最右
 // (level == max)= 完整结构不裁、无顶盖。裁剪常量下抬 0.01 的原因见 applyClip。
 function onSliceMessage(m){
@@ -424,11 +425,11 @@ function onSliceMessage(m){
     removeSlice();
     if (m.level !== req.level){ showSlice(req.level); return; }  // 过期回包,补最新请求
     if (m.bake){
-        // 切口顶盖:worker 已按 tile 分好 opaque/trans 两箱,主线程只包
-        // BufferAttribute(与主网格同两张图集),零逐顶点工作。主网格不
-        // 隐藏 —— 它被 clipPlane 裁到切层以下,顶盖补上切口处被剔除的朝上面
-        // (顶盖材质不带 clippingPlanes,正好盖住被下抬裁剪面裁掉的 0.01
-        // 顶面缝隙)。空切片回包两箱可能缺省(旧协议只带 vc:0),统一判空,
+        // 切口顶盖:核心已按 tile 分好 opaque/trans 两箱并完成解交织,worker 直拷
+        // 访问器指针,主线程只包 BufferAttribute(与主网格同两张图集),零逐顶点
+        // 工作。主网格不隐藏 —— 它被 clipPlane 裁到切层以下,顶盖补上切口处被
+        // 剔除的朝上面(顶盖材质不带 clippingPlanes,正好盖住被下抬裁剪面裁掉的
+        // 0.01 顶面缝隙)。空切片回包两箱可能缺省(旧协议只带 vc:0),统一判空,
         // 防止读 undefined;空顶盖是正常情况(切口处没有可画的朝上面),
         // 只移除旧顶盖即可。顶盖贴图平移 -0.02 防与切口处真实朝上面共面
         // z-fighting。
@@ -516,10 +517,10 @@ function updateAxes(len){
 
 // ---------------------------------------------------------------- 贴图烘焙渲染
 // shulkr 同款图集管线:wasm 核心的 bake 表把每个可见面烘焙成 (图集UV,tile,tint,AO)
-// 四边形;worker 回包时已把 UV 映射进图集 rect、把 AO×tint 换算成顶点色、按四边形
-// 面法线展开出 normal —— 主线程拿到 pos/uv/rgb/nrm 直接包成 BufferAttribute,
-// 零逐顶点 JS 循环、零 computeVertexNormals。渲染用两张图集纹理(gen/atlas.png
-// 不透明 + gen/atlas_t.png 半透明)。
+// 四边形;核心载入后自行解交织(UV 映射进图集 rect、AO×tint 换算顶点色、按四边形
+// 面法线展开出 normal),worker 只按访问器指针拷出 —— 主线程拿到 pos/uv/rgb/nrm
+// 直接包成 BufferAttribute,零逐顶点 JS 循环、零 computeVertexNormals。
+// 渲染用两张图集纹理(gen/atlas.png 不透明 + gen/atlas_t.png 半透明)。
 let atlasTex = null, atlasTexT = null;   // 共享图集纹理(贴图开关时复用)
 function loadAtlas(url, onload){
     const img = new Image();
@@ -543,8 +544,9 @@ function ensureAtlasTextures(done){
     loadAtlas('./gen/atlas.png', t => { atlasTex = t; step(); });
     loadAtlas('./gen/atlas_t.png', t => { atlasTexT = t; step(); });
 }
-// 把一个 bake soup(pos/uv/rgb/nrm,worker 已解交织+预变换)包成 geometry。
-// UV/tint/AO/法线全部在 worker 侧算好,这里只是属性包装 —— 主线程零逐顶点工作。
+// 把一个 bake soup(pos/uv/rgb/nrm)包成 geometry。解交织(UV rect 映射、tint×AO
+// 顶点色、fni 轴向法线)已在 wasm 核心完成,worker 只做指针直拷 —— 这里是零
+// 逐顶点工作的纯属性包装。
 function bakedGeometry(s){
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(s.pos, 3));
@@ -618,8 +620,9 @@ function buildFromGeometry(m){
     meshGroup = new THREE.Group();
     scene.add(meshGroup);
 
-    // worker 已按 (mid,face) 键合并好索引数组([mid,face,Uint32Array] 列表),
-    // 主线程只做 BufferAttribute 包装,零逐索引工作。
+    // worker 已按 (mid,face) 键合并好索引数组([mid,face,Uint32Array] 列表,
+    // 纯色路径;贴图路径下核心负责解交织),主线程只做 BufferAttribute 包装,
+    // 零逐索引工作。
     // 滑块最右 = 完整结构(载入默认);不触发 applyClip,建完网格后统一调一次。
     clipYEl.max = String(Math.max(0, Math.round(mx[1] - mn[1])));
     clipYEl.value = clipYEl.max;
