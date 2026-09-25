@@ -247,8 +247,6 @@ worker.onmessage = (ev) => {
             document.getElementById('sumOut').textContent = lastResult.name;
             document.getElementById('sumOutMeta').textContent = fmtBytes(m.size) + ' · ' + FMT_NAMES[fmt];
             const ratio = m.srcSize ? (m.size / m.srcSize * 100).toFixed(0) : '?';
-            const box = (fmt === 6 && Array.isArray(m.bbox) && m.bbox.length === 6)
-                ? m.bbox : (crop ? crop.min6 : null);
             document.getElementById('sumDetail').textContent =
                 '用时 ' + (m.ms / 1000).toFixed(2) + ' s · 体积为源文件的 ' + ratio + '%' +
                 (m.size > m.srcSize ? '（目标格式存储开销更大，属正常现象）' : '') +
