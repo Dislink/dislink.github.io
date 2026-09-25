@@ -610,9 +610,12 @@ function buildBaked(m){
             meshGroup.add(tm);
         }
         applyClip();
-        if (sunLight && scene) fitShadowCamera();   // 阴影相机随结构尺寸拟合
     });
     finishLoad(m, m.vc, m.ic);
+    // 阴影相机/雾在 finishLoad 之后拟合:ensureAtlasTextures 的回调在纹理已就绪时
+    // 同步执行,那时 finishLoad 还没把 lastFitSize 换成本结构尺寸 — 不刷新连续
+    // 换文件时 fitShadowCamera 会拿旧结构尺寸算雾距,新结构整体被旧雾距罩成雾色。
+    if (sunLight && scene) fitShadowCamera();
 }
 
 function buildFromGeometry(m){
