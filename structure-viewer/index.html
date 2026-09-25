@@ -149,7 +149,7 @@
                 <input type="file" id="file" accept=".mcstructure,.litematic,.schem,.wsmr,.bdx,.schematic,.nbt,.mca,.mcworld,.mcpack,.mcaddon,.zip">
             </div>
             <div class="separator"></div>
-            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域。世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只载入该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（如 y=-64..200 实际取 -64..207）。切层模式为切口视图：滑块选择切层高度，保留该层及以下的完整方块（0 = 空白画布）。材质版权归 Mojang 所有，仅作渲染展示。已知限制：海带/海草/睡莲等水生植物会连同水体一起渲染为水，含水方块（waterlogged）的含水覆层暂不显示。</div>
+            <div class="info-display">支持 .mcstructure / .litematic / .schem / .wsmr / .bdx / .nbt（Java 结构方块）/ .schematic（MCEdit 旧版），以及世界类容器 .mcworld / .mcpack / .mcaddon / .zip（Java 版取 region/*.mca，基岩版取 db/ LevelDB）和单独的 .mca 区域文件；多区域文件仅渲染第 1 个区域。世界容器命名约定：<code>名称@[x1,y1,z1]~[x2,y2,z2].mcworld</code> —— 文件名带 <code>@坐标范围</code> 时只载入该世界坐标包围盒（含端点），坐标自动向外对齐到 16 的区块边界（如 y=-64..200 实际取 -64..207）。切层滑块直接控制切口高度：拉到最右为完整结构，向下拖动即切掉上方方块（0 = 空白画布），Ctrl+滚轮可快速调层。材质版权归 Mojang 所有，仅作渲染展示。已知限制：海带/海草/睡莲等水生植物会连同水体一起渲染为水，含水方块（waterlogged）的含水覆层暂不显示。</div>
         </div>
     </div>
 
@@ -167,15 +167,10 @@
                     <span class="tb-btn" id="reL">重置视角(R)</span>
                 </div>
                 <span class="tb-sep"></span>
-                <div class="tb-group">
-                    <span class="tb-label">模式</span>
-                    <span class="tb-btn active" id="mOrbit">整体</span>
-                    <span class="tb-btn" id="mPlan">切层</span>
-                </div>
-                <div class="tb-group" id="clipGroup" style="display:none;">
+                <div class="tb-group" id="clipGroup">
                     <span class="tb-label">切层</span>
                     <input type="range" id="clipY" min="0" max="100" step="1" value="100"
-                           title="切层高度:0 = 空白画布,其余数值为切口高度(显示该高度以下的部分)">
+                           title="切层高度:最右 = 完整结构,0 = 空白画布,其余为切口高度(显示该高度以下的部分)">
                 </div>
             </div>
             <div id="canvasWrap">
@@ -185,7 +180,7 @@
                     <div id="scaleTxt"></div>
                     <div id="scaleLine"></div>
                 </div>
-                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · Ctrl+滚轮调切层(切层模式) · WASD/空格/Shift 漫游(两种模式均可用)</div>
+                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · Ctrl+滚轮调切层 · WASD/空格/Shift 漫游</div>
                 <div id="dropHint">松开以载入文件</div>
                 <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
             </div>
@@ -345,7 +340,6 @@ let lastFitC = null, lastFitSize = 1;
 let pendingFit = true;    // 下一轮回包是否需要摆默认视角(仅每个文件首次载入;LOD 重建保留当前视角)
 let useTex = true, curLod = 1;
 let sliceReq = null;
-let mode = 'orbit';
 
 function resetCamera(){
     if (!lastFitC) return;
@@ -361,28 +355,9 @@ function resetCamera(){
 
 addEventListener('keydown', e => { if (e.key === 'r' || e.key === 'R') resetCamera(); });
 
-// --- 模式:整体 / 切层(漫游键两种模式都可用) ---
-function setMode(m){
-    mode = m;
-    const ids = { orbit:'mOrbit', plan:'mPlan' };
-    for (const k in ids) document.getElementById(ids[k]).classList.toggle('active', k === m);
-    applyClip();
-    if (!lastFitC) return;
-    if (m === 'plan'){
-        const c = lastFitC, s = lastFitSize;
-        // 切口视角:相机从上前方斜视切口,而不是纯俯视 —— 俯视只能看到
-        // 顶盖平面,看不到切口处完整方块的侧壁。
-        camera.position.set(c.x, c.y + s*1.1, c.z + s*0.9);
-        controls.target.copy(c);
-        controls.update();
-    } else {
-        resetCamera();
-    }
-}
-for (const [id, m] of [['mOrbit','orbit'],['mPlan','plan']])
-    document.getElementById(id).onclick = () => setMode(m);
-
-// 漫游键(WASD/空格/Shift)在整体与切层模式下都可用;每帧按住状态平滑行进。
+// 切层(原"分层")切口视图定型:主网格照常渲染 + clipPlane 裁剪,切层滑块
+// 常驻(无模式切换),最右 = 完整结构不裁,0 = 空白画布。漫游键(WASD/
+// 空格/Shift)全程可用。
 const roamKeys = new Set();
 addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
@@ -438,29 +413,26 @@ function showSlice(level){
     worker.postMessage({ type: 'slice', level: level });
 }
 
-// 切层=切口视角:主网格被 clipPlane 裁到切层以下(完整方块照常渲染,被上方
+// 切层=切口视图:主网格被 clipPlane 裁到切层以下(完整方块照常渲染,被上方
 // 遮挡的方块不消失),worker 的 bake_plan 只负责补切口处被相邻方块剔除的
-// 朝上面(顶盖)。切层 0 = 空白画布(网格整体裁掉、不补顶盖)。
-// 裁剪常量精确取切层整数:clip 测试保留 distance < 0 侧,共面处(distance=0)
-// 符号随浮点舍入摆动,但共面点集就是"切口自身"——被裁掉也只是切口面片不画,
-// 侧壁 DoubleSide 从上往下看到的是内面,无闪烁层可言。之前 ε=+0.01 上抬的
-// 反效果:被裁掉方块(不保留)的底面落在 y=level-1 整数上,本应随整块一起
-// 裁掉,ε 抬高后它落进保留侧 → 一层错位的"幽灵底面"(用户实测的闪烁根因)。
+// 朝上面(顶盖)。切层 0 = 空白画布(网格整体裁掉、不补顶盖),滑块最右
+// (level == max)= 完整结构不裁、无顶盖。裁剪常量下抬 0.01 的原因见 applyClip。
 function onSliceMessage(m){
     const req = sliceReq;
     sliceReq = null;
-    if (mode !== 'plan' || !req) return;   // 已退出切层模式 / 无未决请求,丢弃
+    if (!req) return;   // 无未决请求,丢弃
     removeSlice();
     if (m.level !== req.level){ showSlice(req.level); return; }  // 过期回包,补最新请求
     if (m.bake){
         // 切口顶盖:worker 已按 tile 分好 opaque/trans 两箱,主线程只包
-        // BufferAttribute(与主网格同两张图集材质),零逐顶点工作。主网格不
-        // 隐藏 —— 它被 clipPlane 裁到切层以下,顶盖补上切口处被剔除的朝上面。
-        // 空切片回包两箱可能缺省(旧协议只带 vc:0),统一判空,防止读 undefined;
-        // 空顶盖是正常情况(切层以上没有可画的朝上面),只移除旧顶盖即可。
-        // 顶盖贴图平移 -0.02 防与切口处真实朝上面共面 z-fighting。
+        // BufferAttribute(与主网格同两张图集),零逐顶点工作。主网格不
+        // 隐藏 —— 它被 clipPlane 裁到切层以下,顶盖补上切口处被剔除的朝上面
+        // (顶盖材质不带 clippingPlanes,正好盖住被下抬裁剪面裁掉的 0.01
+        // 顶面缝隙)。空切片回包两箱可能缺省(旧协议只带 vc:0),统一判空,
+        // 防止读 undefined;空顶盖是正常情况(切口处没有可画的朝上面),
+        // 只移除旧顶盖即可。顶盖贴图平移 -0.02 防与切口处真实朝上面共面
+        // z-fighting。
         if (m.opaque && m.trans && (m.opaque.vc > 0 || m.trans.vc > 0)){
-            // 顶盖贴图平移 -0.02 防与切口处真实朝上面共面 z-fighting。
             ensureAtlasTextures(() => {
                 const geoOp = bakedGeometry(m.opaque);
                 const mat = new THREE.MeshLambertMaterial({
@@ -480,14 +452,14 @@ function onSliceMessage(m){
                 }
                 scene.add(sliceGroup);
                 // 完成后若滑动条已指到别的层,立即补发
-                if (mode === 'plan'){
+                {
                     const want = parseInt(clipYEl.value) || 0;
                     if (want !== req.level) showSlice(want);
                 }
             });
         } else {
             // 空顶盖:只移除旧顶盖;若回包期间用户又动了滑块,补发最新层。
-            if (mode === 'plan'){
+            {
                 const want = parseInt(clipYEl.value) || 0;
                 if (want !== req.level) showSlice(want);
             }
@@ -505,33 +477,32 @@ function onSliceMessage(m){
     sliceGroup.add(new THREE.Mesh(geo, mat));
     scene.add(sliceGroup);
     // 完成后若滑动条已指到别的层,立即补发
-    if (mode === 'plan'){
+    {
         const want = parseInt(clipYEl.value) || 0;
         if (want !== req.level) showSlice(want);
     }
 }
 function applyClip(){
-    // 切层滑块只在切层模式显示;整体模式隐藏整个切层组。
-    document.getElementById('clipGroup').style.display = (mode === 'plan') ? '' : 'none';
-    clipYEl.disabled = (mode !== 'plan');   // 隐藏之外再禁用,双保险
     const level = parseInt(clipYEl.value) || 0;
-    if (mode === 'plan'){
+    const max = parseInt(clipYEl.max) || 0;
+    if (level >= max){
+        // 滑块最右 = 完整结构:不裁、无顶盖。
+        clipPlane.constant = Infinity;
+        removeSlice();
+    } else {
         // 切层 0(最左)= 空白画布:把整个网格裁掉、不画顶盖;其余层把网格
-        // 裁到 y ≤ 切层。裁剪常量精确取切层整数(不下抬也不上抬):clip 按
-        // distance < 0 保留,共面片元(dist=0)的符号虽随浮点舍入摆动,但该
-        // 共面点集就是切口自身,DoubleSide 从上方看到的永远是切口侧壁的内
-        // 面,不会闪。之前 ε=+0.01 上抬是错的方向:被裁掉方块(不保留)的
-        // 底面在 y=level-1 整数,应随整块一起裁掉,ε 抬高后它落进保留侧,
-        // 变成一层错位的"幽灵底面"(用户实测的闪烁根因)。
-        clipPlane.constant = level > 0 ? level : -1e9;
+        // 裁到 y ≤ 切层。常量下抬 0.01(level - 0.01):被裁掉方块(不保留)
+        // 的底面恰好落在 y=level 平面上,与切口共面(distance=0)的片元符号
+        // 随浮点舍入摆动,时而被裁时而保留 —— 用户实测的"上层方块底面闪烁
+        // 虚影"根因。下抬后这些底面稳定落在被裁侧(distance=-0.01);保留
+        // 方块顶面同样被裁掉 0.01,由不经裁剪的顶盖(材质不带
+        // clippingPlanes)盖住切口,0.01 的缝隙在任何缩放下都不可见。
+        clipPlane.constant = level > 0 ? level - 0.01 : -1e9;
         if (level > 0) showSlice(level);
         else removeSlice();
-        if (renderer && renderer.shadowMap.autoUpdate === false)
-            renderer.shadowMap.needsUpdate = true;   // 切层变了,裁剪阴影需重刷
-        return;
     }
-    clipPlane.constant = Infinity;   // 整体模式不裁
-    removeSlice();
+    if (renderer && renderer.shadowMap.autoUpdate === false)
+        renderer.shadowMap.needsUpdate = true;   // 切层变了,裁剪阴影需重刷
 }
 clipYEl.oninput = applyClip;
 
@@ -596,6 +567,8 @@ function buildBaked(m){
     meshGroup = new THREE.Group();
     scene.add(meshGroup);
 
+    // 滑块最右 = 完整结构(载入默认);不触发 applyClip,几何建完的
+    // ensureAtlasTextures 回调末尾统一调一次。
     clipYEl.max = String(Math.max(0, Math.round(m.mx[1] - m.mn[1])));
     clipYEl.value = clipYEl.max;
 
@@ -647,6 +620,7 @@ function buildFromGeometry(m){
 
     // worker 已按 (mid,face) 键合并好索引数组([mid,face,Uint32Array] 列表),
     // 主线程只做 BufferAttribute 包装,零逐索引工作。
+    // 滑块最右 = 完整结构(载入默认);不触发 applyClip,建完网格后统一调一次。
     clipYEl.max = String(Math.max(0, Math.round(mx[1] - mn[1])));
     clipYEl.value = clipYEl.max;
 
@@ -687,6 +661,7 @@ function buildFromGeometry(m){
         meshGroup.add(mesh);
     }
 
+    applyClip();   // 网格建完后按滑块值重设裁剪/顶盖(载入默认 level==max → 不裁)
     finishLoad(m, vc, ic);
 }
 
@@ -783,7 +758,7 @@ function autoLodFor(distRatio){
 let lodTimer = null;
 let lastLodDist = -1;   // 距离没变化时不重排定时器,否则每帧 clear+set 会饿死 350ms 触发
 function scheduleAutoLod(){
-    if (!autoLod || !hasFile || !lastFitC || mode === 'plan') return;   // 切层模式固定走整层切片
+    if (!autoLod || !hasFile || !lastFitC) return;   // 切层状态由 applyClip 独立处理,与 LOD 无关
     const dist = camera.position.distanceTo(controls.target);
     if (Math.abs(dist - lastLodDist) < lastFitSize * 0.01) return;
     lastLodDist = dist;
@@ -791,7 +766,7 @@ function scheduleAutoLod(){
     lodTimer = setTimeout(() => {
         lodTimer = null;
         lastLodDist = -1;
-        if (!autoLod || !hasFile || !lastFitC || mode === 'plan') return;
+        if (!autoLod || !hasFile || !lastFitC) return;
         applyAutoLod(autoLodFor(camera.position.distanceTo(controls.target) / lastFitSize));
     }, 350);
 }
@@ -972,15 +947,20 @@ function init(){
         scaleLineEl.style.width = px + 'px';
     }
 
-    // Ctrl+滚轮:切层模式下调整切层层数(单独滚轮仍由 OrbitControls 正常缩放)。
-    // OrbitControls 把 wheel 挂在 canvas(domElement)上,我们也在 canvas 上以
-    // {passive:false} 先注册 —— 浏览器按注册顺序派发,我们的 handler 先跑,
-    // stopPropagation() 掐在 controls 的 handler 之前,缩放不会触发;同时
-    // preventDefault 挡掉浏览器自身的 Ctrl+滚轮页面缩放手势。
+    // Ctrl+滚轮:调整切层层数(单独滚轮仍由 OrbitControls 正常缩放)。
+    // OrbitControls 在 new 时就把 wheel 监听挂到了同一个 canvas 上,同元素的
+    // 监听按注册顺序派发 —— 它的 handler 先跑,所以不能指望在这边拦事件
+    // (stopPropagation 只掐祖先传播,拦不住同元素的早注册监听)。正确做法:
+    // Ctrl 按下时先关掉 controls.enableZoom,OrbitControls 的 onMouseWheel
+    // 开头就会因 enableZoom=false 直接 return,缩放根本不会发生;wheel 事件
+    // 到达之前的 keydown/keyup 即开关窗口。preventDefault 仍保留,挡浏览器
+    // 自身的 Ctrl+滚轮页面缩放手势。
+    addEventListener('keydown', e => { if (e.key === 'Control') controls.enableZoom = false; });
+    addEventListener('keyup',   e => { if (e.key === 'Control') controls.enableZoom = true; });
+    addEventListener('blur',    () => { controls.enableZoom = true; });   // 失焦时松了 Ctrl 别卡死缩放
     document.getElementById('c').addEventListener('wheel', e => {
-        if (!e.ctrlKey || mode !== 'plan' || !hasFile) return;
+        if (!e.ctrlKey || !hasFile) return;
         e.preventDefault();
-        e.stopPropagation();   // OrbitControls 的缩放不触发
         const el = clipYEl;
         const cur = parseInt(el.value) || 0;
         // deltaY<0(向上滚)增层,deltaY>0(向下滚)减层;每格 1 层,与滑块同界。
