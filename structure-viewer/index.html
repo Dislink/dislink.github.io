@@ -642,6 +642,13 @@ function buildFromGeometry(m){
 
     const posAttr = new THREE.BufferAttribute(pos, 3);
     const uvAttr = new THREE.BufferAttribute(uv, 2);
+    // 每组 mesh 共享完整 soup 的 posAttr(索引只是子区间),默认渲染前逐 mesh
+    // computeBoundingSphere 会各自遍历全部顶点 —— 上千组 × 数百万顶点 = 首帧主线程
+    // 冻结数分钟(大结构 bake 路径 OOM 回退到纯色时才暴露)。直接给每个 geometry
+    // 预设整个结构包围盒,跳过逐组全量扫描。
+    const sphere = new THREE.Sphere(
+        new THREE.Vector3((mn[0]+mx[0])/2, (mn[1]+mx[1])/2, (mn[2]+mx[2])/2),
+        Math.hypot(mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]) / 2);
     for (const [m2, face, ix] of m.merged){
         const cr = F32[m2*3] || .7, cg = F32[m2*3+1] || .7, cb = F32[m2*3+2] || .7;
         const nm = names[m2] || ('block'+m2);
@@ -673,6 +680,7 @@ function buildFromGeometry(m){
         geo.setAttribute('uv', uvAttr);
         geo.setAttribute('normal', new THREE.BufferAttribute(nrmArr, 3));
         geo.setIndex(new THREE.BufferAttribute(ix, 1));
+        geo.boundingSphere = sphere;   // 跳过逐组 computeBoundingSphere(见上)
         const mesh = new THREE.Mesh(geo, mat);
         meshGroup.add(mesh);
     }
