@@ -5,8 +5,9 @@
 //     min6 = {x1,y1,z1,x2,y2,z2} 世界坐标裁剪箱(mcworld 文件名约定),走 core_convert_crop)
 //   ← {type:'ready'}
 //   ← {type:'progress', stage}            parse / encode
-//   ← {type:'result', seq, ok, size, out, error, srcName, srcSize, ms}
-//     (out: Uint8Array 结果拷贝,transfer;ok=false 时 error 为可读原因)
+//   ← {type:'result', seq, ok, size, out, error, srcName, srcSize, ms, bbox?}
+//     (out: Uint8Array 结果拷贝,transfer;ok=false 时 error 为可读原因;
+//      bbox = [x1,y1,z1,x2,y2,z2] 输出区域的世界坐标包围盒,供命名约定使用)
 //   ← {type:'worker-error', message}
 // 输入格式自动嗅探(BD@ / gzip 1F 8B / LE-NBT),输出格式用整数编码
 // (emscripten 导出仅整数编组稳定)。
@@ -91,9 +92,19 @@ self.onmessage = async (ev) => {
                 const src = Core._core_convert_ptr();
                 // 从 wasm 堆拷出立即转移给主线程(wasm 堆随后可被下次转换复用)
                 const out = new Uint8Array(Core.HEAPU8.buffer.slice(src, src + n));
+                // 输出区域的世界坐标包围盒(核心有此导出时),用于 mcworld 命名约定
+                let bbox = null;
+                if (Core._core_convert_bbox){
+                    const bp = Core._malloc(24);
+                    try {
+                        if (Core._core_convert_bbox(bp)){
+                            bbox = Array.from(new Int32Array(Core.HEAPU8.buffer, bp, 6));
+                        }
+                    } finally { Core._free(bp); }
+                }
                 postMessage({ type: 'result', seq: msg.seq, ok: true, size: n, out,
                               srcName: msg.name || '', srcSize: msg.bytes.length,
-                              ms: Date.now() - t0 }, [out.buffer]);
+                              ms: Date.now() - t0, bbox }, [out.buffer]);
             } else {
                 postMessage({ type: 'result', seq: msg.seq, ok: false, size: 0, out: null,
                               error: readErrorString(Core) || '转换失败',
