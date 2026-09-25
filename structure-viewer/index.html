@@ -185,7 +185,7 @@
                     <div id="scaleTxt"></div>
                     <div id="scaleLine"></div>
                 </div>
-                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · WASD/空格/Shift 漫游(两种模式均可用)</div>
+                <div id="hud">左键拖拽旋转 · 右键平移 · 滚轮缩放 · Ctrl+滚轮调切层(切层模式) · WASD/空格/Shift 漫游(两种模式均可用)</div>
                 <div id="dropHint">松开以载入文件</div>
                 <div id="loadProg"><span id="lpText">解析中…</span><div class="bar"><i id="lpBar"></i></div></div>
             </div>
@@ -441,6 +441,11 @@ function showSlice(level){
 // 切层=切口视角:主网格被 clipPlane 裁到切层以下(完整方块照常渲染,被上方
 // 遮挡的方块不消失),worker 的 bake_plan 只负责补切口处被相邻方块剔除的
 // 朝上面(顶盖)。切层 0 = 空白画布(网格整体裁掉、不补顶盖)。
+// 裁剪常量精确取切层整数:clip 测试保留 distance < 0 侧,共面处(distance=0)
+// 符号随浮点舍入摆动,但共面点集就是"切口自身"——被裁掉也只是切口面片不画,
+// 侧壁 DoubleSide 从上往下看到的是内面,无闪烁层可言。之前 ε=+0.01 上抬的
+// 反效果:被裁掉方块(不保留)的底面落在 y=level-1 整数上,本应随整块一起
+// 裁掉,ε 抬高后它落进保留侧 → 一层错位的"幽灵底面"(用户实测的闪烁根因)。
 function onSliceMessage(m){
     const req = sliceReq;
     sliceReq = null;
@@ -512,11 +517,13 @@ function applyClip(){
     const level = parseInt(clipYEl.value) || 0;
     if (mode === 'plan'){
         // 切层 0(最左)= 空白画布:把整个网格裁掉、不画顶盖;其余层把网格
-        // 裁到 y ≤ 切层 + ε。ε 是必须的:切层恰好落在最上层保留方块的真实
-        // 顶面上,裁剪面与该顶面共面 —— 共面片元的裁剪测试符号随浮点舍入
-        // 摆动,表现为"最上层有一薄层在闪"。上抬 0.01 让这层顶面稳定落在
-        // 保留侧(0.01 块高度的切口毛边在任何缩放下都不可见)。
-        clipPlane.constant = level > 0 ? level + 0.01 : -1e9;
+        // 裁到 y ≤ 切层。裁剪常量精确取切层整数(不下抬也不上抬):clip 按
+        // distance < 0 保留,共面片元(dist=0)的符号虽随浮点舍入摆动,但该
+        // 共面点集就是切口自身,DoubleSide 从上方看到的永远是切口侧壁的内
+        // 面,不会闪。之前 ε=+0.01 上抬是错的方向:被裁掉方块(不保留)的
+        // 底面在 y=level-1 整数,应随整块一起裁掉,ε 抬高后它落进保留侧,
+        // 变成一层错位的"幽灵底面"(用户实测的闪烁根因)。
+        clipPlane.constant = level > 0 ? level : -1e9;
         if (level > 0) showSlice(level);
         else removeSlice();
         if (renderer && renderer.shadowMap.autoUpdate === false)
@@ -964,6 +971,26 @@ function init(){
         scaleTxtEl.textContent = blocks + ' 方块';
         scaleLineEl.style.width = px + 'px';
     }
+
+    // Ctrl+滚轮:切层模式下调整切层层数(单独滚轮仍由 OrbitControls 正常缩放)。
+    // OrbitControls 把 wheel 挂在 canvas(domElement)上,我们也在 canvas 上以
+    // {passive:false} 先注册 —— 浏览器按注册顺序派发,我们的 handler 先跑,
+    // stopPropagation() 掐在 controls 的 handler 之前,缩放不会触发;同时
+    // preventDefault 挡掉浏览器自身的 Ctrl+滚轮页面缩放手势。
+    document.getElementById('c').addEventListener('wheel', e => {
+        if (!e.ctrlKey || mode !== 'plan' || !hasFile) return;
+        e.preventDefault();
+        e.stopPropagation();   // OrbitControls 的缩放不触发
+        const el = clipYEl;
+        const cur = parseInt(el.value) || 0;
+        // deltaY<0(向上滚)增层,deltaY>0(向下滚)减层;每格 1 层,与滑块同界。
+        const dir = e.deltaY < 0 ? 1 : -1;
+        const next = Math.min(parseInt(el.max) || 0, Math.max(0, cur + dir));
+        if (next !== cur){
+            el.value = String(next);
+            applyClip();
+        }
+    }, { passive: false });
 
     let lastAnimT = 0;
     (function anim(now){ requestAnimationFrame(anim);
