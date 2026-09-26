@@ -423,7 +423,7 @@ document.getElementById('mView').onclick = () => setViewMode('view');
 // 丝滑:拖动增量不直接落到 rotation,先进目标角(viewYaw/viewPitch),每帧以
 // 指数衰减逼近 —— 与 OrbitControls 的 damping 手感一致,停手后还有小段滑行。
 let viewYaw = 0, viewPitch = 0, viewYawGoal = 0, viewPitchGoal = 0;
-const VIEW_ROT_SPEED = 3.2;   // 拖动灵敏度倍率(1 = 全屏拖 360°;调高更跟手)
+const VIEW_ROT_SPEED = 2.5;   // 拖动灵敏度倍率(1 = 全屏拖 360°;调高更跟手)
 const viewCanvas = document.getElementById('c');
 viewCanvas.addEventListener('pointerdown', e => {
     if (viewMode !== 'view' || e.button !== 0) return;
@@ -449,7 +449,7 @@ addEventListener('blur', () => { viewDragging = false; });
 // 松开拖动后残余角度差 ≤ 一帧的量,几乎察觉不到惯性;拖动中则几乎无延迟跟随。
 function viewRotTick(dt){
     if (viewMode !== 'view') return;
-    const k = 1 - Math.pow(0.001, dt);   // 每秒衰减到千分之一(dt 归一,帧率无关)
+    const k = 1 - Math.pow(0.0001, dt);   // 每秒衰减到万分之一(dt 归一,帧率无关)
     viewYaw += (viewYawGoal - viewYaw) * k;
     viewPitch += (viewPitchGoal - viewPitch) * k;
     camera.rotation.set(viewPitch, viewYaw, 0, 'YXZ');
@@ -469,7 +469,7 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => roamKeys.delete(e.key.toLowerCase()));
 addEventListener('blur', () => roamKeys.clear());
 // 每帧移动步进:两种视角共用(只有前进方向不同)——环绕按水平朝向、主视角沿
-// 完整视线(带俯仰)。速度随视角距离自适应:基础 = 每秒 0.6 倍结构尺寸,拉近视眼
+// 完整视线(带俯仰)。速度随视角距离自适应:基础 = 每秒 1 倍结构尺寸,拉近视眼
 // (到 target 距离小于结构尺寸)按距离比例收慢,近观细部不再一冲而过;帧率无关的
 // 连续移动,没有逐格顿挫。
 function roamTick(dt){
@@ -477,7 +477,7 @@ function roamTick(dt){
     // 视距(相机到轨道目标)与结构尺寸取小者作为尺度基准:默认视角距离 ≈ 结构尺寸,
     // 拉近后距离变小,速度跟着降 —— 贴近看时慢速微调,拉远后恢复整体步幅。
     const dist = camera.position.distanceTo(controls.target);
-    const step = Math.min(lastFitSize, Math.max(dist, lastFitSize * 0.02)) * 0.7 * dt;
+    const step = Math.min(lastFitSize, Math.max(dist, lastFitSize * 0.02)) * 1 * dt;
     // 前进方向 f:环绕 = 视线方向投影到水平面(绕结构转时 WASD 保持水平走);
     // 主视角 = 相机自身朝向(俯冲/爬升时沿视线飞)。
     const f = new THREE.Vector3();
