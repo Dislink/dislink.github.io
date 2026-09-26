@@ -389,9 +389,9 @@ function setViewMode(m){
     document.getElementById('mOrbit').classList.toggle('active', m === 'orbit');
     document.getElementById('mView').classList.toggle('active', m === 'view');
     if (m === 'view'){
-        // 主视角:关掉 OrbitControls 的旋转/平移(保留滚轮缩放=前后移动),
-        // 以当前视线方向为初始 yaw/pitch;target 同步摆到视线前方(否则切回
-        // 来的第一帧 update() 的 lookAt(target) 会把视线拉回旧目标)。
+        // 主视角:关掉 OrbitControls 的旋转/平移/缩放(滚轮被自有监听接管为
+        // 高速前后行进),以当前视线方向为初始 yaw/pitch;target 同步摆到视线
+        // 前方(否则切回来的第一帧 update() 的 lookAt(target) 会把视线拉回旧目标)。
         syncViewAngles();
         viewYawGoal = viewYaw = camera.rotation.y;
         viewPitchGoal = viewPitch = camera.rotation.x;
@@ -400,6 +400,7 @@ function setViewMode(m){
         controls.target.copy(camera.position).addScaledVector(dir, 1);
         controls.enableRotate = false;
         controls.enablePan = false;
+        controls.enableZoom = false;   // 滚轮归冲刺监听,不再轨道缩放
     } else {
         // 回环绕:把 target 摆回视线前方,交还 OrbitControls 轨道旋转
         const dir = new THREE.Vector3();
@@ -409,10 +410,12 @@ function setViewMode(m){
         camera.up.set(0, 1, 0);
         controls.enableRotate = true;
         controls.enablePan = true;
+        controls.enableZoom = true;
+        roamBoost = 0;   // 未消费完的冲刺预算作废,防切回环绕后位置突跳
         controls.update();
     }
     hudEl.textContent = m === 'view'
-        ? '拖拽转动视角 · 滚轮/前后键前进后退 · WASD 移动 · 空格/Shift 升降 · Ctrl+滚轮调切层'
+        ? '拖拽转动视角 · 滚轮前后冲刺 · WASD 移动 · 空格/Shift 升降 · Ctrl+滚轮调切层'
         : '左键拖拽旋转 · 右键平移 · 滚轮缩放 · Ctrl+滚轮调切层 · WASD/空格/Shift 移动';
 }
 const hudEl = document.getElementById('hud');
@@ -423,6 +426,9 @@ document.getElementById('mView').onclick = () => setViewMode('view');
 // 丝滑:拖动增量不直接落到 rotation,先进目标角(viewYaw/viewPitch),每帧以
 // 指数衰减逼近 —— 与 OrbitControls 的 damping 手感一致,停手后还有小段滑行。
 let viewYaw = 0, viewPitch = 0, viewYawGoal = 0, viewPitchGoal = 0;
+// 滚轮冲刺预算(主视角):每格滚轮累积 2.5 格视距的位移,viewRotTick/帧循环里
+// 逐帧消耗。连续滚动叠加、顺滑无顿挫;不按方向保留余额,只保留净额。
+let roamBoost = 0;
 const VIEW_ROT_SPEED = 2.5;   // 拖动灵敏度倍率(1 = 全屏拖 360°;调高更跟手)
 const viewCanvas = document.getElementById('c');
 viewCanvas.addEventListener('pointerdown', e => {
@@ -453,6 +459,17 @@ function viewRotTick(dt){
     viewYaw += (viewYawGoal - viewYaw) * k;
     viewPitch += (viewPitchGoal - viewPitch) * k;
     camera.rotation.set(viewPitch, viewYaw, 0, 'YXZ');
+    // 滚轮冲刺:把预算逐帧折算成沿视线的位移(每帧消耗预算的 12%,约 0.3 秒
+    // 走完一格滚轮的量,连续滚动时移动几乎即时又不瞬移)。速度用固定结构尺度
+    // (不用视距缩放——冲刺就是要快,近距离也一格格冲)。
+    if (roamBoost !== 0){
+        const consume = roamBoost * Math.min(1, dt * 12);
+        const bd = new THREE.Vector3();
+        camera.getWorldDirection(bd);
+        camera.position.addScaledVector(bd, consume * (lastFitSize || 1));
+        roamBoost -= consume;
+        if (Math.abs(roamBoost) < 0.01) roamBoost = 0;   // 残渣清零防无限蠕行
+    }
 }
 
 const roamKeys = new Set();
@@ -1087,19 +1104,31 @@ function init(){
         scaleLineEl.style.width = px + 'px';
     }
 
-    // Ctrl+滚轮:调整切层层数(单独滚轮仍由 OrbitControls 正常缩放)。
-    // OrbitControls 在 new 时就把 wheel 监听挂到了同一个 canvas 上,同元素的
-    // 监听按注册顺序派发 —— 它的 handler 先跑,所以不能指望在这边拦事件
-    // (stopPropagation 只掐祖先传播,拦不住同元素的早注册监听)。正确做法:
-    // Ctrl 按下时先关掉 controls.enableZoom,OrbitControls 的 onMouseWheel
-    // 开头就会因 enableZoom=false 直接 return,缩放根本不会发生;wheel 事件
-    // 到达之前的 keydown/keyup 即开关窗口。preventDefault 仍保留,挡浏览器
-    // 自身的 Ctrl+滚轮页面缩放手势。
+    // Ctrl+滚轮:调整切层层数(单独滚轮在环绕模式仍由 OrbitControls 正常缩放;
+    // 主视角下被下方的 wheel 监听拦为前后行进)。OrbitControls 在 new 时就把
+    // wheel 监听挂到了同一个 canvas 上,同元素的监听按注册顺序派发 —— 它的
+    // handler 先跑,所以不能指望在这边拦事件(stopPropagation 只掐祖先传播,
+    // 拦不住同元素的早注册监听)。正确做法:Ctrl 按下时先关掉
+    // controls.enableZoom,OrbitControls 的 onMouseWheel 开头就会因
+    // enableZoom=false 直接 return,缩放根本不会发生;wheel 事件到达之前的
+    // keydown/keyup 即开关窗口。preventDefault 仍保留,挡浏览器自身的
+    // Ctrl+滚轮页面缩放手势。
     addEventListener('keydown', e => { if (e.key === 'Control') controls.enableZoom = false; });
     addEventListener('keyup',   e => { if (e.key === 'Control') controls.enableZoom = true; });
     addEventListener('blur',    () => { controls.enableZoom = true; });   // 失焦时松了 Ctrl 别卡死缩放
     document.getElementById('c').addEventListener('wheel', e => {
-        if (!e.ctrlKey || !hasFile) return;
+        if (!hasFile) return;
+        if (viewMode === 'view'){
+            // 主视角:滚轮 = 高速前后行进(不改变视野)。OrbitControls 的缩放
+            // 走 enableZoom;主视角常驻关闭,切回环绕时恢复(见 setViewMode)。
+            e.preventDefault();
+            // deltaY<0(向上滚)前进,deltaY>0(向下滚)后退;一格 ≈ 3 秒全程,
+            // 高速冲刺比按住 W 快得多。连续滚动叠加,顺滑无顿挫。
+            const d = e.deltaY < 0 ? 1 : -1;
+            roamBoost += d * 2.5;   // 累积到冲刺预算,viewTick 里按视距尺度折算步进
+            return;
+        }
+        if (!e.ctrlKey) return;
         e.preventDefault();
         const el = clipYEl;
         const cur = parseInt(el.value) || 0;
