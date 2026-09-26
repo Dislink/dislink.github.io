@@ -53,7 +53,7 @@ npm run publish          # 内部会先 build，可加 --skip-build 跳过
 ## 约定速查（从旧目录会话沿用）
 
 - 绝不 `git add -A`（源码仓库正常提交时也一样，明确指定文件）；不提交 `classes.jar`、`debug/`、`.claude-scratch/`、`structure-viewer/gen/_misses.json`、`_stage2.json`、截图杂物。
-- **CORE_V 穿透**：wasm 核心重新部署时，`structure-viewer/worker.js` 和 `structure-convertor/worker.js` 的 `CORE_V` 必须同步递增（当前 `'v9'`），否则浏览器拿缓存旧 core。
+- **CORE_V 穿透**：wasm 核心重新部署时，`structure-viewer/worker.js` 和 `structure-convertor/worker.js` 的 `CORE_V` 必须同步递增（当前 `'v12'`），否则浏览器拿缓存旧 core。
 - 查看器页保留 Mojang 材质版权声明；页面 UI 全中文；工具页公共 head（GA G-HJVLPQTQE6 / 百度统计 hm.js?34e9d302... / AdSense / error-handler.js）、标题后缀 `| By Dislink`、页脚骨架统一（见 `css/style.css` 与任一工具页）。
 - 广告授权：根目录 `ads.txt`（pub-7210376314498048）。
 - 站点静态无构建产物依赖——除 `build/` 生成物外不要引入需要 npm 构建的运行时代码。
