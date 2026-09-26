@@ -1104,11 +1104,11 @@ function init(){
         scaleLineEl.style.width = px + 'px';
     }
 
-    // Ctrl+滚轮:调整切层层数(单独滚轮在环绕模式仍由 OrbitControls 正常缩放;
-    // 主视角下被下方的 wheel 监听拦为前后行进)。OrbitControls 在 new 时就把
-    // wheel 监听挂到了同一个 canvas 上,同元素的监听按注册顺序派发 —— 它的
-    // handler 先跑,所以不能指望在这边拦事件(stopPropagation 只掐祖先传播,
-    // 拦不住同元素的早注册监听)。正确做法:Ctrl 按下时先关掉
+    // Ctrl+滚轮:调整切层层数(两种视角一致;无 Ctrl 的滚轮在环绕模式交给
+    // OrbitControls 缩放、主视角模式被下方监听拦为前后冲刺)。OrbitControls 在
+    // new 时就把 wheel 监听挂到了同一个 canvas 上,同元素的监听按注册顺序派发
+    // —— 它的 handler 先跑,所以不能指望在这边拦事件(stopPropagation 只掐祖先
+    // 传播,拦不住同元素的早注册监听)。正确做法:Ctrl 按下时先关掉
     // controls.enableZoom,OrbitControls 的 onMouseWheel 开头就会因
     // enableZoom=false 直接 return,缩放根本不会发生;wheel 事件到达之前的
     // keydown/keyup 即开关窗口。preventDefault 仍保留,挡浏览器自身的
@@ -1118,27 +1118,31 @@ function init(){
     addEventListener('blur',    () => { controls.enableZoom = true; });   // 失焦时松了 Ctrl 别卡死缩放
     document.getElementById('c').addEventListener('wheel', e => {
         if (!hasFile) return;
+        // Ctrl+滚轮 = 调切层:两种视角一致,分流放最前,主视角的冲刺分支不得吃掉它。
+        if (e.ctrlKey){
+            e.preventDefault();
+            const el = clipYEl;
+            const cur = parseInt(el.value) || 0;
+            // deltaY<0(向上滚)增层,deltaY>0(向下滚)减层;每格 1 层,与滑块同界。
+            const dir = e.deltaY < 0 ? 1 : -1;
+            const next = Math.min(parseInt(el.max) || 0, Math.max(0, cur + dir));
+            if (next !== cur){
+                el.value = String(next);
+                applyClip();
+            }
+            return;
+        }
         if (viewMode === 'view'){
             // 主视角:滚轮 = 高速前后行进(不改变视野)。OrbitControls 的缩放
             // 走 enableZoom;主视角常驻关闭,切回环绕时恢复(见 setViewMode)。
             e.preventDefault();
-            // deltaY<0(向上滚)前进,deltaY>0(向下滚)后退;一格 ≈ 3 秒全程,
-            // 高速冲刺比按住 W 快得多。连续滚动叠加,顺滑无顿挫。
+            // deltaY<0(向上滚)前进,deltaY>0(向下滚)后退;连续滚动叠加,
+            // 顺滑无顿挫。
             const d = e.deltaY < 0 ? 1 : -1;
             roamBoost += d * 0.05;   // 累积到冲刺预算,viewTick 里按结构尺度折算步进
             return;
         }
-        if (!e.ctrlKey) return;
-        e.preventDefault();
-        const el = clipYEl;
-        const cur = parseInt(el.value) || 0;
-        // deltaY<0(向上滚)增层,deltaY>0(向下滚)减层;每格 1 层,与滑块同界。
-        const dir = e.deltaY < 0 ? 1 : -1;
-        const next = Math.min(parseInt(el.max) || 0, Math.max(0, cur + dir));
-        if (next !== cur){
-            el.value = String(next);
-            applyClip();
-        }
+        if (!e.ctrlKey) return;   // 环绕模式无 Ctrl 的普通滚轮交给 OrbitControls 缩放
     }, { passive: false });
 
     let lastAnimT = 0;
