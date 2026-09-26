@@ -390,8 +390,12 @@ function setViewMode(m){
     document.getElementById('mView').classList.toggle('active', m === 'view');
     if (m === 'view'){
         // 主视角:关掉 OrbitControls 的旋转/平移(保留滚轮缩放=前后移动),
-        // 以当前视线方向为初始 yaw/pitch
+        // 以当前视线方向为初始 yaw/pitch;target 同步摆到视线前方(否则切回
+        // 来的第一帧 update() 的 lookAt(target) 会把视线拉回旧目标)。
         syncViewAngles();
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        controls.target.copy(camera.position).addScaledVector(dir, 1);
         controls.enableRotate = false;
         controls.enablePan = false;
     } else {
@@ -1092,11 +1096,16 @@ function init(){
         const dt = lastAnimT === 0 ? 0 : Math.min(((now || 0) - lastAnimT) / 1000, 0.1);
         lastAnimT = now || 0;
         roamTick(dt);
-        // 主视角:相机朝向由拖动直接写在 rotation 上。这里不调 lookAt —— 它会
-        // 用 world-up 重算 up 向量,仰视/俯视超过 90° 时 up 翻转、画面跳变;
-        // rotation 本身已把朝向写好,直接交给 OrbitControls.update() 重新读
-        // position(它会无条件 lookAt(target),而 target 恒在视线前方,等价
-        // 于保持朝向)。环绕模式则由 OrbitControls 正常处理轨道旋转。
+        // 主视角:target 必须每帧同步到视线前方 —— 拖动改 rotation 只动朝向不动
+        // target,若 target 停留在旧位置,OrbitControls.update() 的 lookAt(target)
+        // 会把视线拉回旧目标,拖动立刻被弹回(实测"主视角不能旋转"的根因)。
+        // 每帧把 target 摆到当前视线前方 1 格,update() 的 lookAt 等价于保持朝向。
+        if (viewMode === 'view'){
+            const vdir = new THREE.Vector3();
+            camera.getWorldDirection(vdir);
+            controls.target.copy(camera.position).addScaledVector(vdir, 1);
+        }
+        // 环绕模式由 OrbitControls 正常处理轨道旋转。
         controls.update();
         renderer.render(scene, camera);
         updateScaleBar();
