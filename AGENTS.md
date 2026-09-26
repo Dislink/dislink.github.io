@@ -33,7 +33,8 @@ npm run publish          # 内部会先 build，可加 --skip-build 跳过
 
 ## 构建管线细节（scripts/build.mjs）
 
-- **压缩**：39 个 JS（terser `minify` API，`importScripts` 开头的 worker 按 script 语义、其余按 module）、css/style.css（clean-css level 2）、20 个 HTML（html-minifier-terser，内联 script/css 一并压）。
+- **压缩**：39 个 JS（terser `minify` API，css/style.css 走 clean-css level 2）、20 个 HTML（html-minifier-terser，内联 script/css 一并压）。
+- ⚠️ **terser 语义铁律**：除 `ES_MODULES` 白名单（`structure-viewer/three/OrbitControls.js` 两份，真 ES module）外，**所有 js 一律 `module:false`（classic script 语义）压缩**。terser `module:true` 会把没有 export 的顶层 class/function/var 当死代码删光——`javascript/*.js` 是 classic `<script>` 全局库，顶层声明（`Matrix`/`Block`/`MIDIEvents`/`saveAs`/…）就是页面依赖的 API。曾有版本用 `importScripts` 启发式误判，线上 img2block/MIDI 页/全部下载按钮集体 `undefined`。新增真 ES module 的 js 才需要加白名单。
 - **原样复制**：图片/字体/音频/wasm/pdata/bake.bin/图集/tiles/three 等二进制与数据。
 - **JS_SKIP**（跳过压缩，原样复制）：
   - `javascript/brotli.min.js`、`javascript/jszip.min.js`、`javascript/zlib.min.js`、`javascript/Brotli.decompress.js`（第三方已压缩）
