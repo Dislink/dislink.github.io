@@ -393,6 +393,8 @@ function setViewMode(m){
         // 以当前视线方向为初始 yaw/pitch;target 同步摆到视线前方(否则切回
         // 来的第一帧 update() 的 lookAt(target) 会把视线拉回旧目标)。
         syncViewAngles();
+        viewYawGoal = viewYaw = camera.rotation.y;
+        viewPitchGoal = viewPitch = camera.rotation.x;
         const dir = new THREE.Vector3();
         camera.getWorldDirection(dir);
         controls.target.copy(camera.position).addScaledVector(dir, 1);
@@ -416,25 +418,41 @@ function setViewMode(m){
 const hudEl = document.getElementById('hud');
 document.getElementById('mOrbit').onclick = () => setViewMode('orbit');
 document.getElementById('mView').onclick = () => setViewMode('view');
-// 主视角的鼠标拖动 = 转动相机自身朝向(环绕模式下这些监听直接跳过,
-// OrbitControls 的指针处理不受影响 —— 两套监听并存,按模式各自生效)
-const viewCanvas = document.getElementById('c');
+// 主视角的拖动旋转 = 转动相机自身朝向(环绕模式下这些监听直接跳过,
+// OrbitControls 的指针处理不受影响 —— 两套监听并存,按模式各自生效)。
+// 丝滑:拖动增量不直接落到 rotation,先进目标角(viewYaw/viewPitch),每帧以
+// 指数衰减逼近 —— 与 OrbitControls 的 damping 手感一致,停手后还有小段滑行。
+let viewYaw = 0, viewPitch = 0, viewYawGoal = 0, viewPitchGoal = 0;
+const VIEW_ROT_SPEED = 2.2;   // 拖动灵敏度倍率(1 = 全屏拖 360°;略调高更跟手)
 viewCanvas.addEventListener('pointerdown', e => {
     if (viewMode !== 'view' || e.button !== 0) return;
     viewDragging = true; viewLastX = e.clientX; viewLastY = e.clientY;
+    // 拖动起点先把手感状态对齐到当前朝向,防切换/移动后累积的角度差一次跳转
+    syncViewAngles();
+    viewYawGoal = viewYaw = camera.rotation.y;
+    viewPitchGoal = viewPitch = camera.rotation.x;
     viewCanvas.setPointerCapture(e.pointerId);
 });
 viewCanvas.addEventListener('pointermove', e => {
     if (!viewDragging) return;
     const dx = e.clientX - viewLastX, dy = e.clientY - viewLastY;
     viewLastX = e.clientX; viewLastY = e.clientY;
-    const s = 2 * Math.PI / viewCanvas.clientHeight;   // 与 OrbitControls 同刻度:全屏拖动=360°
-    camera.rotation.y -= dx * s;          // yaw:左右拖动水平转
-    camera.rotation.x -= dy * s;          // pitch:上下拖动俯仰
-    camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+    const s = 2 * Math.PI / viewCanvas.clientHeight * VIEW_ROT_SPEED;
+    viewYawGoal -= dx * s;                // yaw:左右拖动水平转
+    viewPitchGoal -= dy * s;              // pitch:上下拖动俯仰
+    viewPitchGoal = Math.max(-Math.PI/2, Math.min(Math.PI/2, viewPitchGoal));
 });
 addEventListener('pointerup', () => { viewDragging = false; });
 addEventListener('blur', () => { viewDragging = false; });
+// 每帧把目标角平滑应用到相机(主视角):指数逼近,帧率无关,停手自然滑停。
+// 松开拖动后残余角度差 ≤ 一帧的量,几乎察觉不到惯性;拖动中则几乎无延迟跟随。
+function viewRotTick(dt){
+    if (viewMode !== 'view') return;
+    const k = 1 - Math.pow(0.0001, dt);   // 每秒衰减到万分之一(dt 归一,帧率无关)
+    viewYaw += (viewYawGoal - viewYaw) * k;
+    viewPitch += (viewPitchGoal - viewPitch) * k;
+    camera.rotation.set(viewPitch, viewYaw, 0, 'YXZ');
+}
 
 const roamKeys = new Set();
 addEventListener('keydown', e => {
@@ -450,12 +468,15 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => roamKeys.delete(e.key.toLowerCase()));
 addEventListener('blur', () => roamKeys.clear());
 // 每帧移动步进:两种视角共用(只有前进方向不同)——环绕按水平朝向、主视角沿
-// 完整视线(带俯仰)。速度 = 每秒 0.35 倍结构尺寸 × 帧间隔 —— 帧率无关的连续
-// 移动,没有逐格顿挫(旧实现每次 keydown 跳固定一格,按住时受系统按键重复
-// 节拍限制,呈格子感)。
+// 完整视线(带俯仰)。速度随视角距离自适应:基础 = 每秒 0.35 倍结构尺寸,拉近视眼
+// (到 target 距离小于结构尺寸)按距离比例收慢,近观细部不再一冲而过;帧率无关的
+// 连续移动,没有逐格顿挫。
 function roamTick(dt){
     if (roamKeys.size === 0 || !lastFitC || dt <= 0) return;
-    const step = lastFitSize * 0.35 * dt;
+    // 视距(相机到轨道目标)与结构尺寸取小者作为尺度基准:默认视角距离 ≈ 结构尺寸,
+    // 拉近后距离变小,速度跟着降 —— 贴近看时慢速微调,拉远后恢复整体步幅。
+    const dist = camera.position.distanceTo(controls.target);
+    const step = Math.min(lastFitSize, Math.max(dist, lastFitSize * 0.02)) * 0.35 * dt;
     // 前进方向 f:环绕 = 视线方向投影到水平面(绕结构转时 WASD 保持水平走);
     // 主视角 = 相机自身朝向(俯冲/爬升时沿视线飞)。
     const f = new THREE.Vector3();
@@ -478,7 +499,8 @@ function roamTick(dt){
     if (roamKeys.has('shift')) dy -= step;
     camera.position.x += dx; camera.position.y += dy; camera.position.z += dz;
     if (viewMode === 'view'){
-        // 主视角:相机自由飞,target 摆到视线前方 1 格(仅作滚轮缩放基准)
+        // 主视角:相机自由飞,target 摆到视线前方(与帧循环同款 1 格,保证
+        // 视距尺度稳定,不随移动跳变)
         controls.target.copy(camera.position).addScaledVector(f, 1);
     } else {
         controls.target.x += dx; controls.target.y += dy; controls.target.z += dz;
@@ -1095,6 +1117,7 @@ function init(){
         // 切回来时一步跳很远)。小 dt 抖动不影响手感,无需平滑。
         const dt = lastAnimT === 0 ? 0 : Math.min(((now || 0) - lastAnimT) / 1000, 0.1);
         lastAnimT = now || 0;
+        viewRotTick(dt);   // 主视角:目标角指数逼近(拖动丝滑的关键),先于 target 同步
         roamTick(dt);
         // 主视角:target 必须每帧同步到视线前方 —— 拖动改 rotation 只动朝向不动
         // target,若 target 停留在旧位置,OrbitControls.update() 的 lookAt(target)
