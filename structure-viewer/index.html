@@ -1125,7 +1125,7 @@ function init(){
             // deltaY<0(向上滚)前进,deltaY>0(向下滚)后退;一格 ≈ 3 秒全程,
             // 高速冲刺比按住 W 快得多。连续滚动叠加,顺滑无顿挫。
             const d = e.deltaY < 0 ? 1 : -1;
-            roamBoost += d * 2.5;   // 累积到冲刺预算,viewTick 里按视距尺度折算步进
+            roamBoost += d * 0.25;   // 累积到冲刺预算,viewTick 里按结构尺度折算步进
             return;
         }
         if (!e.ctrlKey) return;
