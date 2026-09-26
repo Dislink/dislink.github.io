@@ -424,6 +424,7 @@ document.getElementById('mView').onclick = () => setViewMode('view');
 // 指数衰减逼近 —— 与 OrbitControls 的 damping 手感一致,停手后还有小段滑行。
 let viewYaw = 0, viewPitch = 0, viewYawGoal = 0, viewPitchGoal = 0;
 const VIEW_ROT_SPEED = 2.2;   // 拖动灵敏度倍率(1 = 全屏拖 360°;略调高更跟手)
+const viewCanvas = document.getElementById('c');
 viewCanvas.addEventListener('pointerdown', e => {
     if (viewMode !== 'view' || e.button !== 0) return;
     viewDragging = true; viewLastX = e.clientX; viewLastY = e.clientY;
