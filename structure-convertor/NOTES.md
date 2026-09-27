@@ -63,6 +63,9 @@
 - **"少数区块没了"先核对源文件**:产物比源少的列,先跑查看器路径(核心 `_core_load` + `_core_block_at`)数源文件自己的非空列,两边列集合应逐一相等(zhucheng 实测 225/225)——源里本身就是空的区块,写出端不背这个锅。
 - 验证链:站点侧 `.claude-scratch/verify_v21.py`(位宽表/0x31 长度与 NBT 解析/记录标签直方图一次过)+ Kali `g++ -lleveldb` 跑 stock leveldb Open + 全量迭代 + 入游戏人验。**条目数 = 列数×8 + 子区块数 + 1**(每列 0x2b/0x2c/0x31/0x36/0x3f/0x40/0x41/0x77 共 8 条,子区块 0x2f 每条一格,末尾一条全局 `scoreboard`;去掉 0x54 后是 8 不是 9——zhucheng 实测 225 列:9 字节键 1800 + 10 字节键 703(702 子区块 + scoreboard)= 2503,无重复键、tag 直方图逐项吻合)。**给用户测的样例先 `zipfile.namelist()` 确认含 `db/000001.ldb`**——曾有一份 1147B、整份没有 db/ 的文件被当产物测了一轮,反馈完全无效。
 - 实现细节与 wire 形状见引擎仓库 `docs/formats.md` 的「mcworld 输出」专节。
+- **世界是虚空(2026-09-27 改)**,原来写的是 ClassicFlat 超平坦(bedrock/dirt/grass_block),导入后结构外面会长出一整片草地平面。虚空形状逐字节取自真实基岩虚空世界(kirbycope/void-world-bedrock 的 level.dat):`Generator` 仍是 **2**(平坦),但 `FlatWorldLayers` 的 `block_layers` 是**空数组**、**没有 `preset_id`**、带 `"structure_options":null`。三点都必须:基岩开发 wiki 的 FlatWorldGeneratorOptions 里 `block_layers` 是唯一地形来源(1.18+ 世界只在 Y=-64 预填 64 格空气),空列表 = 什么都不生成;schema 里根本没有 `preset_id` 字段,**留着旧的 `"ClassicFlat"` 有可能被按预设重新长出地形**。
+- **出生点写真实坐标**(原来是 `SpawnY 32767` 这个“世界表面”哨兵):虚空世界里它找不到地面,玩家会直接掉下去。现在取**区域中心列最顶非空方块上方 1 格**,该列整列为空(环形/中庭布局)时退化为全区域自顶向下第一个非空方块,Y 夹到 -63..319。zhucheng 实测出生点 (91,63,167):脚下是 `minecraft:stonebrick`、身体那格是空气(探针 `.claude-scratch/verify_spawn.js`,走查看器路径读源文件自身方块核对)。
+- ⚠️ 世界变成虚空后,**走出结构范围就是掉虚空**——这是虚空世界的固有行为,不是 bug。
 
 ## 四、wasm 核心 C ABI
 
