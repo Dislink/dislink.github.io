@@ -42,9 +42,9 @@
 
 - Java 方块属性落到基岩:布尔型写 Byte(`in_wall_bit=true`),枚举数字写 Int(`facing_direction=5`),文本枚举写 String(`stone_type=diorite_smooth`/`color=white`)。已在 ma.bdx、mcworld、litematic 三个来源验证属性名干净(无 waterlogged/axis 泄漏)。
 - legacy data(数字元数据)→ 基岩属性:走 data2bck 表,例 rt 412/413 → `birch_fence_gate[direction=0/1,...]`,rt 500 → `blackstone_wall[...]`。
-- `.schematic`(MCEdit 旧版)**不支持**,页面文案"旧版 .schematic 暂不支持"是预期行为;`.schem`、`.litematic`、`.mcstructure`、`.bdx`、`.wsmr`、`mcworld/mcpack/mcaddon/zip/.mca` 都支持。
-- 多区域文档:litematic 保留全部区域;mcstructure/schem/wsmr/bdx 只取**第一个区域**。
-- 世界容器(mcworld/db)只作解析输入:按全部区块包围盒展开,取第 1 个区域。文件名带 `名称@[x1,y1,z1]~[x2,y2,z2]` 约定时(index.html 的 CROP_RE)只转该包围盒、输出名取 `@` 前部分。**裁剪坐标一律向外对齐到 16 的区块边界**(min 三轴向下取整、max 三轴取到块尾 15,`parseCropName` 里做),如 `[-280,-64,-250]~[250,200,250]` 实际裁 [-288,-64,-256]~[255,207,255]——世界按 16³ 子区块存取,箱子边切在子区块中间会因展开取整丢边(最顶层缺一截就是 y=200 落在子区块 12 中间)。这不是可选优化:子区块是 db/ 的最小存取粒度,不对齐就必然丢边。
+- `.schematic`(MCEdit 旧版)输入输出**都已支持**(M13):导入走 Materials/Blocks/Data/AddBlocks/WEOrigin,导出经生成表 `schematic_ids.cpp` 反查 1.12 数字 id。`.schem`、`.litematic`、`.mcstructure`、`.bdx`、`.wsmr`、`.schematic`、`mcworld/mcpack/mcaddon/zip/.mca` 都支持。
+- 多区域文档:litematic 保留全部区域;mcstructure/schem/wsmr/bdx/mcworld 只取**第一个区域**(mcworld 多区域直接 `kUnsupported` 拒转)。
+- 世界容器(mcworld/db)解析输入:按全部区块包围盒展开,取第 1 个区域;mcworld 同时是**输出格式**(格式码 6,基岩版世界 zip)。文件名带 `名称@[x1,y1,z1]~[x2,y2,z2]` 约定时(index.html 的 CROP_RE)只转该包围盒、输出名取 `@` 前部分。**裁剪坐标一律向外对齐到 16 的区块边界**(min 三轴向下取整、max 三轴取到块尾 15,`parseCropName` 里做),如 `[-280,-64,-250]~[250,200,250]` 实际裁 [-288,-64,-256]~[255,207,255]——世界按 16³ 子区块存取,箱子边切在子区块中间会因展开取整丢边(最顶层缺一截就是 y=200 落在子区块 12 中间)。这不是可选优化:子区块是 db/ 的最小存取粒度,不对齐就必然丢边。
 
 ## 三点五、mcworld db/(LevelDB)——journal 不读就丢一整条竖带(2026-09-24 修)
 
@@ -56,9 +56,18 @@
 - **分片重组的坑(同日二修)**:读完 journal 后仍缺带,这次是 walk 的分片重组用 `pending.empty()` 判断"是否有进行中的分片链"——真实世界在 32KiB 块边界出现**零长度 FIRST 片**(payload len=0,记录体全在后续块),`pending.assign(空)` 后向量仍为 empty,下个块的 LAST 被误判 `LAST without FIRST`,**walk 直接 return,断点之后的 ~8198 条(x 子区 6..15)全部无声丢弃**。修法:独立 `in_fragment` 布尔跟踪链状态。教训:分片/状态机类循环,状态标志不要复用容器非空语义。
 - **教训**:"游戏能读而引擎不能"的输入,优先怀疑引擎少读了某类文件(db/*.log、嵌套容器条目),而不是文件本身有问题;`.ldb` 键覆盖范围只是下界。
 
+## 三点六、mcworld 写出(2026-09-27 定位,1.26 实机确认可进游戏)
+
+- **判据**:"凡是**只有我们写**的形状(任何可加载世界都不含)一律视为崩溃嫌疑"——逐字节对拍游戏自身 1.26 导出 + dev.html 参照导出。最后落定的三处偏差:子区块位宽 7 要顶成 **8**(游戏档位 2→1/3..4→2/5..8→3/9..16→4/17..32→5/33..64→6/>64→8,**从不写 7**)、无方块实体的列 0x31 要写 **0 字节空值**(不是 4 字节无名 compound)、**不写 0x54**(区块最后保存时间;我们曾写全零=1970)。
+- **"空"的形状不是罪**:全空子区块/全空列不落记录是参照实现的选择;游戏自身导出反倒**会**给全空子区块写 3 字节 `09 00 y` 0-storage 记录(单世界 16247 条),两种都能加载。别把"可加载世界没有"当判据,要以"游戏能读"为准。
+- **"少数区块没了"先核对源文件**:产物比源少的列,先跑查看器路径(核心 `_core_load` + `_core_block_at`)数源文件自己的非空列,两边列集合应逐一相等(zhucheng 实测 225/225)——源里本身就是空的区块,写出端不背这个锅。
+- 验证链:站点侧 `.claude-scratch/verify_v21.py`(位宽表/0x31 长度与 NBT 解析/记录标签直方图一次过)+ Kali `g++ -lleveldb` 跑 stock leveldb Open + 全量迭代 + 入游戏人验。**条目数 = 列数×8 + 子区块数 + 1**(每列 0x2b/0x2c/0x31/0x36/0x3f/0x40/0x41/0x77 共 8 条,子区块 0x2f 每条一格,末尾一条全局 `scoreboard`;去掉 0x54 后是 8 不是 9——zhucheng 实测 225 列:9 字节键 1800 + 10 字节键 703(702 子区块 + scoreboard)= 2503,无重复键、tag 直方图逐项吻合)。**给用户测的样例先 `zipfile.namelist()` 确认含 `db/000001.ldb`**——曾有一份 1147B、整份没有 db/ 的文件被当产物测了一轮,反馈完全无效。
+- 实现细节与 wire 形状见引擎仓库 `docs/formats.md` 的「mcworld 输出」专节。
+
 ## 四、wasm 核心 C ABI
 
-- `core_convert(data,size,int out_fmt)`:格式码 **0=mcstructure 1=litematic 2=schem 3=wsmr 4=bdx**;`char*` 形参编组不稳,必须 int。
+- `core_convert(data,size,int out_fmt)`:格式码 **0=mcstructure 1=litematic 2=schem 3=wsmr 4=bdx 5=schematic 6=mcworld**;`char*` 形参编组不稳,必须 int。
+- `core_convert_name(const char*)` / `core_convert_bbox(int32_t* out6)`:mcworld 命名约定用——前者设输出世界名(覆盖文档自带名,写进 level.dat 的 LevelName,须在 `core_convert*` 之前调用),后者读**最近一次转换产出区域**的世界坐标包围盒(返回 0=尚无成功转换)。
 - `core_convert_crop(data,size,out_fmt,const int32_t* min6)`:min6 = {x1,y1,z1,x2,y2,z2} **世界坐标**含端点裁剪箱;解析后取第 1 个区域裁剪、重定 origin 到箱角,再编码;>220M 格拒转。配合 mcworld 文件名约定(worker.js 传 min6,裁剪箱指针 malloc 在 wasm 堆上、i32×6)。
 - `mcstruct_region_info(..., palette_size*, block_count*)`:**block_count = r.blocks.size() = 体积**(含 air),不是非空数——`core_wasm.cpp` 的 OOM 守卫依赖这个语义,测试和调用方都别想当然改成非空数。
 - `_core_convert` **不设置** g_region/g_have(那是 `_core_load`/查看器路径的事),两个入口不要混用假设。
