@@ -4,21 +4,21 @@
     <loc>https://dislink.github.io/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-    <lastmod>2026-10-13</lastmod>
+    <lastmod>2026-10-19</lastmod>
   </url>
 
   <url>
     <loc>https://dislink.github.io/midi2mcfunction/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-19</lastmod>
   </url>
 
   <url>
     <loc>https://dislink.github.io/midiconvertor/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-19</lastmod>
   </url>
 
   <url>
@@ -46,7 +46,7 @@
     <loc>https://dislink.github.io/img2block/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-19</lastmod>
   </url>
 
   <url>
@@ -74,7 +74,7 @@
     <loc>https://dislink.github.io/command-extractor/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-19</lastmod>
   </url>
 
   <url>
@@ -159,6 +159,13 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <lastmod>2026-10-13</lastmod>
+  </url>
+
+  <url>
+    <loc>https://dislink.github.io/model2structure/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-10-21</lastmod>
   </url>
 
 </sitemap>
